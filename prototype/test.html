@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MediaPipe Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <h1>MediaPipe Test</h1>
+  <video id="video" width="640" height="480" autoplay playsinline style="transform: scaleX(-1)"></video>
+  <div id="status">Loading...</div>
+  <div id="output">Fingers: 0</div>
+
+  <script>
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+    const output = document.getElementById('output');
+
+    async function init() {
+      try {
+        status.textContent = 'Requesting camera...';
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        await video.play();
+        status.textContent = 'Camera active. Loading MediaPipe...';
+
+        if (typeof Hands === 'undefined') {
+          status.textContent = 'ERROR: Hands not found! Check console.';
+          console.error('Hands class not found on window');
+          return;
+        }
+
+        const hands = new Hands({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.5
+        });
+
+        hands.onResults((results) => {
+          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const lm = results.multiHandLandmarks[0];
+            let count = 0;
+
+            // Simple finger counting
+            // Thumb: tip(4) further from wrist(0) than IP(3)
+            const thumbDist = Math.hypot(lm[4].x - lm[0].x, lm[4].y - lm[0].y);
+            const ipDist = Math.hypot(lm[3].x - lm[0].x, lm[3].y - lm[0].y);
+            if (thumbDist > ipDist * 1.1) count++;
+
+            // Index: tip(8) above PIP(6)
+            if (lm[8].y < lm[6].y - 0.03) count++;
+            // Middle: tip(12) above PIP(10)
+            if (lm[12].y < lm[10].y - 0.03) count++;
+            // Ring: tip(16) above PIP(14)
+            if (lm[16].y < lm[14].y - 0.03) count++;
+            // Pinky: tip(20) above PIP(18)
+            if (lm[20].y < lm[18].y - 0.03) count++;
+
+            const chords = ['Em', 'Am', 'G', 'C', 'D', 'F'];
+            output.textContent = `Fingers: ${count} → Chord: ${chords[count]}`;
+            output.style.color = '#0f0';
+          } else {
+            output.textContent = 'No hand detected';
+            output.style.color = '#ff0';
+          }
+        });
+
+        status.textContent = 'MediaPipe ready! Show your hand...';
+
+        // Process frames
+        async function processFrame() {
+          if (video.readyState >= 2) {
+            await hands.send({ image: video });
+          }
+          requestAnimationFrame(processFrame);
+        }
+        processFrame();
+
+      } catch (err) {
+        status.textContent = 'ERROR: ' + err.message;
+        console.error(err);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

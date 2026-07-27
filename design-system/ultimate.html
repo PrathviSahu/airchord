@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AirChord — Ultimate 3D Experience</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Righteous&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollToPlugin.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-deep: #020208;
+      --bg: #060612;
+      --surface: #0D0D20;
+
+      /* Concert Neon Palette */
+      --neon-purple: #A855F7;
+      --neon-purple-deep: #7C3AED;
+      --neon-purple-glow: rgba(168, 85, 247, 0.5);
+      --neon-blue: #3B82F6;
+      --neon-blue-glow: rgba(59, 130, 246, 0.5);
+      --neon-cyan: #06B6D4;
+      --neon-cyan-glow: rgba(6, 182, 212, 0.5);
+      --neon-pink: #EC4899;
+      --neon-pink-glow: rgba(236, 72, 153, 0.5);
+      --neon-green: #10B981;
+      --neon-amber: #F59E0B;
+
+      /* Guitar Colors */
+      --wood-dark: #1C1008;
+      --wood: #3D2314;
+      --wood-light: #5C3A1E;
+      --wood-highlight: #8B5E3C;
+
+      --string-silver: #C0C0C0;
+
+      --text: #F1F5F9;
+      --text-dim: #94A3B8;
+      --text-muted: #64748B;
+
+      --font-heading: 'Righteous', cursive;
+      --font-body: 'Poppins', sans-serif;
+      --font-mono: 'Space Grotesk', monospace;
+    }
+
+    html { scroll-behavior: auto; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-deep);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ========== LOADING ========== */
+    .loader {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-deep);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      gap: 40px;
+    }
+
+    .loader-logo {
+      font-family: var(--font-heading);
+      font-size: 72px;
+      background: linear-gradient(135deg, var(--neon-purple), var(--neon-cyan), var(--neon-pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .loader-bar {
+      width: 240px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px;
+      overflow: hidden;
+      opacity: 0;
+    }
+
+    .loader-progress {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--neon-purple), var(--neon-cyan), var(--neon-pink));
+      border-radius: 2px;
+      box-shadow: 0 0 20px var(--neon-purple-glow);
+    }
+
+    .loader-text {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 6px;
+      opacity: 0;
+    }
+
+    /* ========== THREE.JS CANVAS ========== */
+    #three-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+
+    /* ========== UI OVERLAY ========== */
+    .ui-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .ui-overlay > * {
+      pointer-events: auto;
+    }
+
+    /* ========== NAV ========== */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 24px 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+      opacity: 0;
+    }
+
+    .nav-logo {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      background: linear-gradient(135deg, var(--neon-purple), var(--neon-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 40px;
+    }
+
+    .nav-links a {
+      color: rgba(255, 255, 255, 0.6);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: var(--neon-purple);
+      transition: width 0.3s ease;
+    }
+
+    .nav-links a:hover {
+      color: #fff;
+    }
+
+    .nav-links a:hover::after {
+      width: 100%;
+    }
+
+    .nav-cta {
+      padding: 12px 28px;
+      background: linear-gradient(135deg, var(--neon-purple), var(--neon-pink));
+      color: #fff;
+      border: none;
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font-body);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 20px var(--neon-purple-glow);
+    }
+
+    .nav-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px var(--neon-purple-glow);
+    }
+
+    /* ========== SCROLL PROGRESS ========== */
+    .scroll-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--neon-purple), var(--neon-cyan), var(--neon-pink));
+      z-index: 10001;
+      transform-origin: left;
+      transform: scaleX(0);
+      box-shadow: 0 0 10px var(--neon-purple-glow);
+    }
+
+    /* ========== HERO TEXT ========== */
+    .hero-text {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 100;
+      opacity: 0;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 24px;
+      background: rgba(168, 85, 247, 0.1);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--neon-purple);
+      margin-bottom: 32px;
+      letter-spacing: 1px;
+    }
+
+    .hero-badge .pulse {
+      width: 8px;
+      height: 8px;
+      background: var(--neon-green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+      50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    }
+
+    .hero-title {
+      font-family: var(--font-heading);
+      font-size: clamp(56px, 12vw, 140px);
+      line-height: 0.95;
+      margin-bottom: 24px;
+    }
+
+    .hero-title .line {
+      display: block;
+      overflow: hidden;
+    }
+
+    .hero-title .gradient {
+      background: linear-gradient(135deg, #fff 0%, var(--neon-purple) 50%, var(--neon-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(16px, 2vw, 22px);
+      color: var(--text-dim);
+      max-width: 500px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+    }
+
+    .hero-cta-group {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+    }
+
+    .btn-hero {
+      padding: 18px 48px;
+      border-radius: 100px;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: var(--font-body);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: none;
+    }
+
+    .btn-hero-primary {
+      background: linear-gradient(135deg, var(--neon-purple), var(--neon-pink));
+      color: #fff;
+      box-shadow: 0 10px 40px var(--neon-purple-glow);
+    }
+
+    .btn-hero-primary:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 20px 60px var(--neon-purple-glow);
+    }
+
+    .btn-hero-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-hero-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--neon-purple);
+      transform: translateY(-3px);
+    }
+
+    .scroll-hint {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      z-index: 100;
+      opacity: 0;
+    }
+
+    .scroll-hint span {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    .scroll-mouse {
+      width: 24px;
+      height: 38px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      position: relative;
+    }
+
+    .scroll-mouse::after {
+      content: '';
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 3px;
+      height: 8px;
+      background: var(--neon-purple);
+      border-radius: 2px;
+      animation: scroll-anim 2s infinite;
+    }
+
+    @keyframes scroll-anim {
+      0%, 100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+      50% { transform: translateX(-50%) translateY(12px); opacity: 0.3; }
+    }
+
+    /* ========== SECTION TEXTS ========== */
+    .section-text {
+      position: fixed;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .section-text h2 {
+      font-family: var(--font-heading);
+      font-size: clamp(36px, 6vw, 72px);
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+
+    .section-text p {
+      font-size: 18px;
+      color: var(--text-dim);
+      max-width: 400px;
+      line-height: 1.7;
+    }
+
+    .section-text.center {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .section-text.left {
+      top: 50%;
+      left: 8%;
+      transform: translateY(-50%);
+    }
+
+    .section-text.right {
+      top: 50%;
+      right: 8%;
+      transform: translateY(-50%);
+      text-align: right;
+    }
+
+    .section-text.right p {
+      margin-left: auto;
+    }
+
+    /* ========== CHORD DISPLAY ========== */
+    .chord-overlay {
+      position: fixed;
+      bottom: 12%;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      z-index: 100;
+      opacity: 0;
+    }
+
+    .chord-big {
+      font-family: var(--font-heading);
+      font-size: 96px;
+      color: var(--neon-purple);
+      text-shadow: 0 0 60px var(--neon-purple-glow), 0 0 120px rgba(168, 85, 247, 0.2);
+      transition: all 0.4s ease;
+    }
+
+    .chord-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      margin-top: 8px;
+    }
+
+    /* ========== GESTURE ROW ========== */
+    .gesture-row {
+      position: fixed;
+      bottom: 6%;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 16px;
+      z-index: 100;
+      opacity: 0;
+    }
+
+    .gesture-pill {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 14px 18px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      transition: all 0.4s ease;
+      min-width: 70px;
+    }
+
+    .gesture-pill.active {
+      background: rgba(168, 85, 247, 0.15);
+      border-color: var(--neon-purple);
+      box-shadow: 0 0 30px var(--neon-purple-glow);
+      transform: translateY(-8px);
+    }
+
+    .gesture-pill .emoji {
+      font-size: 28px;
+    }
+
+    .gesture-pill .name {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ========== FEATURES GRID ========== */
+    .features-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      max-width: 900px;
+      padding: 0 24px;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 32px 24px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+      transition: all 0.4s ease;
+      cursor: pointer;
+    }
+
+    .feature-card:hover {
+      background: rgba(168, 85, 247, 0.08);
+      border-color: rgba(168, 85, 247, 0.3);
+      transform: translateY(-8px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .feature-card .icon {
+      font-size: 40px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    /* ========== FINAL CTA ========== */
+    .final-cta {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 100;
+      opacity: 0;
+    }
+
+    .final-cta h2 {
+      font-family: var(--font-heading);
+      font-size: clamp(40px, 8vw, 96px);
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #fff, var(--neon-purple), var(--neon-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .final-cta p {
+      font-size: 20px;
+      color: var(--text-dim);
+      margin-bottom: 40px;
+    }
+
+    /* ========== AMBIENT ========== */
+    .ambient-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav { padding: 16px 24px; }
+      .features-grid { grid-template-columns: 1fr; max-width: 320px; }
+      .gesture-row { gap: 8px; }
+      .gesture-pill { padding: 10px 14px; min-width: 56px; }
+      .gesture-pill .emoji { font-size: 22px; }
+      .gesture-pill .name { font-size: 11px; }
+      .section-text.left, .section-text.right {
+        left: 50%;
+        right: auto;
+        transform: translate(-50%, -50%);
+        text-align: center;
+      }
+      .section-text.right p { margin-left: auto; margin-right: auto; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading -->
+  <div class="loader" id="loader">
+    <div class="loader-logo" id="loader-logo">AirChord</div>
+    <div class="loader-bar" id="loader-bar">
+      <div class="loader-progress" id="loader-progress"></div>
+    </div>
+    <div class="loader-text" id="loader-text">Loading Experience</div>
+  </div>
+
+  <!-- Three.js Canvas -->
+  <canvas id="three-canvas"></canvas>
+
+  <!-- Ambient Canvas -->
+  <canvas class="ambient-canvas" id="ambient-canvas"></canvas>
+
+  <!-- Scroll Progress -->
+  <div class="scroll-progress" id="scroll-progress"></div>
+
+  <!-- UI Overlay -->
+  <div class="ui-overlay">
+    <!-- Nav -->
+    <nav class="nav" id="nav">
+      <div class="nav-logo">AirChord</div>
+      <div class="nav-links">
+        <a href="#">Features</a>
+        <a href="#">How It Works</a>
+        <a href="#">Profiles</a>
+        <a href="#">Download</a>
+      </div>
+      <button class="nav-cta">Get Early Access</button>
+    </nav>
+
+    <!-- Hero Text -->
+    <div class="hero-text" id="hero-text">
+      <div class="hero-badge">
+        <span class="pulse"></span>
+        NOW IN BETA
+      </div>
+      <h1 class="hero-title">
+        <span class="line">Turn Your</span>
+        <span class="line"><span class="gradient">Hand Into Music</span></span>
+      </h1>
+      <p class="hero-subtitle">AI-powered hand tracking transforms your gestures into realistic guitar chords. No guitar needed — just your hands and your voice.</p>
+      <div class="hero-cta-group">
+        <button class="btn-hero btn-hero-primary">Start Playing Free</button>
+        <button class="btn-hero btn-hero-secondary">Watch Demo</button>
+      </div>
+    </div>
+
+    <!-- Scroll Hint -->
+    <div class="scroll-hint" id="scroll-hint">
+      <div class="scroll-mouse"></div>
+      <span>Scroll to explore</span>
+    </div>
+
+    <!-- Section: Crafted -->
+    <div class="section-text center" id="sec-crafted" style="top: 15%;">
+      <h2>Crafted with<br>Precision</h2>
+      <p style="margin: 0 auto;">Hand-selected tonewoods, precision frets, and steel strings for rich, authentic tone.</p>
+    </div>
+
+    <!-- Section: Strings -->
+    <div class="section-text left" id="sec-strings">
+      <h2>Six Strings.<br><span style="color: var(--neon-cyan);">Infinite Sound.</span></h2>
+      <p>Each string vibrates with natural resonance, powered by Karplus-Strong synthesis.</p>
+    </div>
+
+    <!-- Section: Gesture -->
+    <div class="section-text right" id="sec-gesture">
+      <h2>Simple Gestures.<br><span style="color: var(--neon-pink);">Live Guitar.</span></h2>
+      <p>Show your hand to the camera. Each finger count plays a different chord.</p>
+    </div>
+
+    <!-- Chord Display -->
+    <div class="chord-overlay" id="chord-overlay">
+      <div class="chord-big" id="chord-big">Em</div>
+      <div class="chord-label">Current Chord</div>
+    </div>
+
+    <!-- Gesture Row -->
+    <div class="gesture-row" id="gesture-row">
+      <div class="gesture-pill" data-i="0"><span class="emoji">✊</span><span class="name">Em</span></div>
+      <div class="gesture-pill" data-i="1"><span class="emoji">☝️</span><span class="name">Am</span></div>
+      <div class="gesture-pill" data-i="2"><span class="emoji">✌️</span><span class="name">G</span></div>
+      <div class="gesture-pill" data-i="3"><span class="emoji">🤟</span><span class="name">C</span></div>
+      <div class="gesture-pill" data-i="4"><span class="emoji">🖐️</span><span class="name">D</span></div>
+      <div class="gesture-pill" data-i="5"><span class="emoji">✋</span><span class="name">F</span></div>
+    </div>
+
+    <!-- Features Grid -->
+    <div class="features-overlay" id="features-overlay">
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="icon">🎸</span>
+          <h3>10+ Chords</h3>
+          <p>Em, Am, G, C, D, F, E, A, Dm, B7, and more</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">🎵</span>
+          <h3>4 Profiles</h3>
+          <p>Classic, Worship, Bollywood, and Blues</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">⚡</span>
+          <h3>&lt;50ms Latency</h3>
+          <p>Real-time gesture detection</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">🎤</span>
+          <h3>Dynamic Band</h3>
+          <p>Accompaniment responds to your voice</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">📱</span>
+          <h3>Mobile Ready</h3>
+          <p>Works on any device with a camera</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">🎯</span>
+          <h3>AI Coach</h3>
+          <p>Practice mode with real-time feedback</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Final CTA -->
+    <div class="final-cta" id="final-cta">
+      <h2>Ready to Play?</h2>
+      <p>Join thousands of singers discovering hands-free guitar.</p>
+      <button class="btn-hero btn-hero-primary" style="font-size: 20px; padding: 20px 60px;">Get AirChord Free</button>
+    </div>
+  </div>
+
+  <!-- Scroll Container -->
+  <div style="height: 900vh; position: relative;"></div>
+
+  <script>
+    // ========== LOADER ==========
+    gsap.to('#loader-logo', { opacity: 1, y: 0, duration: 0.8, delay: 0.2 });
+    gsap.to('#loader-bar', { opacity: 1, duration: 0.5, delay: 0.6 });
+    gsap.to('#loader-text', { opacity: 1, duration: 0.5, delay: 0.8 });
+
+    let loadProg = 0;
+    const loadInt = setInterval(() => {
+      loadProg += Math.random() * 18;
+      if (loadProg >= 100) {
+        loadProg = 100;
+        clearInterval(loadInt);
+        setTimeout(() => {
+          gsap.to('#loader', {
+            opacity: 0,
+            duration: 1,
+            onComplete: () => {
+              document.getElementById('loader').style.display = 'none';
+              initAll();
+            }
+          });
+        }, 500);
+      }
+      document.getElementById('loader-progress').style.width = loadProg + '%';
+    }, 80);
+
+    // ========== THREE.JS SCENE ==========
+    let scene, camera, renderer, guitarGroup, strings = [], particles = [];
+    let spotlights = [], ambientParticles = [];
+    let mouseX = 0, mouseY = 0;
+
+    function initThree() {
+      const canvas = document.getElementById('three-canvas');
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x020208, 0.015);
+
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 0, 8);
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
+
+      // Lights
+      const ambientLight = new THREE.AmbientLight(0x1a1a3a, 0.5);
+      scene.add(ambientLight);
+
+      const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      mainLight.position.set(5, 5, 5);
+      scene.add(mainLight);
+
+      // Spotlights
+      const spotlightColors = [0xA855F7, 0x3B82F6, 0xEC4899, 0x06B6D4];
+      spotlightColors.forEach((color, i) => {
+        const spot = new THREE.SpotLight(color, 2, 30, Math.PI / 6, 0.5, 1);
+        spot.position.set(
+          Math.cos(i * Math.PI / 2) * 8,
+          8,
+          Math.sin(i * Math.PI / 2) * 8
+        );
+        spot.target.position.set(0, 0, 0);
+        scene.add(spot);
+        scene.add(spot.target);
+        spotlights.push(spot);
+      });
+
+      // Create Guitar
+      createGuitar();
+
+      // Create Particles
+      createParticles();
+
+      // Create Ambient Particles
+      createAmbientParticles();
+
+      // Mouse
+      document.addEventListener('mousemove', (e) => {
+        mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+        mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+      });
+
+      // Resize
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    function createGuitar() {
+      guitarGroup = new THREE.Group();
+
+      // Body
+      const bodyShape = new THREE.Shape();
+      bodyShape.moveTo(0, -2);
+      bodyShape.bezierCurveTo(-1.5, -2, -2, -0.5, -2, 0.5);
+      bodyShape.bezierCurveTo(-2, 1.5, -1.5, 2.5, 0, 2.5);
+      bodyShape.bezierCurveTo(1.5, 2.5, 2, 1.5, 2, 0.5);
+      bodyShape.bezierCurveTo(2, -0.5, 1.5, -2, 0, -2);
+
+      const bodyGeometry = new THREE.ExtrudeGeometry(bodyShape, {
+        depth: 0.4,
+        bevelEnabled: true,
+        bevelThickness: 0.1,
+        bevelSize: 0.1,
+        bevelSegments: 8
+      });
+
+      const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: 0x3D2314,
+        roughness: 0.6,
+        metalness: 0.1,
+        envMapIntensity: 0.5
+      });
+
+      const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+      body.rotation.x = Math.PI / 2;
+      body.position.y = -0.5;
+      guitarGroup.add(body);
+
+      // Sound hole
+      const holeGeometry = new THREE.RingGeometry(0.3, 0.5, 32);
+      const holeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xA855F7,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.6
+      });
+      const hole = new THREE.Mesh(holeGeometry, holeMaterial);
+      hole.position.set(0, -0.5, 0.25);
+      guitarGroup.add(hole);
+
+      // Neck
+      const neckGeometry = new THREE.BoxGeometry(0.3, 2.5, 0.2);
+      const neckMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1C1008,
+        roughness: 0.7,
+        metalness: 0.05
+      });
+      const neck = new THREE.Mesh(neckGeometry, neckMaterial);
+      neck.position.set(0, 2.2, 0);
+      guitarGroup.add(neck);
+
+      // Frets
+      for (let i = 0; i < 8; i++) {
+        const fretGeometry = new THREE.BoxGeometry(0.32, 0.02, 0.22);
+        const fretMaterial = new THREE.MeshStandardMaterial({
+          color: 0xC0C0C0,
+          roughness: 0.3,
+          metalness: 0.8
+        });
+        const fret = new THREE.Mesh(fretGeometry, fretMaterial);
+        fret.position.set(0, 1.2 + i * 0.2, 0.12);
+        guitarGroup.add(fret);
+      }
+
+      // Fret dots
+      [1.6, 2.0, 2.4].forEach(y => {
+        const dotGeometry = new THREE.SphereGeometry(0.03, 16, 16);
+        const dotMaterial = new THREE.MeshBasicMaterial({ color: 0xA855F7 });
+        const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+        dot.position.set(0, y, 0.2);
+        guitarGroup.add(dot);
+      });
+
+      // Headstock
+      const headGeometry = new THREE.BoxGeometry(0.35, 0.8, 0.15);
+      const headMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1C1008,
+        roughness: 0.7
+      });
+      const head = new THREE.Mesh(headGeometry, headMaterial);
+      head.position.set(0, 3.8, 0);
+      guitarGroup.add(head);
+
+      // Tuners
+      for (let i = 0; i < 6; i++) {
+        const tunerGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.15, 8);
+        const tunerMaterial = new THREE.MeshStandardMaterial({
+          color: 0xC0C0C0,
+          roughness: 0.2,
+          metalness: 0.9
+        });
+        const tuner = new THREE.Mesh(tunerGeometry, tunerMaterial);
+        const side = i < 3 ? -1 : 1;
+        const row = i % 3;
+        tuner.position.set(side * 0.2, 3.5 + row * 0.15, 0);
+        tuner.rotation.z = Math.PI / 2;
+        guitarGroup.add(tuner);
+      }
+
+      // Strings
+      const stringPositions = [-0.12, -0.07, -0.02, 0.02, 0.07, 0.12];
+      const stringColors = [0xC0C0C0, 0xC0C0C0, 0xD4A574, 0xD4A574, 0xC0C0C0, 0xC0C0C0];
+
+      stringPositions.forEach((x, i) => {
+        const curve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(x, 3.5, 0.1),
+          new THREE.Vector3(x, 2.0, 0.15),
+          new THREE.Vector3(x, 0, 0.2),
+          new THREE.Vector3(x, -1.5, 0.25)
+        ]);
+
+        const stringGeometry = new THREE.TubeGeometry(curve, 32, 0.008, 8, false);
+        const stringMaterial = new THREE.MeshStandardMaterial({
+          color: stringColors[i],
+          roughness: 0.3,
+          metalness: 0.8,
+          emissive: stringColors[i],
+          emissiveIntensity: 0
+        });
+
+        const stringMesh = new THREE.Mesh(stringGeometry, stringMaterial);
+        guitarGroup.add(stringMesh);
+        strings.push(stringMesh);
+      });
+
+      guitarGroup.position.set(0, 0, 0);
+      guitarGroup.rotation.y = -0.3;
+      scene.add(guitarGroup);
+    }
+
+    function createParticles() {
+      const geometry = new THREE.BufferGeometry();
+      const count = 500;
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+
+      const palette = [
+        new THREE.Color(0xA855F7),
+        new THREE.Color(0x3B82F6),
+        new THREE.Color(0xEC4899),
+        new THREE.Color(0x06B6D4)
+      ];
+
+      for (let i = 0; i < count; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * 20;
+        positions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 20;
+
+        const color = palette[Math.floor(Math.random() * palette.length)];
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const material = new THREE.PointsMaterial({
+        size: 0.05,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending
+      });
+
+      const points = new THREE.Points(geometry, material);
+      scene.add(points);
+      particles.push(points);
+    }
+
+    function createAmbientParticles() {
+      const canvas = document.getElementById('ambient-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const dots = [];
+      for (let i = 0; i < 80; i++) {
+        dots.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: (Math.random() - 0.5) * 0.5,
+          r: Math.random() * 2 + 1,
+          color: ['#A855F7', '#3B82F6', '#EC4899', '#06B6D4'][Math.floor(Math.random() * 4)]
+        });
+      }
+
+      function animateAmbient() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        dots.forEach(dot => {
+          dot.x += dot.vx;
+          dot.y += dot.vy;
+          if (dot.x < 0 || dot.x > canvas.width) dot.vx *= -1;
+          if (dot.y < 0 || dot.y > canvas.height) dot.vy *= -1;
+
+          ctx.beginPath();
+          ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
+          ctx.fillStyle = dot.color;
+          ctx.globalAlpha = 0.3;
+          ctx.fill();
+        });
+        requestAnimationFrame(animateAmbient);
+      }
+      animateAmbient();
+
+      window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      });
+    }
+
+    function animateThree() {
+      requestAnimationFrame(animateThree);
+
+      if (guitarGroup) {
+        // Idle float
+        guitarGroup.position.y = Math.sin(Date.now() * 0.001) * 0.15;
+        guitarGroup.rotation.y = -0.3 + Math.sin(Date.now() * 0.0008) * 0.05;
+
+        // Mouse follow
+        guitarGroup.rotation.x = mouseY * 0.1;
+      }
+
+      // Rotate particles
+      particles.forEach(p => {
+        p.rotation.y += 0.0005;
+        p.rotation.x += 0.0002;
+      });
+
+      // Animate spotlights
+      spotlights.forEach((spot, i) => {
+        spot.position.x = Math.cos(Date.now() * 0.0005 + i * Math.PI / 2) * 8;
+        spot.position.z = Math.sin(Date.now() * 0.0005 + i * Math.PI / 2) * 8;
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    // ========== GSAP SCROLL ANIMATIONS ==========
+    function initScrollAnimations() {
+      gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
+
+      // Scroll Progress
+      gsap.to('#scroll-progress', {
+        scaleX: 1,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: document.body,
+          start: 'top top',
+          end: 'bottom bottom',
+          scrub: 0.3
+        }
+      });
+
+      // ====== SCENE 1: HERO (0-12%) ======
+      const heroTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: document.body,
+          start: 'top top',
+          end: '12% top',
+          scrub: 1
+        }
+      });
+
+      heroTl
+        .to('#hero-text', { opacity: 1, duration: 0.3 })
+        .to('#scroll-hint', { opacity: 1, duration: 0.2 }, '-=0.1')
+        .to('#nav', { opacity: 1, duration: 0.3 }, '-=0.2');
+
+      // ====== SCENE 2: HERO OUT, CAMERA ZOOM (12-22%) ======
+      const zoomTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: document.body,
+          start: '12% top',
+          end: '25% top',
+          scrub: 1
+        }
+      });
+
+      zoomTl
+        .to('#hero-text', { opacity: 0, scale: 0.9, duration: 0.3 })
+        .to('#scroll-hint', { opacity: 0, duration: 0.2 }, '-=0.2')
+        .to(camera.position, { z: 5, duration: 0.5 }, '-=0.2');
+
+      // ====== SCENE 3: CRAFTED (25-38%) ======
+      const craftedTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: document.body,
+          start: '25% top',
+          end: '40% top',
+          scrub: 1
+        }
+      });
+
+      craftedTl
+        .to('#sec-crafted', { opacity: 1, duration: 0.2 })
+        .to(guitarGroup ? guitarGroup.rotation : {}, {
+          y: 0.2,
+          duration: 0.5
+        }, '-=0.1')
+        .to('#sec-crafted', { opacity: 0, duration: 0.2 });
+
+      // ====== SCENE 4: STRINGS VIBRATE (38-52%) ======
+      const stringsTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: document.body,
+          start: '38% top',
+          end: '55% top',
+          scrub: 1
+        }
+      });
+
+      stringsTl
+        .to('#sec-strings', { opacity: 1, duration: 0.2 })
+        .to(strings.map(s => s.material), {
+          emissiveIntensity: 0.5,
+          stagger: 0.05,
+          duration: 0.3
+        }, '-=0.1')
+        .to(camera.position, { x: 3, z: 4, duration: 0.5 }, '-=0.2')
+        .to('#sec-strings', { opacity: 0, duration: 0.2 });
+
+      // ====== SCENE 5: GESTURE (52-65%) ======
+      const gestureTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: document.body,
+          start: '52% top',
+          end: '68% top',
+          scrub: 1
+        }
+      });
+
+      gestureTl
+        .to('#sec-gesture', { opacity: 1, duration: 0.2 })
+        .to('#chord-overlay', { opacity: 1, duration: 0.3 }, '-=0.1')
+        .to('#gesture-row', { opacity: 1, duration: 0.3 }, '-=0.2')
+        .to(camera.position, { x: 0, z: 6, duration: 0.5 }, '-=0.3')
+        .to('#sec-gesture', { opacity: 0, duration: 0.2 });
+
+      // Chord cycling
+      const chords = ['Em', 'Am', 'G', 'C', 'D', 'F'];
+      const colors = ['#A855F7', '#3B82F6', '#06B6D4', '#10B981', '#F59E0B', '#EC4899'];
+
+      chords.forEach((chord, i) => {
+        ScrollTrigger.create({
+          trigger: document.body,
+          start: `${54 + i * 2.5}% top`,
+          end: `${56.5 + i * 2.5}% top`,
+          onEnter: () => {
+            document.getElementById('chord-big').textContent = chord;
+            document.getElementById('chord-big').style.color = colors[i];
+            document.getElementById('chord-big').style.textShadow = `0 0 60px ${colors[i]}80, 0 0 120px ${colors[i]}30`;
+
+            document.querySelectorAll('.gesture-pill').forEach((pill, j) => {
+              pill.classList.toggle('active', j === i);
+            });
+
+            // Vibrate strings
+            strings.forEach((s, j) => {
+              gsap.to(s.material, {
+                emissiveIntensity: j === i || j === i + 1 ? 0.8 : 0,
+                duration: 0.3
+              });
+            });
+          }
+        });
+      });
+
+      // ====== SCENE 6: FEATURES (68-80%) ======
+      const featTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: document.body,
+          start: '68% top',
+          end: '82% top',
+          scrub: 1
+        }
+      });
+
+      featTl
+        .to('#chord-overlay', { opacity: 0, duration: 0.2 })
+        .to('#gesture-row', { opacity: 0, duration: 0.2 }, '-=0.1')
+        .to('#features-overlay', { opacity: 1, duration: 0.3 })
+        .to(camera.position, { x: 0, y: 1, z: 10, duration: 0.5 }, '-=0.2')
+        .to('.feature-card', {
+          opacity: 1,
+          y: 0,
+          stagger: 0.08,
+          duration: 0.3
+        }, '-=0.3')
+        .to('#features-overlay', { opacity: 0, duration: 0.2 });
+
+      gsap.set('.feature-card', { opacity: 0, y: 30 });
+
+      // ====== SCENE 7: EXPLODE + CTA (82-100%) ======
+      const ctaTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: document.body,
+          start: '82% top',
+          end: '100% top',
+          scrub: 1
+        }
+      });
+
+      ctaTl
+        .to(guitarGroup ? guitarGroup.scale : {}, {
+          x: 2, y: 2, z: 2,
+          duration: 0.4
+        })
+        .to(guitarGroup ? guitarGroup.rotation : {}, {
+          y: Math.PI * 2,
+          duration: 0.6
+        }, '-=0.3')
+        .to(guitarGroup ? guitarGroup.material : {}, {
+          opacity: 0,
+          duration: 0.3
+        }, '-=0.2')
+        .to(particles[0] ? particles[0].material : {}, {
+          opacity: 1,
+          size: 0.15,
+          duration: 0.3
+        }, '-=0.3')
+        .to(spotlights.map(s => s), {
+          intensity: 5,
+          duration: 0.3
+        }, '-=0.2')
+        .to('#final-cta', { opacity: 1, duration: 0.4 }, '-=0.2');
+
+      // Feature card hover
+      document.querySelectorAll('.feature-card').forEach(card => {
+        card.addEventListener('mouseenter', () => {
+          gsap.to(card, { scale: 1.05, duration: 0.3, ease: 'back.out(1.7)' });
+        });
+        card.addEventListener('mouseleave', () => {
+          gsap.to(card, { scale: 1, duration: 0.3 });
+        });
+      });
+
+      // Button hover
+      document.querySelectorAll('.btn-hero, .nav-cta').forEach(btn => {
+        btn.addEventListener('mouseenter', () => {
+          gsap.to(btn, { scale: 1.05, duration: 0.3, ease: 'back.out(1.7)' });
+        });
+        btn.addEventListener('mouseleave', () => {
+          gsap.to(btn, { scale: 1, duration: 0.3 });
+        });
+      });
+    }
+
+    // ========== INIT ALL ==========
+    function initAll() {
+      initThree();
+      animateThree();
+      initScrollAnimations();
+    }
+  </script>
+</body>
+</html>

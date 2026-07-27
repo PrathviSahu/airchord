@@ -1,0 +1,2244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AirChord — Phase B Wireframes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Righteous&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6366F1;
+      --primary-hover: #4F46E5;
+      --primary-muted: rgba(99, 102, 241, 0.15);
+      --secondary: #F59E0B;
+      --cta: #22C55E;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --error: #EF4444;
+      --bg: #0F0F23;
+      --surface: #1E1B4B;
+      --surface-elevated: #2D2A5E;
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #F8FAFC;
+      --text-secondary: #9CA3AF;
+      --text-muted: #6B7280;
+      --font-heading: 'Righteous', cursive;
+      --font-body: 'Poppins', sans-serif;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --radius-2xl: 24px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: #1a1a2e;
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Navigation */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(15, 15, 35, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      z-index: 1000;
+      overflow-x: auto;
+    }
+
+    .nav-title {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      color: var(--primary);
+      white-space: nowrap;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 4px;
+      flex-wrap: nowrap;
+    }
+
+    .nav-btn {
+      padding: 6px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-family: var(--font-body);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover {
+      background: var(--primary-muted);
+      border-color: var(--primary);
+      color: var(--text);
+    }
+
+    .nav-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    /* Phone Frame */
+    .content {
+      padding-top: 80px;
+      display: flex;
+      justify-content: center;
+      padding-bottom: 40px;
+    }
+
+    .phone {
+      width: 375px;
+      height: 812px;
+      background: var(--bg);
+      border-radius: 40px;
+      border: 4px solid #333;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .screen {
+      display: none;
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    .screen.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .status-bar .time { font-size: 15px; font-weight: 600; }
+    .status-bar .icons { display: flex; gap: 6px; font-size: 12px; }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      height: 83px;
+      background: rgba(15, 15, 35, 0.95);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      padding-top: 8px;
+      padding-bottom: 20px;
+    }
+
+    .bottom-nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-muted);
+      font-size: 10px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .bottom-nav-item.active {
+      color: var(--primary);
+    }
+
+    .bottom-nav-item .icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .bottom-nav-item.active .indicator {
+      width: 4px;
+      height: 4px;
+      background: var(--primary);
+      border-radius: 50%;
+      margin-top: 2px;
+    }
+
+    /* =================== SCREEN 1: SPLASH =================== */
+    .splash {
+      background: linear-gradient(180deg, #0F0F23 0%, #1E1B4B 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+    }
+
+    .splash-logo {
+      font-family: var(--font-heading);
+      font-size: 42px;
+      color: var(--primary);
+      text-shadow: 0 0 60px rgba(99, 102, 241, 0.6);
+    }
+
+    .splash-tagline {
+      font-size: 16px;
+      color: var(--text-secondary);
+      text-align: center;
+      max-width: 250px;
+      line-height: 1.5;
+    }
+
+    .splash-loader {
+      width: 40px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .splash-loader::after {
+      content: '';
+      display: block;
+      width: 50%;
+      height: 100%;
+      background: var(--primary);
+      border-radius: 2px;
+      animation: loading 1.5s ease-in-out infinite;
+    }
+
+    @keyframes loading {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(300%); }
+    }
+
+    .splash-version {
+      position: absolute;
+      bottom: 40px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* =================== SCREEN 2: ONBOARDING =================== */
+    .onboarding {
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 32px;
+      gap: 32px;
+    }
+
+    .onboarding-illustration {
+      width: 200px;
+      height: 200px;
+      background: var(--primary-muted);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 80px;
+    }
+
+    .onboarding-text {
+      text-align: center;
+    }
+
+    .onboarding-text h2 {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
+    .onboarding-text p {
+      font-size: 16px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .onboarding-dots {
+      display: flex;
+      gap: 8px;
+    }
+
+    .onboarding-dots .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .onboarding-dots .dot.active {
+      background: var(--primary);
+      width: 24px;
+      border-radius: 4px;
+    }
+
+    .btn-primary {
+      padding: 16px 48px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-lg);
+      font-size: 16px;
+      font-weight: 600;
+      font-family: var(--font-body);
+      cursor: pointer;
+      transition: background 0.2s;
+      width: 100%;
+      max-width: 280px;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      padding: 12px 24px;
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-family: var(--font-body);
+      cursor: pointer;
+    }
+
+    /* =================== SCREEN 3: HOME DASHBOARD =================== */
+    .home {
+      background: var(--bg);
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .home-header {
+      padding: 8px 20px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .home-header h1 {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      color: var(--primary);
+    }
+
+    .home-header .settings-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .home-content {
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .mode-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .mode-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    .mode-card .icon-circle {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--primary-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .mode-card .label {
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .daily-challenge {
+      background: linear-gradient(135deg, var(--primary-muted), rgba(34, 197, 94, 0.1));
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-xl);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+
+    .daily-challenge .icon {
+      width: 44px;
+      height: 44px;
+      background: var(--primary);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .daily-challenge .text h3 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .daily-challenge .text p {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .recent-session {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 16px;
+    }
+
+    .recent-session h3 {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .recent-session .session-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .recent-session .score {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--cta);
+    }
+
+    /* =================== SCREEN 4: FREE PLAY =================== */
+    .free-play {
+      background: var(--bg);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .play-top-bar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      position: absolute;
+      top: 44px;
+      left: 0;
+      right: 0;
+      z-index: 60;
+    }
+
+    .play-back {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .camera-area {
+      height: 50%;
+      background: linear-gradient(180deg, #1a1a2e 0%, #0a0a15 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .camera-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .hand-overlay-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .hand-skeleton {
+      width: 150px;
+      height: 200px;
+      border: 2px dashed rgba(99, 102, 241, 0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      font-size: 60px;
+    }
+
+    .chord-display-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px;
+    }
+
+    .current-chord {
+      font-family: var(--font-heading);
+      font-size: 72px;
+      color: var(--primary);
+      text-shadow: 0 0 40px rgba(99, 102, 241, 0.5);
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { text-shadow: 0 0 40px rgba(99, 102, 241, 0.5); }
+      50% { text-shadow: 0 0 80px rgba(99, 102, 241, 0.8); }
+    }
+
+    .finger-count {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .play-controls {
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .control-pill {
+      padding: 8px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2xl);
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .record-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--error);
+      border: 4px solid rgba(239, 68, 68, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .record-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .record-btn .inner {
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 4px;
+    }
+
+    .song-timeline {
+      padding: 0 16px 12px;
+    }
+
+    .timeline-track {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      position: relative;
+    }
+
+    .timeline-progress {
+      height: 100%;
+      width: 35%;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+
+    .timeline-beat {
+      position: absolute;
+      top: -4px;
+      left: 35%;
+      width: 12px;
+      height: 12px;
+      background: var(--primary);
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+    }
+
+    .chord-timeline {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .chord-timeline .chord.active {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* =================== SCREEN 5: PRACTICE MODE =================== */
+    .practice {
+      background: var(--bg);
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .practice-header {
+      padding: 8px 20px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .practice-header .back {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .practice-header h2 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+    }
+
+    .practice-content {
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .practice-mode-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .practice-mode-card:hover {
+      border-color: var(--primary);
+    }
+
+    .practice-mode-card .icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-lg);
+      background: var(--primary-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .practice-mode-card .info h3 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .practice-mode-card .info p {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .practice-mode-card .arrow {
+      margin-left: auto;
+      color: var(--text-muted);
+    }
+
+    /* =================== SCREEN 6: RECORDING STUDIO =================== */
+    .recording {
+      background: var(--bg);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .recording-header {
+      padding: 8px 20px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .recording-header h2 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+    }
+
+    .recording-camera {
+      flex: 1;
+      margin: 0 20px;
+      background: linear-gradient(180deg, #1a1a2e, #0a0a15);
+      border-radius: var(--radius-xl);
+      position: relative;
+      overflow: hidden;
+      min-height: 300px;
+    }
+
+    .recording-timer {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 16px;
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: var(--radius-2xl);
+      font-family: monospace;
+      font-size: 20px;
+      color: var(--error);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .recording-timer .rec-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--error);
+      border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .recording-chord {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      font-family: var(--font-heading);
+      font-size: 32px;
+      color: var(--primary);
+      text-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+    }
+
+    .waveform-area {
+      height: 80px;
+      margin: 16px 20px;
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .waveform-bars {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 60px;
+    }
+
+    .waveform-bar {
+      width: 4px;
+      background: linear-gradient(to top, var(--primary), var(--cta));
+      border-radius: 2px;
+      animation: waveform 1s ease-in-out infinite;
+    }
+
+    @keyframes waveform {
+      0%, 100% { height: 20px; }
+      50% { height: 50px; }
+    }
+
+    .recording-controls {
+      padding: 16px 20px;
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .rec-control-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .rec-main-btn {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--error);
+      border: 4px solid rgba(239, 68, 68, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
+    }
+
+    .rec-main-btn .square {
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 3px;
+    }
+
+    /* =================== SCREEN 7: SONG LIBRARY =================== */
+    .library {
+      background: var(--bg);
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .library-header {
+      padding: 8px 20px 16px;
+    }
+
+    .library-header h2 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+
+    .search-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+    }
+
+    .search-bar input {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 14px;
+      font-family: var(--font-body);
+      outline: none;
+      width: 100%;
+    }
+
+    .filter-chips {
+      display: flex;
+      gap: 8px;
+      padding: 0 20px 12px;
+      overflow-x: auto;
+    }
+
+    .filter-chip {
+      padding: 6px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2xl);
+      font-size: 12px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-chip.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .song-list {
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .song-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .song-card:hover {
+      border-color: var(--primary);
+    }
+
+    .song-card .cover {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .song-card .song-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .song-card .song-title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .song-card .song-artist {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .song-card .song-meta {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .song-card .difficulty {
+      font-size: 10px;
+      color: var(--secondary);
+    }
+
+    .song-card .key {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* =================== SCREEN 8: SONG DETAIL =================== */
+    .song-detail {
+      background: var(--bg);
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .song-detail-header {
+      padding: 8px 20px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .song-detail-cover {
+      width: 100%;
+      height: 200px;
+      margin: 0 20px 16px;
+      background: linear-gradient(135deg, var(--primary), #4338CA);
+      border-radius: var(--radius-xl);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .song-detail-cover .play-overlay {
+      width: 64px;
+      height: 64px;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(8px);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .song-detail-info {
+      padding: 0 20px;
+      margin-bottom: 16px;
+    }
+
+    .song-detail-info h2 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+    }
+
+    .song-detail-info .artist {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .song-detail-meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .meta-item .label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .meta-item .value {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .song-chords {
+      padding: 0 20px;
+      margin-bottom: 16px;
+    }
+
+    .song-chords h3 {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .chord-progression {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chord-badge {
+      padding: 8px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-family: var(--font-heading);
+      font-size: 16px;
+    }
+
+    .song-actions {
+      padding: 0 20px;
+      display: flex;
+      gap: 8px;
+    }
+
+    /* =================== SCREEN 9: SETTINGS =================== */
+    .settings {
+      background: var(--bg);
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .settings-header {
+      padding: 8px 20px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .settings-header h2 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+    }
+
+    .settings-content {
+      padding: 0 20px;
+    }
+
+    .settings-group {
+      margin-bottom: 24px;
+    }
+
+    .settings-group-title {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .settings-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .settings-item:last-child {
+      border-bottom: none;
+    }
+
+    .settings-item .item-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .settings-item .item-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-md);
+      background: var(--primary-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .settings-item .item-label {
+      font-size: 14px;
+    }
+
+    .settings-item .item-value {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .toggle {
+      width: 44px;
+      height: 24px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      position: relative;
+      cursor: pointer;
+    }
+
+    .toggle.active {
+      background: var(--primary);
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle.active::after {
+      transform: translateX(20px);
+    }
+
+    /* =================== SCREEN 10: PROFILE =================== */
+    .profile {
+      background: var(--bg);
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .profile-header {
+      padding: 8px 20px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .profile-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+    }
+
+    .profile-name {
+      font-family: var(--font-heading);
+      font-size: 24px;
+    }
+
+    .profile-since {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 0 20px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px 8px;
+      text-align: center;
+    }
+
+    .stat-card .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .stat-card .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .achievements {
+      padding: 0 20px;
+      margin-bottom: 20px;
+    }
+
+    .achievements h3 {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .achievement-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .achievement {
+      aspect-ratio: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .achievement .badge {
+      font-size: 24px;
+    }
+
+    .achievement .badge-label {
+      font-size: 8px;
+      color: var(--text-muted);
+    }
+
+    .practice-chart {
+      padding: 0 20px;
+      margin-bottom: 20px;
+    }
+
+    .practice-chart h3 {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .chart-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 100px;
+    }
+
+    .chart-bar-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .chart-bar {
+      width: 100%;
+      background: var(--primary);
+      border-radius: 4px 4px 0 0;
+      min-height: 4px;
+    }
+
+    .chart-bar-label {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* =================== SCREEN 11: HELP =================== */
+    .help {
+      background: var(--bg);
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .help-header {
+      padding: 8px 20px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .help-header h2 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+    }
+
+    .help-search {
+      margin: 0 20px 16px;
+    }
+
+    .faq-list {
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .faq-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .faq-item:hover {
+      border-color: var(--primary);
+    }
+
+    .faq-item h4 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .faq-item p {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .help-contact {
+      margin: 20px;
+      padding: 16px;
+      background: var(--primary-muted);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-lg);
+      text-align: center;
+    }
+
+    .help-contact h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .help-contact p {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* =================== SCREEN 12: PERMISSION REQUEST =================== */
+    .permission {
+      background: rgba(15, 15, 35, 0.95);
+      backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      gap: 24px;
+    }
+
+    .permission-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: var(--primary-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+    }
+
+    .permission-text {
+      text-align: center;
+    }
+
+    .permission-text h2 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .permission-text p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .permission-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      max-width: 280px;
+    }
+
+    .btn-allow {
+      padding: 14px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-lg);
+      font-size: 16px;
+      font-weight: 600;
+      font-family: var(--font-body);
+      cursor: pointer;
+    }
+
+    .btn-deny {
+      padding: 14px;
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      font-size: 14px;
+      font-family: var(--font-body);
+      cursor: pointer;
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .phone {
+        width: 100%;
+        height: 100vh;
+        border-radius: 0;
+        border: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-title">AirChord Wireframes</div>
+    <div class="nav-buttons">
+      <button class="nav-btn active" onclick="showScreen('splash')">1. Splash</button>
+      <button class="nav-btn" onclick="showScreen('onboarding')">2. Onboarding</button>
+      <button class="nav-btn" onclick="showScreen('permission')">3. Permission</button>
+      <button class="nav-btn" onclick="showScreen('home')">4. Home</button>
+      <button class="nav-btn" onclick="showScreen('freeplay')">5. Free Play</button>
+      <button class="nav-btn" onclick="showScreen('practice')">6. Practice</button>
+      <button class="nav-btn" onclick="showScreen('recording')">7. Recording</button>
+      <button class="nav-btn" onclick="showScreen('library')">8. Library</button>
+      <button class="nav-btn" onclick="showScreen('songdetail')">9. Song Detail</button>
+      <button class="nav-btn" onclick="showScreen('settings')">10. Settings</button>
+      <button class="nav-btn" onclick="showScreen('profile')">11. Profile</button>
+      <button class="nav-btn" onclick="showScreen('help')">12. Help</button>
+    </div>
+  </nav>
+
+  <div class="content">
+    <div class="phone">
+      <!-- SCREEN 1: SPLASH -->
+      <div class="screen active" id="splash">
+        <div class="splash">
+          <div class="splash-logo">AirChord</div>
+          <div class="splash-tagline">Turn Your Hand Into a Live Guitar</div>
+          <div class="splash-loader"></div>
+          <div class="splash-version">v1.0.0</div>
+        </div>
+      </div>
+
+      <!-- SCREEN 2: ONBOARDING -->
+      <div class="screen" id="onboarding">
+        <div class="onboarding">
+          <div class="onboarding-illustration">🎸</div>
+          <div class="onboarding-text">
+            <h2>Play Guitar With Your Hands</h2>
+            <p>AirChord uses your camera to detect hand gestures and play realistic guitar chords in real-time.</p>
+          </div>
+          <div class="onboarding-dots">
+            <div class="dot active"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
+          <button class="btn-primary">Get Started</button>
+          <button class="btn-secondary">Skip</button>
+        </div>
+      </div>
+
+      <!-- SCREEN 3: PERMISSION -->
+      <div class="screen" id="permission">
+        <div class="permission">
+          <div class="permission-icon">📷</div>
+          <div class="permission-text">
+            <h2>Camera Access</h2>
+            <p>AirChord needs camera access to detect your hand gestures and play guitar chords.</p>
+          </div>
+          <div class="permission-actions">
+            <button class="btn-allow">Allow Camera</button>
+            <button class="btn-deny">Not Now</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 4: HOME DASHBOARD -->
+      <div class="screen" id="home">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span class="icons">📶 🔋</span>
+        </div>
+        <div class="home">
+          <div class="home-header">
+            <h1>AirChord</h1>
+            <div class="settings-icon">⚙️</div>
+          </div>
+          <div class="home-content">
+            <div class="mode-grid">
+              <div class="mode-card">
+                <div class="icon-circle">🎸</div>
+                <div class="label">Free Play</div>
+              </div>
+              <div class="mode-card">
+                <div class="icon-circle">🎯</div>
+                <div class="label">Practice</div>
+              </div>
+              <div class="mode-card">
+                <div class="icon-circle">🎤</div>
+                <div class="label">Record</div>
+              </div>
+              <div class="mode-card">
+                <div class="icon-circle">📚</div>
+                <div class="label">Songs</div>
+              </div>
+            </div>
+            <div class="daily-challenge">
+              <div class="icon">⚡</div>
+              <div class="text">
+                <h3>Daily Challenge</h3>
+                <p>Play C→G→Am→F at 100 BPM</p>
+              </div>
+            </div>
+            <div class="recent-session">
+              <h3>Recent Session</h3>
+              <div class="session-info">
+                <div>
+                  <div style="font-size: 14px;">Yesterday's Practice</div>
+                  <div style="font-size: 12px; color: var(--text-muted);">23 minutes</div>
+                </div>
+                <div class="score">82%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="bottom-nav-item active">
+            <div class="icon">🏠</div>
+            <span>Home</span>
+            <div class="indicator"></div>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">🎸</div>
+            <span>Play</span>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">🎤</div>
+            <span>Record</span>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">📚</div>
+            <span>Library</span>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">👤</div>
+            <span>Me</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 5: FREE PLAY -->
+      <div class="screen" id="freeplay">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span class="icons">📶 🔋</span>
+        </div>
+        <div class="free-play">
+          <div class="play-top-bar">
+            <div class="play-back">←</div>
+            <div style="font-family: var(--font-heading); font-size: 16px;">Free Play</div>
+            <div style="width: 36px;"></div>
+          </div>
+          <div class="camera-area">
+            <div class="camera-placeholder">Camera Feed</div>
+            <div class="hand-overlay-placeholder">
+              <div class="hand-skeleton">✋</div>
+            </div>
+          </div>
+          <div class="chord-display-area">
+            <div class="current-chord">C</div>
+            <div class="finger-count">3 fingers</div>
+          </div>
+          <div class="song-timeline">
+            <div class="timeline-track">
+              <div class="timeline-progress"></div>
+              <div class="timeline-beat"></div>
+            </div>
+            <div class="chord-timeline">
+              <span class="chord active">C</span>
+              <span class="chord">G</span>
+              <span class="chord">Am</span>
+              <span class="chord">F</span>
+            </div>
+          </div>
+          <div class="play-controls">
+            <div class="control-pill">🎵 Pattern</div>
+            <div class="control-pill">♩ 100</div>
+            <div class="record-btn">
+              <div class="inner"></div>
+            </div>
+            <div class="control-pill">Capo 0</div>
+            <div class="control-pill">⚙️</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 6: PRACTICE MODE -->
+      <div class="screen" id="practice">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span class="icons">📶 🔋</span>
+        </div>
+        <div class="practice">
+          <div class="practice-header">
+            <div class="back">←</div>
+            <h2>Practice Mode</h2>
+          </div>
+          <div class="practice-content">
+            <div class="practice-mode-card">
+              <div class="icon">🎯</div>
+              <div class="info">
+                <h3>Chord Trainer</h3>
+                <p>Practice individual chords with accuracy feedback</p>
+              </div>
+              <div class="arrow">→</div>
+            </div>
+            <div class="practice-mode-card">
+              <div class="icon">🔄</div>
+              <div class="info">
+                <h3>Transition Trainer</h3>
+                <p>Practice switching between chord pairs</p>
+              </div>
+              <div class="arrow">→</div>
+            </div>
+            <div class="practice-mode-card">
+              <div class="icon">🥁</div>
+              <div class="info">
+                <h3>Strumming Coach</h3>
+                <p>Master strumming patterns with rhythm scoring</p>
+              </div>
+              <div class="arrow">→</div>
+            </div>
+            <div class="practice-mode-card">
+              <div class="icon">🎵</div>
+              <div class="info">
+                <h3>Song Practice</h3>
+                <p>Practice with real songs at your pace</p>
+              </div>
+              <div class="arrow">→</div>
+            </div>
+            <div class="practice-mode-card">
+              <div class="icon">⚡</div>
+              <div class="info">
+                <h3>Challenge Mode</h3>
+                <p>Test your skills with timed challenges</p>
+              </div>
+              <div class="arrow">→</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 7: RECORDING STUDIO -->
+      <div class="screen" id="recording">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span class="icons">📶 🔋</span>
+        </div>
+        <div class="recording">
+          <div class="recording-header">
+            <div class="back" style="width:36px;height:36px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;cursor:pointer;">←</div>
+            <h2>Recording Studio</h2>
+          </div>
+          <div class="recording-camera">
+            <div class="recording-timer">
+              <div class="rec-dot"></div>
+              <span>00:02:34</span>
+            </div>
+            <div class="camera-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">Camera View</div>
+            <div class="recording-chord">Am</div>
+          </div>
+          <div class="waveform-area">
+            <div class="waveform-bars">
+              <div class="waveform-bar" style="animation-delay: 0s; height: 30px;"></div>
+              <div class="waveform-bar" style="animation-delay: 0.1s; height: 45px;"></div>
+              <div class="waveform-bar" style="animation-delay: 0.2s; height: 25px;"></div>
+              <div class="waveform-bar" style="animation-delay: 0.3s; height: 50px;"></div>
+              <div class="waveform-bar" style="animation-delay: 0.4s; height: 35px;"></div>
+              <div class="waveform-bar" style="animation-delay: 0.5s; height: 40px;"></div>
+              <div class="waveform-bar" style="animation-delay: 0.6s; height: 20px;"></div>
+              <div class="waveform-bar" style="animation-delay: 0.7s; height: 48px;"></div>
+              <div class="waveform-bar" style="animation-delay: 0.8s; height: 32px;"></div>
+              <div class="waveform-bar" style="animation-delay: 0.9s; height: 42px;"></div>
+            </div>
+          </div>
+          <div class="recording-controls">
+            <div class="rec-control-btn">🎵</div>
+            <div class="rec-control-btn">♩</div>
+            <div class="rec-main-btn">
+              <div class="square"></div>
+            </div>
+            <div class="rec-control-btn">🔊</div>
+            <div class="rec-control-btn">⚙️</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 8: SONG LIBRARY -->
+      <div class="screen" id="library">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span class="icons">📶 🔋</span>
+        </div>
+        <div class="library">
+          <div class="library-header">
+            <h2>Song Library</h2>
+            <div class="search-bar">
+              <span style="color: var(--text-muted);">🔍</span>
+              <input type="text" placeholder="Search songs...">
+            </div>
+          </div>
+          <div class="filter-chips">
+            <div class="filter-chip active">All</div>
+            <div class="filter-chip">Pop</div>
+            <div class="filter-chip">Rock</div>
+            <div class="filter-chip">Folk</div>
+            <div class="filter-chip">Blues</div>
+            <div class="filter-chip">Easy</div>
+            <div class="filter-chip">Medium</div>
+          </div>
+          <div class="song-list">
+            <div class="song-card">
+              <div class="cover">🎵</div>
+              <div class="song-info">
+                <div class="song-title">Wonderwall</div>
+                <div class="song-artist">Oasis</div>
+              </div>
+              <div class="song-meta">
+                <div class="difficulty">★★★☆☆</div>
+                <div class="key">Em</div>
+              </div>
+            </div>
+            <div class="song-card">
+              <div class="cover" style="background: linear-gradient(135deg, #EF4444, #F59E0B);">🎵</div>
+              <div class="song-info">
+                <div class="song-title">Let It Be</div>
+                <div class="song-artist">The Beatles</div>
+              </div>
+              <div class="song-meta">
+                <div class="difficulty">★★☆☆☆</div>
+                <div class="key">C</div>
+              </div>
+            </div>
+            <div class="song-card">
+              <div class="cover" style="background: linear-gradient(135deg, #10B981, #3B82F6);">🎵</div>
+              <div class="song-info">
+                <div class="song-title">Hotel California</div>
+                <div class="song-artist">Eagles</div>
+              </div>
+              <div class="song-meta">
+                <div class="difficulty">★★★★☆</div>
+                <div class="key">Bm</div>
+              </div>
+            </div>
+            <div class="song-card">
+              <div class="cover" style="background: linear-gradient(135deg, #8B5CF6, #EC4899);">🎵</div>
+              <div class="song-info">
+                <div class="song-title">Perfect</div>
+                <div class="song-artist">Ed Sheeran</div>
+              </div>
+              <div class="song-meta">
+                <div class="difficulty">★★☆☆☆</div>
+                <div class="key">G</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="bottom-nav-item">
+            <div class="icon">🏠</div>
+            <span>Home</span>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">🎸</div>
+            <span>Play</span>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">🎤</div>
+            <span>Record</span>
+          </div>
+          <div class="bottom-nav-item active">
+            <div class="icon">📚</div>
+            <span>Library</span>
+            <div class="indicator"></div>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">👤</div>
+            <span>Me</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 9: SONG DETAIL -->
+      <div class="screen" id="songdetail">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span class="icons">📶 🔋</span>
+        </div>
+        <div class="song-detail">
+          <div class="song-detail-header">
+            <div class="back" style="width:36px;height:36px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;cursor:pointer;">←</div>
+            <h2 style="font-family: var(--font-heading); font-size: 20px;">Song Detail</h2>
+          </div>
+          <div class="song-detail-cover">
+            <div class="play-overlay">▶</div>
+          </div>
+          <div class="song-detail-info">
+            <h2>Wonderwall</h2>
+            <div class="artist">Oasis</div>
+            <div class="song-detail-meta">
+              <div class="meta-item">
+                <span class="label">Key</span>
+                <span class="value">Em</span>
+              </div>
+              <div class="meta-item">
+                <span class="label">Tempo</span>
+                <span class="value">87 BPM</span>
+              </div>
+              <div class="meta-item">
+                <span class="label">Difficulty</span>
+                <span class="value">★★★☆☆</span>
+              </div>
+              <div class="meta-item">
+                <span class="label">Genre</span>
+                <span class="value">Rock</span>
+              </div>
+            </div>
+          </div>
+          <div class="song-chords">
+            <h3>Chord Progression</h3>
+            <div class="chord-progression">
+              <div class="chord-badge">Em</div>
+              <div class="chord-badge">G</div>
+              <div class="chord-badge">D</div>
+              <div class="chord-badge">A7</div>
+            </div>
+          </div>
+          <div class="song-actions">
+            <button class="btn-primary" style="flex: 1;">Practice</button>
+            <button class="btn-primary" style="flex: 1; background: var(--cta);">Play Along</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 10: SETTINGS -->
+      <div class="screen" id="settings">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span class="icons">📶 🔋</span>
+        </div>
+        <div class="settings">
+          <div class="settings-header">
+            <div class="back" style="width:36px;height:36px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;cursor:pointer;">←</div>
+            <h2>Settings</h2>
+          </div>
+          <div class="settings-content">
+            <div class="settings-group">
+              <div class="settings-group-title">Appearance</div>
+              <div class="settings-card">
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">🎨</div>
+                    <span class="item-label">Theme</span>
+                  </div>
+                  <span class="item-value">Dark</span>
+                </div>
+              </div>
+            </div>
+            <div class="settings-group">
+              <div class="settings-group-title">Gesture Profiles</div>
+              <div class="settings-card">
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">🤚</div>
+                    <span class="item-label">Active Profile</span>
+                  </div>
+                  <span class="item-value">Classic ▾</span>
+                </div>
+              </div>
+            </div>
+            <div class="settings-group">
+              <div class="settings-group-title">Audio</div>
+              <div class="settings-card">
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">🔊</div>
+                    <span class="item-label">Volume</span>
+                  </div>
+                  <div style="width: 100px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; position: relative;">
+                    <div style="width: 60%; height: 100%; background: var(--primary); border-radius: 2px;"></div>
+                  </div>
+                </div>
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">🎵</div>
+                    <span class="item-label">Quality</span>
+                  </div>
+                  <span class="item-value">High</span>
+                </div>
+              </div>
+            </div>
+            <div class="settings-group">
+              <div class="settings-group-title">Gestures</div>
+              <div class="settings-card">
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">✋</div>
+                    <span class="item-label">Handedness</span>
+                  </div>
+                  <span class="item-value">Right</span>
+                </div>
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">🎯</div>
+                    <span class="item-label">Sensitivity</span>
+                  </div>
+                  <div style="width: 100px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; position: relative;">
+                    <div style="width: 50%; height: 100%; background: var(--primary); border-radius: 2px;"></div>
+                  </div>
+                </div>
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">📏</div>
+                    <span class="item-label">Calibrate</span>
+                  </div>
+                  <span class="item-value">→</span>
+                </div>
+              </div>
+            </div>
+            <div class="settings-group">
+              <div class="settings-group-title">Accessibility</div>
+              <div class="settings-card">
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">♿</div>
+                    <span class="item-label">High Contrast</span>
+                  </div>
+                  <div class="toggle"></div>
+                </div>
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">🔤</div>
+                    <span class="item-label">Reduced Motion</span>
+                  </div>
+                  <div class="toggle"></div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-group">
+              <div class="settings-group-title">About</div>
+              <div class="settings-card">
+                <div class="settings-item">
+                  <div class="item-left">
+                    <div class="item-icon">ℹ️</div>
+                    <span class="item-label">Version</span>
+                  </div>
+                  <span class="item-value">1.0.0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 11: PROFILE -->
+      <div class="screen" id="profile">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span class="icons">📶 🔋</span>
+        </div>
+        <div class="profile">
+          <div class="profile-header">
+            <div class="profile-avatar">👤</div>
+            <div class="profile-name">Musician</div>
+            <div class="profile-since">Member since Jan 2026</div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value">47</div>
+              <div class="stat-label">Sessions</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">12h</div>
+              <div class="stat-label">Practice</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">82</div>
+              <div class="stat-label">Avg Score</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">5</div>
+              <div class="stat-label">Streak</div>
+            </div>
+          </div>
+          <div class="achievements">
+            <h3>Achievements</h3>
+            <div class="achievement-grid">
+              <div class="achievement">
+                <div class="badge">🏆</div>
+                <div class="badge-label">First Song</div>
+              </div>
+              <div class="achievement">
+                <div class="badge">🔥</div>
+                <div class="badge-label">5 Day Streak</div>
+              </div>
+              <div class="achievement">
+                <div class="badge">⭐</div>
+                <div class="badge-label">100% Score</div>
+              </div>
+              <div class="achievement">
+                <div class="badge">🎤</div>
+                <div class="badge-label">First Record</div>
+              </div>
+            </div>
+          </div>
+          <div class="practice-chart">
+            <h3>This Week</h3>
+            <div class="chart-bars">
+              <div class="chart-bar-group">
+                <div class="chart-bar" style="height: 60px;"></div>
+                <div class="chart-bar-label">M</div>
+              </div>
+              <div class="chart-bar-group">
+                <div class="chart-bar" style="height: 40px;"></div>
+                <div class="chart-bar-label">T</div>
+              </div>
+              <div class="chart-bar-group">
+                <div class="chart-bar" style="height: 80px;"></div>
+                <div class="chart-bar-label">W</div>
+              </div>
+              <div class="chart-bar-group">
+                <div class="chart-bar" style="height: 30px;"></div>
+                <div class="chart-bar-label">T</div>
+              </div>
+              <div class="chart-bar-group">
+                <div class="chart-bar" style="height: 70px;"></div>
+                <div class="chart-bar-label">F</div>
+              </div>
+              <div class="chart-bar-group">
+                <div class="chart-bar" style="height: 50px;"></div>
+                <div class="chart-bar-label">S</div>
+              </div>
+              <div class="chart-bar-group">
+                <div class="chart-bar" style="height: 20px;"></div>
+                <div class="chart-bar-label">S</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="bottom-nav-item">
+            <div class="icon">🏠</div>
+            <span>Home</span>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">🎸</div>
+            <span>Play</span>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">🎤</div>
+            <span>Record</span>
+          </div>
+          <div class="bottom-nav-item">
+            <div class="icon">📚</div>
+            <span>Library</span>
+          </div>
+          <div class="bottom-nav-item active">
+            <div class="icon">👤</div>
+            <span>Me</span>
+            <div class="indicator"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 12: HELP -->
+      <div class="screen" id="help">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span class="icons">📶 🔋</span>
+        </div>
+        <div class="help">
+          <div class="help-header">
+            <div class="back" style="width:36px;height:36px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;cursor:pointer;">←</div>
+            <h2>Help</h2>
+          </div>
+          <div class="help-search">
+            <div class="search-bar">
+              <span style="color: var(--text-muted);">🔍</span>
+              <input type="text" placeholder="Search help...">
+            </div>
+          </div>
+          <div class="faq-list">
+            <div class="faq-item">
+              <h4>Getting Started</h4>
+              <p>Learn the basics of using AirChord</p>
+            </div>
+            <div class="faq-item">
+              <h4>Gesture Recognition</h4>
+              <p>Troubleshoot hand detection issues</p>
+            </div>
+            <div class="faq-item">
+              <h4>Audio Issues</h4>
+              <p>Fix sound and volume problems</p>
+            </div>
+            <div class="faq-item">
+              <h4>Recording</h4>
+              <p>How to record and export</p>
+            </div>
+            <div class="faq-item">
+              <h4>Troubleshooting</h4>
+              <p>Common issues and solutions</p>
+            </div>
+          </div>
+          <div class="help-contact">
+            <h3>Need More Help?</h3>
+            <p>Contact our support team</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showScreen(screenId) {
+      // Hide all screens
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+      // Show target screen
+      document.getElementById(screenId).classList.add('active');
+
+      // Update nav
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+</html>

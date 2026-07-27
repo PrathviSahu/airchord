@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AirChord — Clean Light Design</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Righteous&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { --wood: #8B5E3C; --wood-light: #C4956A; --wood-dark: #5C3A1E; --cream: #FAFAF8; --text: #2D2013; --text-dim: #8B7B6B; --accent: #B45309; }
+    body { font-family: 'Poppins', sans-serif; background: var(--cream); color: var(--text); overflow-x: hidden; }
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 16px 40px; display: flex; align-items: center; justify-content: space-between; background: rgba(250,250,248,0.85); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(139,94,60,0.08); }
+    .nav-logo { font-family: 'Righteous', cursive; font-size: 24px; color: var(--wood-dark); }
+    .nav-cta { padding: 10px 24px; background: var(--wood-dark); color: white; border: none; border-radius: 100px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .hero { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 120px 24px 60px; }
+    .hero h1 { font-family: 'Righteous', cursive; font-size: clamp(48px,10vw,110px); line-height: 1; margin-bottom: 24px; }
+    .hero h1 .a { color: var(--wood); }
+    .hero-sub { font-size: 18px; color: var(--text-dim); max-width: 500px; line-height: 1.7; margin-bottom: 40px; }
+    .hero-btns { display: flex; gap: 16px; }
+    .btn { padding: 16px 40px; border-radius: 16px; font-size: 16px; font-weight: 600; font-family: 'Poppins'; cursor: pointer; border: none; }
+    .btn-p { background: var(--wood-dark); color: white; box-shadow: 0 8px 30px rgba(92,58,30,0.2); }
+    .btn-s { background: white; color: var(--text); border: 2px solid rgba(139,94,60,0.15); }
+    .assembly { position: relative; height: 500vh; }
+    .assembly-inner { position: sticky; top: 0; height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .guitar-stage { position: relative; width: 360px; height: 600px; }
+    .gp { position: absolute; opacity: 0; }
+    .g-body { bottom: 0; left: 50%; transform: translateX(-50%); width: 280px; height: 300px; }
+    .g-hole { bottom: 115px; left: 50%; transform: translateX(-50%); width: 80px; height: 80px; border-radius: 50%; background: radial-gradient(circle,#0a0502 55%,#1a0f08 80%,transparent 100%); box-shadow: 0 0 0 3px #8B5E3C,0 0 0 6px #C4956A,0 0 0 8px #8B5E3C,inset 0 0 15px rgba(0,0,0,0.8); }
+    .g-neck { bottom: 280px; left: 50%; transform: translateX(-50%); width: 38px; height: 220px; border-radius: 4px 4px 0 0; background: linear-gradient(90deg,#3D2314,#5C3A1E 40%,#8B5E3C 50%,#5C3A1E 60%,#3D2314); }
+    .g-fret { bottom: 285px; left: 50%; transform: translateX(-50%); width: 32px; height: 210px; background: linear-gradient(180deg,#1C1008,#2D1810); }
+    .g-head { bottom: 490px; left: 50%; transform: translateX(-50%); width: 44px; height: 70px; border-radius: 10px 10px 2px 2px; background: linear-gradient(180deg,#3D2314,#5C3A1E); }
+    .g-str { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 26px; height: 490px; display: flex; justify-content: space-between; }
+    .st { transform-origin: top; }
+    .st.s { width: 1.2px; background: linear-gradient(180deg,#E8E8E8,#C0C0C0,#E8E8E8); }
+    .st.t { width: 1.8px; background: linear-gradient(180deg,#D4A574,#B8860B,#D4A574); }
+    .sl { position: absolute; pointer-events: none; opacity: 0; }
+    .sl .n { font-family: 'Space Grotesk',monospace; font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px; font-weight: 600; }
+    .sl h3 { font-family: 'Righteous',cursive; font-size: 40px; margin-bottom: 10px; }
+    .sl p { font-size: 15px; color: var(--text-dim); max-width: 260px; line-height: 1.6; }
+    .dots { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(139,94,60,0.15); transition: all 0.3s; }
+    .dot.on { background: var(--wood); width: 24px; border-radius: 4px; }
+    .gestures { padding: 100px 24px; background: white; }
+    .sh { text-align: center; margin-bottom: 60px; }
+    .st2 { font-family: 'Righteous',cursive; font-size: clamp(36px,5vw,56px); line-height: 1.1; }
+    .st2 .a { color: var(--wood); }
+    .gg { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+    .gc { background: var(--cream); border: 1px solid rgba(139,94,60,0.08); border-radius: 24px; padding: 32px 24px; text-align: center; cursor: pointer; transition: all 0.3s; }
+    .gc:hover { transform: translateY(-8px); box-shadow: 0 16px 40px rgba(139,94,60,0.1); }
+    .gc .e { font-size: 48px; margin-bottom: 12px; }
+    .gc .ch { font-family: 'Righteous',cursive; font-size: 28px; color: var(--wood); margin-bottom: 4px; }
+    footer { padding: 40px 24px; border-top: 1px solid rgba(139,94,60,0.08); text-align: center; }
+    footer p { font-size: 12px; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+<nav><div class="nav-logo">AirChord</div><button class="nav-cta">Open Studio</button></nav>
+<section class="hero">
+  <h1>Turn Your Hand<br><span class="a">Into Music</span></h1>
+  <p class="hero-sub">AI-powered hand tracking transforms your gestures into realistic guitar chords. No guitar needed.</p>
+  <div class="hero-btns"><button class="btn btn-p">Start Playing Free</button><button class="btn btn-s">Watch Demo</button></div>
+</section>
+<section class="assembly" id="how">
+  <div class="assembly-inner">
+    <div class="guitar-stage" id="gs">
+      <div class="gp g-body" id="p1"><svg viewBox="0 0 280 300"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#DEB887"/><stop offset="100%" stop-color="#8B5E3C"/></linearGradient></defs><path d="M140,10 C80,10 50,50 45,90 C40,120 55,145 75,155 C55,165 35,190 35,220 C35,260 70,290 140,290 C210,290 245,260 245,220 C245,190 225,165 205,155 C225,145 240,120 235,90 C230,50 200,10 140,10Z" fill="url(#bg)"/></svg></div>
+      <div class="gp g-hole" id="p2"></div>
+      <div class="gp g-neck" id="p3"></div>
+      <div class="gp g-fret" id="p4"></div>
+      <div class="gp g-head" id="p5"></div>
+      <div class="gp g-str" id="p6"><div class="st s"></div><div class="st s"></div><div class="st t"></div><div class="st t"></div><div class="st s"></div><div class="st s"></div></div>
+    </div>
+    <div class="sl" id="l1" style="left:6%;top:35%;text-align:left"><div class="n">Step 1</div><h3>The Body</h3><p>Hand-selected tonewoods for rich, resonant warmth.</p></div>
+    <div class="sl" id="l2" style="right:6%;top:35%;text-align:right"><div class="n">Step 2</div><h3>Sound Hole</h3><p>Precision-cut for optimal resonance.</p></div>
+    <div class="sl" id="l3" style="left:6%;top:30%;text-align:left"><div class="n">Step 3</div><h3>The Neck</h3><p>Mahogany neck with smooth playability.</p></div>
+    <div class="sl" id="l4" style="right:6%;top:30%;text-align:right"><div class="n">Step 4</div><h3>Fretboard</h3><p>Rosewood with polished nickel frets.</p></div>
+    <div class="sl" id="l5" style="left:6%;top:25%;text-align:left"><div class="n">Step 5</div><h3>Headstock</h3><p>Classic design with precision tuners.</p></div>
+    <div class="sl" id="l6" style="right:6%;top:35%;text-align:right"><div class="n">Step 6</div><h3>Strings</h3><p>Steel strings with natural sustain.</p></div>
+    <div class="dots"><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  </div>
+</section>
+<section class="gestures" id="gestures">
+  <div class="sh"><h2 class="st2">Simple Gestures.<br><span class="a">Live Guitar.</span></h2></div>
+  <div class="gg">
+    <div class="gc"><div class="e">✊</div><h4>Fist</h4><div class="ch">Em</div></div>
+    <div class="gc"><div class="e">☝️</div><h4>One</h4><div class="ch">Am</div></div>
+    <div class="gc"><div class="e">✌️</div><h4>Two</h4><div class="ch">G</div></div>
+    <div class="gc"><div class="e">🤟</div><h4>Three</h4><div class="ch">C</div></div>
+    <div class="gc"><div class="e">🖐️</div><h4>Four</h4><div class="ch">D</div></div>
+    <div class="gc"><div class="e">✋</div><h4>Palm</h4><div class="ch">F</div></div>
+  </div>
+</section>
+<footer><p>© 2026 AirChord. All rights reserved.</p></footer>
+<script>
+gsap.registerPlugin(ScrollTrigger);
+const p=['p1','p2','p3','p4','p5','p6'], l=['l1','l2','l3','l4','l5','l6'], d=document.querySelectorAll('.dot');
+p.forEach(id=>gsap.set('#'+id,{opacity:0,y:50,scale:0.7}));
+l.forEach(id=>gsap.set('#'+id,{opacity:0,y:20}));
+const tl=gsap.timeline({scrollTrigger:{trigger:'.assembly',start:'top top',end:'bottom bottom',scrub:0.5}});
+p.forEach((id,i)=>{
+  const s=i/6;
+  tl.to('#'+id,{opacity:1,y:0,scale:1,duration:0.1,ease:'power3.out'},s+0.02);
+  tl.to('#'+l[i],{opacity:1,y:0,duration:0.06},s+0.04);
+  tl.to('#'+l[i],{opacity:0,y:-15,duration:0.06},s+0.14);
+  tl.call(()=>d.forEach((dd,j)=>dd.classList.toggle('on',j<=i)),[],s+0.02);
+});
+gsap.from('.gc',{opacity:0,y:40,stagger:0.08,duration:0.6,scrollTrigger:{trigger:'.gg',start:'top 80%'}});
+</script>
+</body>
+</html>

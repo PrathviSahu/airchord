@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AirChord</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Righteous&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    :root{--w:#8B5E3C;--wl:#C4956A;--wd:#5C3A1E;--c:#FAFAF8;--t:#2D2013;--td:#8B7B6B;--a:#B45309;}
+    body{font-family:'Poppins',sans-serif;background:var(--c);color:var(--t);overflow-x:hidden;cursor:none;}
+    ::selection{background:var(--w);color:white;}
+    /* CUSTOM CURSOR */
+    .cursor{position:fixed;width:20px;height:20px;border:2px solid var(--w);border-radius:50%;pointer-events:none;z-index:9999;transition:width .3s,height .3s,border-color .3s,background .3s;transform:translate(-50%,-50%);mix-blend-mode:difference;}
+    .cursor.hover{width:50px;height:50px;background:rgba(139,94,60,0.1);border-color:var(--a);}
+    .cursor-dot{position:fixed;width:5px;height:5px;background:var(--w);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);}
+    /* GRAIN */
+    .grain{position:fixed;inset:0;pointer-events:none;z-index:9998;opacity:0.03;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    /* NAV */
+    nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 48px;display:flex;align-items:center;justify-content:space-between;}
+    .logo{font-family:'Righteous',cursive;font-size:22px;color:var(--wd);letter-spacing:-0.5px;}
+    .nav-links{display:flex;gap:36px;}
+    .nav-links a{font-size:13px;font-weight:500;color:var(--td);text-decoration:none;letter-spacing:0.5px;position:relative;cursor:none;}
+    .nav-links a::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:1.5px;background:var(--w);transition:width .3s cubic-bezier(.4,0,.2,1);}
+    .nav-links a:hover::after{width:100%;}
+    .nav-btn{padding:10px 28px;background:var(--wd);color:white;border:none;border-radius:100px;font-size:13px;font-weight:600;font-family:'Poppins';cursor:none;letter-spacing:0.3px;}
+
+    /* HERO — BIG TYPOGRAPHY */
+    .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:0 clamp(40px,8vw,120px);position:relative;overflow:hidden;}
+    .hero-line{overflow:hidden;}
+    .hero-line h1{font-family:'Righteous',cursive;font-size:clamp(60px,11vw,140px);line-height:0.95;transform:translateY(120%);color:var(--t);}
+    .hero-line h1 .w{color:var(--w);}
+    .hero-bottom{display:flex;justify-content:space-between;align-items:flex-end;margin-top:48px;}
+    .hero-sub{font-size:15px;color:var(--td);max-width:380px;line-height:1.7;transform:translateY(30px);opacity:0;}
+    .hero-cta{display:flex;gap:12px;transform:translateY(30px);opacity:0;}
+    .hero-cta .btn{padding:14px 36px;border-radius:14px;font-size:14px;font-weight:600;font-family:'Poppins';cursor:none;border:none;transition:transform .3s cubic-bezier(.34,1.56,.64,1);}
+    .hero-cta .btn-p{background:var(--wd);color:white;box-shadow:0 4px 20px rgba(92,58,30,0.15);}
+    .hero-cta .btn-s{background:transparent;color:var(--t);border:1.5px solid rgba(139,94,60,0.2);}
+    .hero-cta .btn:hover{transform:scale(1.05);}
+    .hero-big-word{position:absolute;bottom:60px;right:clamp(40px,8vw,120px);font-family:'Righteous',cursive;font-size:clamp(100px,18vw,280px);color:rgba(139,94,60,0.04);line-height:1;pointer-events:none;user-select:none;white-space:nowrap;}
+    .scroll-line{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:1px;height:60px;background:rgba(139,94,60,0.15);overflow:hidden;}
+    .scroll-line::after{content:'';position:absolute;top:-100%;left:0;width:100%;height:100%;background:var(--w);animation:scrollDown 2s infinite;}
+    @keyframes scrollDown{0%{top:-100%}100%{top:100%}}
+
+    /* MARQUEE */
+    .marquee{padding:20px 0;overflow:hidden;border-top:1px solid rgba(139,94,60,0.06);border-bottom:1px solid rgba(139,94,60,0.06);background:white;}
+    .marquee-inner{display:flex;gap:40px;animation:marquee 20s linear infinite;width:max-content;}
+    .marquee-item{font-family:'Righteous',cursive;font-size:18px;color:rgba(139,94,60,0.2);white-space:nowrap;display:flex;align-items:center;gap:40px;}
+    .marquee-item .dot{width:6px;height:6px;border-radius:50%;background:var(--wl);opacity:0.4;}
+    @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+    /* GUITAR ASSEMBLY — UNIQUE: each part enters from a different direction with skew + rotation */
+    .assembly{position:relative;height:600vh;}
+    .assembly-sticky{position:sticky;top:0;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+    .guitar-wrap{position:relative;width:300px;height:520px;}
+    .gp{position:absolute;opacity:0;will-change:transform,opacity;}
+    .g-body-svg{bottom:0;left:50%;transform:translateX(-50%);width:260px;height:280px;}
+    .g-hole{bottom:105px;left:50%;transform:translateX(-50%);width:72px;height:72px;border-radius:50%;background:radial-gradient(circle,#0a0502 55%,#1a0f08 80%,transparent 100%);box-shadow:0 0 0 3px #8B5E3C,0 0 0 5px #C4956A,0 0 0 7px #8B5E3C,inset 0 0 12px rgba(0,0,0,0.8);}
+    .g-neck{bottom:255px;left:50%;transform:translateX(-50%);width:34px;height:200px;border-radius:4px 4px 0 0;background:linear-gradient(90deg,#3D2314,#5C3A1E 40%,#8B5E3C 50%,#5C3A1E 60%,#3D2314);}
+    .g-fret{bottom:260px;left:50%;transform:translateX(-50%);width:28px;height:190px;background:linear-gradient(180deg,#1C1008,#2D1810);border-radius:2px;}
+    .g-head{bottom:445px;left:50%;transform:translateX(-50%);width:40px;height:60px;border-radius:8px 8px 2px 2px;background:linear-gradient(180deg,#3D2314,#5C3A1E);}
+    .g-str{position:absolute;bottom:25px;left:50%;transform:translateX(-50%);width:22px;height:450px;display:flex;justify-content:space-between;}
+    .st{transform-origin:top;}.st.s{width:1px;background:linear-gradient(180deg,#E8E8E8,#C0C0C0,#E8E8E8);}.st.t{width:1.5px;background:linear-gradient(180deg,#D4A574,#B8860B,#D4A574);}
+
+    /* Step indicators — unique: rotating ring */
+    .step-ring{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:450px;height:450px;border:1px solid rgba(139,94,60,0.06);border-radius:50%;pointer-events:none;opacity:0;}
+    .step-ring svg{width:100%;height:100%;}
+    .step-ring circle{fill:none;stroke:var(--w);stroke-width:1.5;stroke-dasharray:1414;stroke-dashoffset:1414;stroke-linecap:round;opacity:0.2;}
+
+    .step-info{position:absolute;pointer-events:none;opacity:0;}
+    .step-info .num{font-family:'Space Grotesk',monospace;font-size:10px;color:var(--a);text-transform:uppercase;letter-spacing:3px;font-weight:600;}
+    .step-info h3{font-family:'Righteous',cursive;font-size:clamp(28px,4vw,42px);margin:6px 0;line-height:1.1;}
+    .step-info p{font-size:14px;color:var(--td);max-width:220px;line-height:1.6;}
+
+    .progress-bar{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:200px;height:2px;background:rgba(139,94,60,0.1);border-radius:1px;}
+    .progress-fill{height:100%;background:var(--w);border-radius:1px;width:0%;transition:none;}
+
+    /* HORIZONTAL SECTION — unique layout break */
+    .horizontal-section{padding:120px 0;background:white;overflow:hidden;}
+    .h-title{font-family:'Righteous',cursive;font-size:clamp(36px,5vw,56px);text-align:center;margin-bottom:60px;line-height:1.1;}
+    .h-title .a{color:var(--w);}
+    .h-scroll{display:flex;gap:24px;padding:0 clamp(40px,8vw,120px);overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .h-scroll::-webkit-scrollbar{display:none;}
+    .h-card{flex:0 0 300px;scroll-snap-align:start;background:var(--c);border:1px solid rgba(139,94,60,0.08);border-radius:24px;padding:36px 28px;cursor:none;transition:transform .4s cubic-bezier(.34,1.56,.64,1),border-color .3s;}
+    .h-card:hover{transform:translateY(-8px) rotate(-1deg);border-color:rgba(139,94,60,0.2);}
+    .h-card .emoji{font-size:44px;margin-bottom:16px;display:block;}
+    .h-card h4{font-family:'Righteous',cursive;font-size:20px;margin-bottom:6px;}
+    .h-card .chord{font-family:'Righteous',cursive;font-size:32px;color:var(--w);margin-bottom:8px;}
+    .h-card .desc{font-size:13px;color:var(--td);line-height:1.5;}
+
+    /* GUITAR TYPES — unique: parallax card stack */
+    .types{padding:120px clamp(40px,8vw,120px);position:relative;}
+    .types-title{font-family:'Righteous',cursive;font-size:clamp(36px,5vw,56px);margin-bottom:60px;line-height:1.1;}
+    .types-title .a{color:var(--w);}
+    .types-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;}
+    .type-card{padding:32px;border-radius:20px;border:1px solid rgba(139,94,60,0.08);background:white;cursor:none;transition:all .4s cubic-bezier(.34,1.56,.64,1);position:relative;overflow:hidden;}
+    .type-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--w);transform:scaleX(0);transform-origin:left;transition:transform .4s cubic-bezier(.4,0,.2,1);}
+    .type-card:hover::before{transform:scaleX(1);}
+    .type-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(139,94,60,0.08);}
+    .type-card h4{font-family:'Righteous',cursive;font-size:22px;margin-bottom:4px;}
+    .type-card .tagline{font-size:13px;color:var(--td);margin-bottom:12px;}
+    .type-card .tags{display:flex;gap:6px;flex-wrap:wrap;}
+    .type-card .tag{padding:4px 12px;background:rgba(180,83,9,0.05);border-radius:100px;font-size:11px;color:var(--a);font-weight:500;}
+
+    /* CTA — unique: giant text reveal */
+    .cta{padding:160px clamp(40px,8vw,120px);background:white;overflow:hidden;}
+    .cta h2{font-family:'Righteous',cursive;font-size:clamp(60px,12vw,160px);line-height:0.9;overflow:hidden;}
+    .cta h2 span{display:block;transform:translateY(120%);}
+    .cta h2 .a{color:var(--w);}
+    .cta-sub{font-size:16px;color:var(--td);margin:24px 0 40px;max-width:400px;line-height:1.6;opacity:0;}
+    .cta-btn{padding:18px 48px;background:var(--wd);color:white;border:none;border-radius:16px;font-size:16px;font-weight:600;font-family:'Poppins';cursor:none;opacity:0;transform:translateY(20px);}
+
+    footer{padding:40px clamp(40px,8vw,120px);display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(139,94,60,0.06);}
+    footer .logo{font-size:18px;}
+    footer .links{display:flex;gap:24px;}
+    footer .links a{font-size:12px;color:var(--td);text-decoration:none;cursor:none;}
+    footer .copy{font-size:11px;color:var(--td);}
+
+    @media(max-width:768px){
+      .cursor,.cursor-dot{display:none;}body{cursor:auto;}
+      nav{padding:16px 20px;}.nav-links{display:none;}
+      .types-grid{grid-template-columns:1fr;}
+      .hero-bottom{flex-direction:column;gap:24px;align-items:flex-start;}
+    }
+  </style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-dot" id="cursor-dot"></div>
+<div class="grain"></div>
+
+<nav>
+  <div class="logo">AirChord</div>
+  <div class="nav-links">
+    <a href="#assembly">How It Works</a>
+    <a href="#gestures">Gestures</a>
+    <a href="#types">Instruments</a>
+  </div>
+  <button class="nav-btn">Open Studio</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="hero-line"><h1>Turn Your</h1></div>
+  <div class="hero-line"><h1>Hand Into <span class="w">Music</span></h1></div>
+  <div class="hero-bottom">
+    <p class="hero-sub">AI-powered hand tracking transforms gestures into real guitar chords. No guitar needed — just your hands.</p>
+    <div class="hero-cta">
+      <button class="btn btn-p">Start Playing</button>
+      <button class="btn btn-s">Watch Demo</button>
+    </div>
+  </div>
+  <div class="hero-big-word">AIRCHORD</div>
+  <div class="scroll-line"></div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee">
+  <div class="marquee-inner">
+    <span class="marquee-item">EM<span class="dot"></span>AM<span class="dot"></span>G<span class="dot"></span>C<span class="dot"></span>D<span class="dot"></span>F<span class="dot"></span>E<span class="dot"></span>A<span class="dot"></span>DM<span class="dot"></span>B7<span class="dot"></span></span>
+    <span class="marquee-item">EM<span class="dot"></span>AM<span class="dot"></span>G<span class="dot"></span>C<span class="dot"></span>D<span class="dot"></span>F<span class="dot"></span>E<span class="dot"></span>A<span class="dot"></span>DM<span class="dot"></span>B7<span class="dot"></span></span>
+  </div>
+</div>
+
+<!-- GUITAR ASSEMBLY -->
+<section class="assembly" id="assembly">
+  <div class="assembly-sticky">
+    <div class="step-ring" id="ring"><svg viewBox="0 0 450 450"><circle cx="225" cy="225" r="225" id="ring-circle"/></svg></div>
+    <div class="guitar-wrap" id="gw">
+      <div class="gp g-body-svg" id="gp1"><svg viewBox="0 0 260 280"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#DEB887"/><stop offset="100%" stop-color="#8B5E3C"/></linearGradient></defs><path d="M130,8 C75,8 48,45 44,82 C40,108 52,132 70,142 C52,152 34,176 34,204 C34,240 64,268 130,268 C196,268 226,240 226,204 C226,176 208,152 190,142 C208,132 220,108 216,82 C212,45 185,8 130,8Z" fill="url(#bg)"/></svg></div>
+      <div class="gp g-hole" id="gp2"></div>
+      <div class="gp g-neck" id="gp3"></div>
+      <div class="gp g-fret" id="gp4"></div>
+      <div class="gp g-head" id="gp5"></div>
+      <div class="gp g-str" id="gp6"><div class="st s"></div><div class="st s"></div><div class="st t"></div><div class="st t"></div><div class="st s"></div><div class="st s"></div></div>
+    </div>
+    <div class="step-info" id="si1" style="left:8%;top:30%"><div class="num">01 / 06</div><h3>The Body</h3><p>Hand-selected tonewoods for rich, resonant warmth.</p></div>
+    <div class="step-info" id="si2" style="right:8%;top:30%;text-align:right"><div class="num">02 / 06</div><h3>Sound Hole</h3><p>Precision-cut for optimal resonance.</p></div>
+    <div class="step-info" id="si3" style="left:8%;top:25%"><div class="num">03 / 06</div><h3>Neck</h3><p>Mahogany neck with smooth playability.</p></div>
+    <div class="step-info" id="si4" style="right:8%;top:25%;text-align:right"><div class="num">04 / 06</div><h3>Fretboard</h3><p>Rosewood with polished nickel frets.</p></div>
+    <div class="step-info" id="si5" style="left:8%;top:22%"><div class="num">05 / 06</div><h3>Headstock</h3><p>Classic design with precision tuners.</p></div>
+    <div class="step-info" id="si6" style="right:8%;top:30%;text-align:right"><div class="num">06 / 06</div><h3>Strings</h3><p>Steel strings with natural sustain.</p></div>
+    <div class="progress-bar"><div class="progress-fill" id="pf"></div></div>
+  </div>
+</section>
+
+<!-- GESTURES — horizontal scroll -->
+<section class="horizontal-section" id="gestures">
+  <h2 class="h-title">Simple Gestures.<br><span class="a">Live Guitar.</span></h2>
+  <div class="h-scroll">
+    <div class="h-card"><span class="emoji">✊</span><h4>Fist</h4><div class="chord">Em</div><p class="desc">Close your fist for the Em chord. The warmest sound.</p></div>
+    <div class="h-card"><span class="emoji">☝️</span><h4>One Finger</h4><div class="chord">Am</div><p class="desc">Point one finger for Am. Classic and versatile.</p></div>
+    <div class="h-card"><span class="emoji">✌️</span><h4>Two Fingers</h4><div class="chord">G</div><p class="desc">Peace sign for G. Bright and cheerful.</p></div>
+    <div class="h-card"><span class="emoji">🤟</span><h4>Three Fingers</h4><div class="chord">C</div><p class="desc">Rock on for C. Clean and uplifting.</p></div>
+    <div class="h-card"><span class="emoji">🖐️</span><h4>Four Fingers</h4><div class="chord">D</div><p class="desc">Four up for D. Sharp and powerful.</p></div>
+    <div class="h-card"><span class="emoji">✋</span><h4>Open Palm</h4><div class="chord">F</div><p class="desc">Full open palm for F. Rich and full.</p></div>
+  </div>
+</section>
+
+<!-- GUITAR TYPES -->
+<section class="types" id="types">
+  <h2 class="types-title">Choose Your<br><span class="a">Instrument</span></h2>
+  <div class="types-grid">
+    <div class="type-card"><h4>🎸 Acoustic</h4><div class="tagline">Warm & Natural — 6 strings</div><div class="tags"><span class="tag">Folk</span><span class="tag">Pop</span><span class="tag">Country</span></div></div>
+    <div class="type-card"><h4>🎸 Electric</h4><div class="tagline">Bold & Powerful — 6 strings</div><div class="tags"><span class="tag">Rock</span><span class="tag">Blues</span><span class="tag">Metal</span></div></div>
+    <div class="type-card"><h4>🎸 Bass</h4><div class="tagline">Deep & Groovy — 4 strings</div><div class="tags"><span class="tag">Funk</span><span class="tag">Jazz</span><span class="tag">R&B</span></div></div>
+    <div class="type-card"><h4>🪕 Ukulele</h4><div class="tagline">Light & Playful — 4 strings</div><div class="tags"><span class="tag">Hawaiian</span><span class="tag">Pop</span><span class="tag">Indie</span></div></div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <h2><span>Ready to</span><span><span class="a">Play?</span></span></h2>
+  <p class="cta-sub">Join thousands of singers discovering hands-free guitar accompaniment.</p>
+  <button class="cta-btn">Start Playing Free</button>
+</section>
+
+<footer>
+  <div class="logo">AirChord</div>
+  <div class="links"><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Support</a></div>
+  <div class="copy">© 2026 AirChord</div>
+</footer>
+
+<script>
+gsap.registerPlugin(ScrollTrigger);
+
+// ===== CUSTOM CURSOR =====
+const cursor = document.getElementById('cursor');
+const dot = document.getElementById('cursor-dot');
+let mx = 0, my = 0, cx = 0, cy = 0;
+document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+(function loop() {
+  cx += (mx - cx) * 0.12;
+  cy += (my - cy) * 0.12;
+  cursor.style.left = cx + 'px';
+  cursor.style.top = cy + 'px';
+  dot.style.left = mx + 'px';
+  dot.style.top = my + 'px';
+  requestAnimationFrame(loop);
+})();
+
+document.querySelectorAll('a,button,.h-card,.type-card').forEach(el => {
+  el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
+  el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
+});
+
+// ===== HERO ENTRANCE — split text reveal =====
+const heroTl = gsap.timeline({delay: 0.3});
+heroTl
+  .to('.hero-line h1', { y: 0, duration: 1.2, stagger: 0.15, ease: 'power4.out' })
+  .to('.hero-sub', { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, '-=0.6')
+  .to('.hero-cta', { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, '-=0.6');
+
+// ===== SCRAMBLE TEXT on hero big word =====
+const bigWord = document.querySelector('.hero-big-word');
+const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+function scramble(el) {
+  const original = el.textContent;
+  let iteration = 0;
+  const interval = setInterval(() => {
+    el.textContent = original.split('').map((char, i) => {
+      if (i < iteration) return original[i];
+      return chars[Math.floor(Math.random() * chars.length)];
+    }).join('');
+    iteration += 0.5;
+    if (iteration >= original.length) { clearInterval(interval); el.textContent = original; }
+  }, 30);
+}
+scramble(bigWord);
+
+// ===== GUITAR ASSEMBLY — each part enters with unique direction + skew =====
+const parts = [
+  { id: 'gp1', from: { y: 120, rotation: -8, skewX: 5, scale: 0.6 } },
+  { id: 'gp2', from: { scale: 0, rotation: 90 } },
+  { id: 'gp3', from: { y: -150, skewX: -10, scale: 0.5 } },
+  { id: 'gp4', from: { y: -120, skewX: 8, scale: 0.6 } },
+  { id: 'gp5', from: { y: -100, rotation: -15, scale: 0.4 } },
+  { id: 'gp6', from: { scaleY: 0, scaleX: 0.5, opacity: 0 } },
+];
+const infos = ['si1','si2','si3','si4','si5','si6'];
+
+parts.forEach(p => gsap.set('#'+p.id, { opacity: 0, ...p.from }));
+infos.forEach(id => gsap.set('#'+id, { opacity: 0, x: id.includes('1')||id.includes('3')||id.includes('5') ? -30 : 30 }));
+gsap.set('#ring', { opacity: 0 });
+gsap.set('#ring-circle', { strokeDashoffset: 1414 });
+
+const ringTl = gsap.timeline({ scrollTrigger: { trigger: '.assembly', start: 'top top', end: 'bottom bottom', scrub: 0.5 } });
+
+// Ring draws as you scroll
+ringTl.to('#ring', { opacity: 1, duration: 0.05 }, 0)
+  .to('#ring-circle', { strokeDashoffset: 0, duration: 0.8, ease: 'none' }, 0);
+
+parts.forEach((p, i) => {
+  const s = i / 6;
+  const dur = 0.08;
+
+  // Each part flies in with its unique transform, then settles
+  ringTl.to('#'+p.id, {
+    opacity: 1, y: 0, rotation: 0, skewX: 0, scaleX: 1, scaleY: 1, scale: 1,
+    duration: dur, ease: 'power3.out'
+  }, s + 0.01);
+
+  // Info label slides in from its side
+  const dir = i % 2 === 0 ? -1 : 1;
+  ringTl.to('#'+infos[i], { opacity: 1, x: 0, duration: 0.06, ease: 'power2.out' }, s + 0.03)
+    .to('#'+infos[i], { opacity: 0, x: dir * -20, duration: 0.04 }, s + 0.12);
+
+  // Progress bar
+  ringTl.to('#pf', { width: ((i + 1) / 6 * 100) + '%', duration: 0.05 }, s + 0.01);
+});
+
+// Strings vibrate at end
+ringTl.call(() => {
+  const s = document.createElement('style');
+  s.textContent = '@keyframes sv{0%{transform:translateX(-.4px)}100%{transform:translateX(.4px)}}';
+  document.head.appendChild(s);
+  document.querySelectorAll('.st').forEach((el, i) => el.style.animation = `sv 0.${5+i}s infinite alternate`);
+}, [], '-=0.05');
+
+// ===== HORIZONTAL CARDS — stagger from different directions =====
+document.querySelectorAll('.h-card').forEach((card, i) => {
+  const dir = i % 2 === 0 ? -1 : 1;
+  gsap.from(card, {
+    opacity: 0, y: 30 * dir, rotation: 3 * dir,
+    duration: 0.6, ease: 'power3.out',
+    scrollTrigger: { trigger: '.horizontal-section', start: 'top 70%' },
+    delay: i * 0.08
+  });
+});
+
+// ===== TYPE CARDS — enter with scale + rotation =====
+document.querySelectorAll('.type-card').forEach((card, i) => {
+  gsap.from(card, {
+    opacity: 0, y: 40, rotation: i % 2 === 0 ? -3 : 3, scale: 0.9,
+    duration: 0.7, ease: 'back.out(1.7)',
+    scrollTrigger: { trigger: '.types-grid', start: 'top 80%' },
+    delay: i * 0.1
+  });
+});
+
+// ===== CTA — giant text reveal =====
+const ctaTl = gsap.timeline({ scrollTrigger: { trigger: '.cta', start: 'top 70%' } });
+ctaTl
+  .to('.cta h2 span', { y: 0, duration: 1, stagger: 0.15, ease: 'power4.out' })
+  .to('.cta-sub', { opacity: 1, duration: 0.6 }, '-=0.4')
+  .to('.cta-btn', { opacity: 1, y: 0, duration: 0.6 }, '-=0.3');
+
+// ===== PARALLAX on hero elements =====
+gsap.to('.hero-big-word', {
+  y: -100, rotation: 3,
+  scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: 1 }
+});
+
+gsap.to('.scroll-line', {
+  opacity: 0, y: -30,
+  scrollTrigger: { trigger: '.hero', start: '30% top', end: '50% top', scrub: true }
+});
+</script>
+</body>
+</html>

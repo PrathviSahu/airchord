@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AirChord — Turn Your Hand Into a Live Guitar</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Righteous&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #6366F1;
+      --primary-glow: rgba(99, 102, 241, 0.4);
+      --secondary: #F59E0B;
+      --cta: #22C55E;
+      --bg: #0A0A1A;
+      --surface: #12122A;
+      --text: #F8FAFC;
+      --text-dim: #94A3B8;
+      --font-heading: 'Righteous', cursive;
+      --font-body: 'Poppins', sans-serif;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ========== HERO SECTION ========== */
+    .hero {
+      height: 100vh;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      perspective: 1000px;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 60%),
+                  radial-gradient(ellipse at 80% 50%, rgba(34, 197, 94, 0.08) 0%, transparent 40%),
+                  var(--bg);
+    }
+
+    /* Floating 3D elements */
+    .floating-element {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.5;
+      transform-style: preserve-3d;
+    }
+
+    .float-1 {
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.3), transparent);
+      top: -100px;
+      left: -100px;
+    }
+
+    .float-2 {
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(34, 197, 94, 0.25), transparent);
+      bottom: -50px;
+      right: -50px;
+    }
+
+    .float-3 {
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.2), transparent);
+      top: 30%;
+      right: 20%;
+    }
+
+    /* 3D Grid */
+    .grid-3d {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      transform: perspective(500px) rotateX(60deg);
+      transform-origin: center top;
+      opacity: 0.5;
+    }
+
+    /* Hero Content */
+    .hero-content {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      max-width: 900px;
+      padding: 0 24px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 20px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--primary);
+      margin-bottom: 32px;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .hero-badge .dot {
+      width: 8px;
+      height: 8px;
+      background: var(--cta);
+      border-radius: 50%;
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.5); }
+    }
+
+    .hero-title {
+      font-family: var(--font-heading);
+      font-size: clamp(48px, 10vw, 96px);
+      line-height: 1.1;
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateY(40px);
+    }
+
+    .hero-title .gradient {
+      background: linear-gradient(135deg, var(--primary), var(--cta));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(16px, 2.5vw, 22px);
+      color: var(--text-dim);
+      line-height: 1.6;
+      max-width: 600px;
+      margin: 0 auto 40px;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    .btn-primary {
+      padding: 18px 40px;
+      background: linear-gradient(135deg, var(--primary), #4F46E5);
+      color: #fff;
+      border: none;
+      border-radius: 16px;
+      font-size: 18px;
+      font-weight: 600;
+      font-family: var(--font-body);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent, rgba(255,255,255,0.2));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .btn-primary:hover::before {
+      opacity: 1;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 20px 40px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-secondary {
+      padding: 18px 40px;
+      background: transparent;
+      color: var(--text);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      font-size: 18px;
+      font-weight: 500;
+      font-family: var(--font-body);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.1);
+      transform: translateY(-3px);
+    }
+
+    /* Scroll Indicator */
+    .scroll-indicator {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+    }
+
+    .scroll-indicator span {
+      font-size: 12px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .scroll-mouse {
+      width: 24px;
+      height: 36px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      position: relative;
+    }
+
+    .scroll-mouse::after {
+      content: '';
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      height: 8px;
+      background: var(--primary);
+      border-radius: 2px;
+      animation: scroll-anim 2s infinite;
+    }
+
+    @keyframes scroll-anim {
+      0%, 100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+      50% { transform: translateX(-50%) translateY(10px); opacity: 0.3; }
+    }
+
+    /* ========== 3D GUITAR SECTION ========== */
+    .guitar-section {
+      min-height: 100vh;
+      position: relative;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      perspective: 1200px;
+    }
+
+    .guitar-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 100px 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .guitar-3d {
+      position: relative;
+      width: 100%;
+      height: 500px;
+      transform-style: preserve-3d;
+    }
+
+    .guitar-body {
+      position: absolute;
+      width: 300px;
+      height: 400px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%) rotateY(-15deg) rotateX(5deg);
+      background: linear-gradient(135deg, #2D1810, #4A2C1A);
+      border-radius: 150px 150px 100px 100px;
+      box-shadow:
+        -30px 30px 60px rgba(0, 0, 0, 0.5),
+        inset 0 0 60px rgba(0, 0, 0, 0.3),
+        0 0 100px rgba(99, 102, 241, 0.2);
+      transform-style: preserve-3d;
+    }
+
+    .guitar-body::before {
+      content: '';
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) translateZ(20px);
+      background: radial-gradient(circle, #1a0f08, #2D1810);
+      border-radius: 50%;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .guitar-neck {
+      position: absolute;
+      width: 40px;
+      height: 200px;
+      left: 50%;
+      top: -100px;
+      transform: translateX(-50%) rotateY(-15deg) translateZ(30px);
+      background: linear-gradient(180deg, #1a0f08, #2D1810);
+      border-radius: 8px 8px 0 0;
+      box-shadow: -5px 0 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .guitar-strings {
+      position: absolute;
+      width: 60px;
+      height: 350px;
+      left: 50%;
+      top: 25px;
+      transform: translateX(-50%) rotateY(-15deg) translateZ(40px);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .string {
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(180deg, #C0C0C0, #A0A0A0, #C0C0C0);
+      opacity: 0.6;
+      transform-origin: top;
+      animation: vibrate 0.1s infinite alternate;
+    }
+
+    .string:nth-child(1) { animation-delay: 0s; }
+    .string:nth-child(2) { animation-delay: 0.02s; }
+    .string:nth-child(3) { animation-delay: 0.04s; }
+    .string:nth-child(4) { animation-delay: 0.06s; }
+    .string:nth-child(5) { animation-delay: 0.08s; }
+    .string:nth-child(6) { animation-delay: 0.1s; }
+
+    @keyframes vibrate {
+      0% { transform: translateX(-1px); }
+      100% { transform: translateX(1px); }
+    }
+
+    .guitar-glow {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, var(--primary-glow), transparent 70%);
+      opacity: 0.3;
+      filter: blur(40px);
+      animation: glow-pulse 4s ease-in-out infinite;
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); }
+      50% { opacity: 0.5; transform: translate(-50%, -50%) scale(1.1); }
+    }
+
+    .guitar-text {
+      max-width: 500px;
+    }
+
+    .guitar-text h2 {
+      font-family: var(--font-heading);
+      font-size: clamp(32px, 5vw, 48px);
+      margin-bottom: 24px;
+      line-height: 1.2;
+    }
+
+    .guitar-text p {
+      font-size: 18px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      background: rgba(99, 102, 241, 0.08);
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .feature-item:hover {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: var(--primary);
+      transform: translateX(10px);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary), #4F46E5);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .feature-info h4 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .feature-info p {
+      font-size: 14px;
+      color: var(--text-dim);
+      margin: 0;
+    }
+
+    /* ========== GESTURE SECTION ========== */
+    .gesture-section {
+      min-height: 100vh;
+      position: relative;
+      display: flex;
+      align-items: center;
+      background: linear-gradient(180deg, var(--bg), var(--surface));
+    }
+
+    .gesture-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 100px 24px;
+      width: 100%;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .section-header h2 {
+      font-family: var(--font-heading);
+      font-size: clamp(32px, 5vw, 56px);
+      margin-bottom: 16px;
+    }
+
+    .section-header p {
+      font-size: 18px;
+      color: var(--text-dim);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .gesture-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      perspective: 1000px;
+    }
+
+    .gesture-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 40px 32px;
+      text-align: center;
+      transform-style: preserve-3d;
+      transition: all 0.4s ease;
+      cursor: pointer;
+    }
+
+    .gesture-card:hover {
+      transform: rotateY(10deg) rotateX(5deg) translateZ(20px);
+      border-color: var(--primary);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3),
+                  0 0 40px var(--primary-glow);
+    }
+
+    .gesture-emoji {
+      font-size: 64px;
+      margin-bottom: 20px;
+      display: block;
+      transition: transform 0.4s ease;
+    }
+
+    .gesture-card:hover .gesture-emoji {
+      transform: scale(1.2) translateZ(30px);
+    }
+
+    .gesture-card h3 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .gesture-card .chord {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+
+    .gesture-card p {
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+
+    /* ========== PROFILE SECTION ========== */
+    .profile-section {
+      min-height: 100vh;
+      position: relative;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .profile-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 100px 24px;
+      width: 100%;
+    }
+
+    .profile-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 32px;
+    }
+
+    .profile-card {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(34, 197, 94, 0.05));
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 24px;
+      padding: 40px;
+      position: relative;
+      overflow: hidden;
+      transform-style: preserve-3d;
+      transition: all 0.4s ease;
+    }
+
+    .profile-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, var(--primary-glow), transparent 70%);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .profile-card:hover::before {
+      opacity: 0.3;
+    }
+
+    .profile-card:hover {
+      transform: translateY(-10px) rotateX(5deg);
+      border-color: var(--primary);
+    }
+
+    .profile-card h3 {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .profile-card p {
+      font-size: 16px;
+      color: var(--text-dim);
+      line-height: 1.6;
+      margin-bottom: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .profile-chords {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
+    }
+
+    .chord-pill {
+      padding: 8px 20px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 100px;
+      font-family: var(--font-heading);
+      font-size: 18px;
+      transition: all 0.3s ease;
+    }
+
+    .profile-card:hover .chord-pill {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--primary);
+    }
+
+    /* ========== STATS SECTION ========== */
+    .stats-section {
+      padding: 100px 24px;
+      background: var(--surface);
+    }
+
+    .stats-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 32px;
+    }
+
+    .stat-card {
+      text-align: center;
+      padding: 40px 24px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      transform-style: preserve-3d;
+      transition: all 0.4s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-10px) rotateY(5deg);
+      border-color: var(--primary);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-number {
+      font-family: var(--font-heading);
+      font-size: 48px;
+      background: linear-gradient(135deg, var(--primary), var(--cta));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ========== CTA SECTION ========== */
+    .cta-section {
+      min-height: 80vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 50%, rgba(99, 102, 241, 0.2) 0%, transparent 60%);
+    }
+
+    .cta-content {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      max-width: 700px;
+      padding: 0 24px;
+    }
+
+    .cta-content h2 {
+      font-family: var(--font-heading);
+      font-size: clamp(36px, 6vw, 64px);
+      margin-bottom: 24px;
+    }
+
+    .cta-content p {
+      font-size: 20px;
+      color: var(--text-dim);
+      margin-bottom: 40px;
+    }
+
+    /* ========== FOOTER ========== */
+    footer {
+      padding: 60px 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-logo {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      color: var(--primary);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 32px;
+    }
+
+    .footer-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.3s;
+    }
+
+    .footer-links a:hover {
+      color: var(--primary);
+    }
+
+    .footer-copy {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 1024px) {
+      .guitar-container {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        text-align: center;
+      }
+
+      .guitar-3d {
+        height: 400px;
+      }
+
+      .guitar-text {
+        max-width: 100%;
+      }
+
+      .gesture-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .profile-cards {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .gesture-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        gap: 24px;
+        text-align: center;
+      }
+
+      .footer-links {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+    }
+
+    /* ========== CUSTOM CURSOR ========== */
+    .cursor-glow {
+      position: fixed;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--primary-glow), transparent 70%);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      opacity: 0.3;
+      z-index: 9999;
+      transition: opacity 0.3s;
+    }
+
+    /* ========== LOADING SCREEN ========== */
+    .loader {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+
+    .loader-content {
+      text-align: center;
+    }
+
+    .loader-logo {
+      font-family: var(--font-heading);
+      font-size: 48px;
+      color: var(--primary);
+      margin-bottom: 24px;
+    }
+
+    .loader-bar {
+      width: 200px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      margin: 0 auto;
+    }
+
+    .loader-progress {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), var(--cta));
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div class="loader" id="loader">
+    <div class="loader-content">
+      <div class="loader-logo">AirChord</div>
+      <div class="loader-bar">
+        <div class="loader-progress" id="loader-progress"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Cursor Glow -->
+  <div class="cursor-glow" id="cursor-glow"></div>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-bg"></div>
+    <div class="grid-3d"></div>
+    <div class="floating-element float-1"></div>
+    <div class="floating-element float-2"></div>
+    <div class="floating-element float-3"></div>
+
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        Now in Beta
+      </div>
+      <h1 class="hero-title">
+        Turn Your Hand Into a<br>
+        <span class="gradient">Live Guitar</span>
+      </h1>
+      <p class="hero-subtitle">
+        AirChord uses AI-powered hand tracking to transform your gestures into realistic guitar chords. No guitar needed — just your hands and your voice.
+      </p>
+      <div class="hero-cta">
+        <button class="btn-primary">Start Playing Free</button>
+        <button class="btn-secondary">Watch Demo</button>
+      </div>
+    </div>
+
+    <div class="scroll-indicator">
+      <div class="scroll-mouse"></div>
+      <span>Scroll to explore</span>
+    </div>
+  </section>
+
+  <!-- 3D Guitar Section -->
+  <section class="guitar-section">
+    <div class="guitar-container">
+      <div class="guitar-3d">
+        <div class="guitar-glow"></div>
+        <div class="guitar-body">
+          <div class="guitar-neck"></div>
+          <div class="guitar-strings">
+            <div class="string"></div>
+            <div class="string"></div>
+            <div class="string"></div>
+            <div class="string"></div>
+            <div class="string"></div>
+            <div class="string"></div>
+          </div>
+        </div>
+      </div>
+      <div class="guitar-text">
+        <h2>Realistic Guitar Sound</h2>
+        <p>
+          Powered by advanced Karplus-Strong synthesis, AirChord produces rich, authentic acoustic guitar tones. Each chord rings out with natural resonance and decay.
+        </p>
+        <div class="feature-list">
+          <div class="feature-item">
+            <div class="feature-icon">🎸</div>
+            <div class="feature-info">
+              <h4>10+ Chord Voicings</h4>
+              <p>Em, Am, G, C, D, F, E, A, Dm, B7, and more</p>
+            </div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon">🎵</div>
+            <div class="feature-info">
+              <h4>Strum Patterns</h4>
+              <p>8 built-in patterns from gentle to aggressive</p>
+            </div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon">🔊</div>
+            <div class="feature-info">
+              <h4>Studio Quality</h4>
+              <p>48kHz audio with body resonance modeling</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Gesture Section -->
+  <section class="gesture-section">
+    <div class="gesture-container">
+      <div class="section-header">
+        <h2>Simple Gestures,<br>Infinite Music</h2>
+        <p>Each finger count maps to a different chord. Show your hand to the camera and start playing instantly.</p>
+      </div>
+      <div class="gesture-grid">
+        <div class="gesture-card">
+          <span class="gesture-emoji">✊</span>
+          <h3>Fist</h3>
+          <div class="chord">Em</div>
+          <p>Close your fist for Em chord</p>
+        </div>
+        <div class="gesture-card">
+          <span class="gesture-emoji">☝️</span>
+          <h3>One Finger</h3>
+          <div class="chord">Am</div>
+          <p>Point one finger for Am chord</p>
+        </div>
+        <div class="gesture-card">
+          <span class="gesture-emoji">✌️</span>
+          <h3>Two Fingers</h3>
+          <div class="chord">G</div>
+          <p>Peace sign for G chord</p>
+        </div>
+        <div class="gesture-card">
+          <span class="gesture-emoji">🤟</span>
+          <h3>Three Fingers</h3>
+          <div class="chord">C</div>
+          <p>Three fingers for C chord</p>
+        </div>
+        <div class="gesture-card">
+          <span class="gesture-emoji">🖐️</span>
+          <h3>Four Fingers</h3>
+          <div class="chord">D</div>
+          <p>Four fingers for D chord</p>
+        </div>
+        <div class="gesture-card">
+          <span class="gesture-emoji">✋</span>
+          <h3>Open Palm</h3>
+          <div class="chord">F</div>
+          <p>Open palm for F chord</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Profile Section -->
+  <section class="profile-section">
+    <div class="profile-container">
+      <div class="section-header">
+        <h2>Multiple Profiles,<br>One App</h2>
+        <p>Switch between chord sets instantly to play any genre.</p>
+      </div>
+      <div class="profile-cards">
+        <div class="profile-card">
+          <h3>Classic</h3>
+          <p>Standard guitar chords for pop, rock, and folk music.</p>
+          <div class="profile-chords">
+            <span class="chord-pill">Em</span>
+            <span class="chord-pill">Am</span>
+            <span class="chord-pill">G</span>
+            <span class="chord-pill">C</span>
+            <span class="chord-pill">D</span>
+            <span class="chord-pill">F</span>
+          </div>
+        </div>
+        <div class="profile-card">
+          <h3>Worship</h3>
+          <p>Common worship song chords for CCM and gospel.</p>
+          <div class="profile-chords">
+            <span class="chord-pill">Am</span>
+            <span class="chord-pill">C</span>
+            <span class="chord-pill">G</span>
+            <span class="chord-pill">Em</span>
+            <span class="chord-pill">F</span>
+            <span class="chord-pill">D</span>
+          </div>
+        </div>
+        <div class="profile-card">
+          <h3>Bollywood</h3>
+          <p>Popular Hindi song chords for Indian pop music.</p>
+          <div class="profile-chords">
+            <span class="chord-pill">Am</span>
+            <span class="chord-pill">C</span>
+            <span class="chord-pill">G</span>
+            <span class="chord-pill">F</span>
+            <span class="chord-pill">Em</span>
+            <span class="chord-pill">D</span>
+          </div>
+        </div>
+        <div class="profile-card">
+          <h3>Blues</h3>
+          <p>12-bar blues chords for blues and rock music.</p>
+          <div class="profile-chords">
+            <span class="chord-pill">E</span>
+            <span class="chord-pill">A</span>
+            <span class="chord-pill">B7</span>
+            <span class="chord-pill">Am</span>
+            <span class="chord-pill">D</span>
+            <span class="chord-pill">G</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Section -->
+  <section class="stats-section">
+    <div class="stats-container">
+      <div class="section-header">
+        <h2>Built for Musicians</h2>
+        <p>Performance-first design that stays out of your way.</p>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-number">&lt;50ms</div>
+          <div class="stat-label">Gesture Latency</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">60fps</div>
+          <div class="stat-label">Smooth Tracking</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">21</div>
+          <div class="stat-label">Hand Landmarks</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">4</div>
+          <div class="stat-label">Genre Profiles</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta-section">
+    <div class="cta-bg"></div>
+    <div class="cta-content">
+      <h2>Ready to Play?</h2>
+      <p>Join thousands of singers who've discovered the joy of hands-free guitar accompaniment.</p>
+      <button class="btn-primary">Get AirChord Free</button>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-content">
+      <div class="footer-logo">AirChord</div>
+      <div class="footer-links">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">Support</a>
+        <a href="#">Twitter</a>
+      </div>
+      <div class="footer-copy">© 2026 AirChord. All rights reserved.</div>
+    </div>
+  </footer>
+
+  <script>
+    // Register GSAP plugins
+    gsap.registerPlugin(ScrollTrigger);
+
+    // ========== LOADING SCREEN ==========
+    const loader = document.getElementById('loader');
+    const progress = document.getElementById('loader-progress');
+
+    let loadProgress = 0;
+    const loadInterval = setInterval(() => {
+      loadProgress += Math.random() * 15;
+      if (loadProgress >= 100) {
+        loadProgress = 100;
+        clearInterval(loadInterval);
+        setTimeout(() => {
+          gsap.to(loader, {
+            opacity: 0,
+            duration: 0.5,
+            onComplete: () => {
+              loader.style.display = 'none';
+              animateHero();
+            }
+          });
+        }, 300);
+      }
+      progress.style.width = loadProgress + '%';
+    }, 100);
+
+    // ========== CUSTOM CURSOR ==========
+    const cursorGlow = document.getElementById('cursor-glow');
+    let mouseX = 0, mouseY = 0;
+    let cursorX = 0, cursorY = 0;
+
+    document.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+
+    function updateCursor() {
+      cursorX += (mouseX - cursorX) * 0.1;
+      cursorY += (mouseY - cursorY) * 0.1;
+      cursorGlow.style.left = cursorX + 'px';
+      cursorGlow.style.top = cursorY + 'px';
+      requestAnimationFrame(updateCursor);
+    }
+    updateCursor();
+
+    // ========== HERO ANIMATION ==========
+    function animateHero() {
+      const tl = gsap.timeline();
+
+      tl.to('.hero-badge', {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        ease: 'power3.out'
+      })
+      .to('.hero-title', {
+        opacity: 1,
+        y: 0,
+        duration: 1,
+        ease: 'power3.out'
+      }, '-=0.4')
+      .to('.hero-subtitle', {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        ease: 'power3.out'
+      }, '-=0.5')
+      .to('.hero-cta', {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        ease: 'power3.out'
+      }, '-=0.4')
+      .to('.scroll-indicator', {
+        opacity: 1,
+        duration: 0.8,
+        ease: 'power2.out'
+      }, '-=0.2');
+    }
+
+    // ========== FLOATING ELEMENTS PARALLAX ==========
+    gsap.to('.float-1', {
+      x: 50,
+      y: 30,
+      scrollTrigger: {
+        trigger: '.hero',
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 1
+      }
+    });
+
+    gsap.to('.float-2', {
+      x: -40,
+      y: -50,
+      scrollTrigger: {
+        trigger: '.hero',
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 1
+      }
+    });
+
+    gsap.to('.float-3', {
+      x: 30,
+      y: 40,
+      scrollTrigger: {
+        trigger: '.hero',
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 1
+      }
+    });
+
+    // ========== 3D GRID PARALLAX ==========
+    gsap.to('.grid-3d', {
+      rotationX: 55,
+      opacity: 0.2,
+      scrollTrigger: {
+        trigger: '.hero',
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 1
+      }
+    });
+
+    // ========== GUITAR 3D ROTATION ==========
+    gsap.to('.guitar-body', {
+      rotationY: -5,
+      rotationX: 10,
+      scrollTrigger: {
+        trigger: '.guitar-section',
+        start: 'top center',
+        end: 'bottom center',
+        scrub: 1
+      }
+    });
+
+    // ========== GUITAR SECTION ANIMATIONS ==========
+    gsap.from('.guitar-text h2', {
+      opacity: 0,
+      x: 50,
+      duration: 1,
+      scrollTrigger: {
+        trigger: '.guitar-section',
+        start: 'top 70%',
+        toggleActions: 'play none none reverse'
+      }
+    });
+
+    gsap.from('.guitar-text p', {
+      opacity: 0,
+      x: 50,
+      duration: 1,
+      delay: 0.2,
+      scrollTrigger: {
+        trigger: '.guitar-section',
+        start: 'top 70%',
+        toggleActions: 'play none none reverse'
+      }
+    });
+
+    gsap.from('.feature-item', {
+      opacity: 0,
+      x: 50,
+      stagger: 0.15,
+      duration: 0.8,
+      scrollTrigger: {
+        trigger: '.feature-list',
+        start: 'top 80%',
+        toggleActions: 'play none none reverse'
+      }
+    });
+
+    // ========== GESTURE CARDS ANIMATION ==========
+    gsap.from('.gesture-card', {
+      opacity: 0,
+      y: 50,
+      rotateX: 15,
+      stagger: 0.1,
+      duration: 0.8,
+      scrollTrigger: {
+        trigger: '.gesture-grid',
+        start: 'top 80%',
+        toggleActions: 'play none none reverse'
+      }
+    });
+
+    // ========== PROFILE CARDS ANIMATION ==========
+    gsap.from('.profile-card', {
+      opacity: 0,
+      y: 60,
+      rotateY: -15,
+      stagger: 0.15,
+      duration: 1,
+      scrollTrigger: {
+        trigger: '.profile-cards',
+        start: 'top 80%',
+        toggleActions: 'play none none reverse'
+      }
+    });
+
+    // ========== STATS COUNTER ANIMATION ==========
+    gsap.from('.stat-card', {
+      opacity: 0,
+      y: 40,
+      scale: 0.9,
+      stagger: 0.1,
+      duration: 0.8,
+      scrollTrigger: {
+        trigger: '.stats-grid',
+        start: 'top 80%',
+        toggleActions: 'play none none reverse'
+      }
+    });
+
+    // ========== CTA SECTION ANIMATION ==========
+    gsap.from('.cta-content h2', {
+      opacity: 0,
+      y: 50,
+      scale: 0.9,
+      duration: 1,
+      scrollTrigger: {
+        trigger: '.cta-section',
+        start: 'top 70%',
+        toggleActions: 'play none none reverse'
+      }
+    });
+
+    gsap.from('.cta-content p', {
+      opacity: 0,
+      y: 30,
+      duration: 0.8,
+      delay: 0.2,
+      scrollTrigger: {
+        trigger: '.cta-section',
+        start: 'top 70%',
+        toggleActions: 'play none none reverse'
+      }
+    });
+
+    gsap.from('.cta-content .btn-primary', {
+      opacity: 0,
+      y: 20,
+      duration: 0.8,
+      delay: 0.4,
+      scrollTrigger: {
+        trigger: '.cta-section',
+        start: 'top 70%',
+        toggleActions: 'play none none reverse'
+      }
+    });
+
+    // ========== BUTTON HOVER EFFECTS ==========
+    document.querySelectorAll('.btn-primary, .btn-secondary').forEach(btn => {
+      btn.addEventListener('mouseenter', () => {
+        gsap.to(btn, {
+          scale: 1.05,
+          duration: 0.3,
+          ease: 'power2.out'
+        });
+      });
+
+      btn.addEventListener('mouseleave', () => {
+        gsap.to(btn, {
+          scale: 1,
+          duration: 0.3,
+          ease: 'power2.out'
+        });
+      });
+    });
+
+    // ========== GESTURE CARD TILT EFFECT ==========
+    document.querySelectorAll('.gesture-card').forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const rotateX = (y - centerY) / 10;
+        const rotateY = (centerX - x) / 10;
+
+        gsap.to(card, {
+          rotateX: rotateX,
+          rotateY: rotateY,
+          duration: 0.3,
+          ease: 'power2.out'
+        });
+      });
+
+      card.addEventListener('mouseleave', () => {
+        gsap.to(card, {
+          rotateX: 0,
+          rotateY: 0,
+          duration: 0.5,
+          ease: 'power2.out'
+        });
+      });
+    });
+
+    // ========== PROFILE CARD TILT EFFECT ==========
+    document.querySelectorAll('.profile-card').forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const rotateX = (y - centerY) / 15;
+        const rotateY = (centerX - x) / 15;
+
+        gsap.to(card, {
+          rotateX: rotateX,
+          rotateY: rotateY,
+          duration: 0.3,
+          ease: 'power2.out'
+        });
+      });
+
+      card.addEventListener('mouseleave', () => {
+        gsap.to(card, {
+          rotateX: 0,
+          rotateY: 0,
+          duration: 0.5,
+          ease: 'power2.out'
+        });
+      });
+    });
+
+    // ========== SMOOTH SCROLL ==========
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          gsap.to(window, {
+            scrollTo: target,
+            duration: 1,
+            ease: 'power2.inOut'
+          });
+        }
+      });
+    });
+
+    // ========== HIDE SCROLL INDICATOR ON SCROLL ==========
+    ScrollTrigger.create({
+      trigger: '.hero',
+      start: 'top top',
+      end: '80% top',
+      onLeave: () => {
+        gsap.to('.scroll-indicator', { opacity: 0, duration: 0.3 });
+      },
+      onEnterBack: () => {
+        gsap.to('.scroll-indicator', { opacity: 1, duration: 0.3 });
+      }
+    });
+
+    // ========== STRING VIBRATION ON SCROLL ==========
+    ScrollTrigger.create({
+      trigger: '.guitar-section',
+      start: 'top center',
+      end: 'bottom center',
+      onEnter: () => {
+        document.querySelectorAll('.string').forEach(s => {
+          s.style.animationPlayState = 'running';
+        });
+      },
+      onLeave: () => {
+        document.querySelectorAll('.string').forEach(s => {
+          s.style.animationPlayState = 'paused';
+        });
+      },
+      onEnterBack: () => {
+        document.querySelectorAll('.string').forEach(s => {
+          s.style.animationPlayState = 'running';
+        });
+      },
+      onLeaveBack: () => {
+        document.querySelectorAll('.string').forEach(s => {
+          s.style.animationPlayState = 'paused';
+        });
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AirChord</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Righteous&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#0a0a0f;color:#f0ece4;font-family:'Poppins',sans-serif;overflow-x:hidden;}
+    canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;}
+    .overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;}
+
+    /* HERO TEXT */
+    .hero-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:3;pointer-events:none;}
+    .hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 18px;border:1px solid rgba(240,236,228,0.12);border-radius:100px;font-size:11px;font-weight:500;color:rgba(240,236,228,0.5);letter-spacing:2px;text-transform:uppercase;margin-bottom:20px;opacity:0;}
+    .hero-badge .dot{width:5px;height:5px;background:#22c55e;border-radius:50%;animation:pulse 2s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .hero-title{font-family:'Righteous',cursive;font-size:clamp(40px,7vw,80px);letter-spacing:12px;line-height:1.1;opacity:0;margin-bottom:12px;}
+    .hero-tagline{font-size:clamp(13px,1.8vw,17px);color:rgba(240,236,228,0.35);font-weight:300;letter-spacing:1px;opacity:0;}
+    .hero-buttons{display:flex;gap:16px;justify-content:center;margin-top:32px;opacity:0;pointer-events:auto;}
+    .hero-buttons .btn{padding:14px 36px;border-radius:12px;font-size:14px;font-weight:600;font-family:'Poppins';cursor:pointer;border:none;letter-spacing:.3px;}
+    .btn-p{background:rgba(240,236,228,0.9);color:#0a0a0f;}
+    .btn-s{background:transparent;color:rgba(240,236,228,0.6);border:1px solid rgba(240,236,228,0.15);}
+
+    /* SCROLL SECTIONS */
+    .scroll-container{position:relative;z-index:3;}
+    .scroll-section{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:0 clamp(40px,8vw,120px);position:relative;}
+    .scroll-text{text-align:center;max-width:700px;}
+    .scroll-text .tag{font-family:'Space Grotesk',monospace;font-size:11px;color:rgba(240,236,228,0.25);text-transform:uppercase;letter-spacing:4px;margin-bottom:16px;opacity:0;}
+    .scroll-text h2{font-family:'Righteous',cursive;font-size:clamp(28px,4vw,52px);line-height:1.15;margin-bottom:16px;opacity:0;}
+    .scroll-text p{font-size:clamp(14px,1.5vw,17px);color:rgba(240,236,228,0.3);line-height:1.7;max-width:500px;margin:0 auto;opacity:0;}
+
+    /* FINAL CTA */
+    .final-cta{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 24px;}
+    .final-cta h2{font-family:'Righteous',cursive;font-size:clamp(36px,6vw,72px);line-height:1.05;margin-bottom:16px;opacity:0;}
+    .final-cta p{font-size:16px;color:rgba(240,236,228,0.3);margin-bottom:40px;opacity:0;}
+    .final-cta .btn{padding:18px 56px;font-size:16px;opacity:0;}
+
+    /* SCROLL INDICATOR */
+    .scroll-indicator{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);z-index:10;display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0;}
+    .scroll-indicator span{font-size:10px;color:rgba(240,236,228,0.2);letter-spacing:3px;text-transform:uppercase;}
+    .scroll-line{width:1px;height:40px;background:rgba(240,236,228,0.08);position:relative;overflow:hidden;}
+    .scroll-line::after{content:'';position:absolute;top:-100%;left:0;width:100%;height:100%;background:rgba(240,236,228,0.3);animation:sl 2s infinite;}
+    @keyframes sl{0%{top:-100%}100%{top:100%}}
+
+    /* PROGRESS */
+    .scroll-progress{position:fixed;top:0;left:0;height:2px;background:rgba(240,236,228,0.15);z-index:100;transform-origin:left;}
+  </style>
+</head>
+<body>
+
+<div class="scroll-progress" id="sp"></div>
+<canvas id="c"></canvas>
+<div class="overlay"></div>
+
+<!-- HERO -->
+<div class="hero-text" id="hero-text">
+  <div class="hero-badge"><span class="dot"></span>Coming Soon</div>
+  <h1 class="hero-title">AIRCHORD</h1>
+  <p class="hero-tagline">Sing Freely. We'll Play the Guitar.</p>
+  <div class="hero-buttons">
+    <button class="btn btn-p">Start Playing</button>
+    <button class="btn btn-s">Watch Demo</button>
+  </div>
+</div>
+
+<!-- SCROLL CONTENT -->
+<div class="scroll-container">
+  <div class="scroll-section" id="s1">
+    <div class="scroll-text">
+      <div class="tag">01 — Gesture</div>
+      <h2>Your hands<br>become the fretboard</h2>
+      <p>21-landmark hand tracking reads every finger position in real-time. Each gesture maps instantly to a chord.</p>
+    </div>
+  </div>
+
+  <div class="scroll-section" id="s2">
+    <div class="scroll-text">
+      <div class="tag">02 — Sound</div>
+      <h2>Real guitar,<br>real resonance</h2>
+      <p>Karplus-Strong synthesis models vibrating strings with natural decay, body resonance, and harmonic overtones.</p>
+    </div>
+  </div>
+
+  <div class="scroll-section" id="s3">
+    <div class="scroll-text">
+      <div class="tag">03 — Feel</div>
+      <h2>Under 50ms<br>from gesture to sound</h2>
+      <p>No lag. No compromise. The latency is imperceptible — it feels like playing a real instrument.</p>
+    </div>
+  </div>
+
+  <div class="final-cta" id="cta">
+    <h2>Ready to play?</h2>
+    <p>No guitar needed. Just your hands.</p>
+    <button class="btn btn-p">Get AirChord Free</button>
+  </div>
+</div>
+
+<div class="scroll-indicator" id="scroll-ind">
+  <span>Scroll</span>
+  <div class="scroll-line"></div>
+</div>
+
+<script>
+gsap.registerPlugin(ScrollTrigger);
+
+// ===== THREE.JS SCENE =====
+const canvas = document.getElementById('c');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0a0f, 0.08);
+
+const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 0, 6);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x0a0a0f);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+// ===== LIGHTS =====
+const ambient = new THREE.AmbientLight(0x1a1520, 0.3);
+scene.add(ambient);
+
+// Key light — warm spotlight from above-right
+const keyLight = new THREE.SpotLight(0xfff0e0, 1.2, 20, Math.PI / 5, 0.6, 1);
+keyLight.position.set(3, 5, 4);
+keyLight.target.position.set(0, 0, 0);
+scene.add(keyLight);
+scene.add(keyLight.target);
+
+// Fill light — cool blue from left
+const fillLight = new THREE.SpotLight(0xc0d0ff, 0.4, 15, Math.PI / 4, 0.8, 1);
+fillLight.position.set(-4, 2, 3);
+fillLight.target.position.set(0, 0, 0);
+scene.add(fillLight);
+scene.add(fillLight.target);
+
+// Rim light — behind
+const rimLight = new THREE.SpotLight(0xffe0c0, 0.8, 12, Math.PI / 6, 0.5, 1);
+rimLight.position.set(0, 3, -5);
+rimLight.target.position.set(0, 0, 0);
+scene.add(rimLight);
+scene.add(rimLight.target);
+
+// ===== GUITAR MODEL =====
+const guitarGroup = new THREE.Group();
+
+// Materials
+const bodyMat = new THREE.MeshStandardMaterial({
+  color: 0x8B5E3C,
+  roughness: 0.55,
+  metalness: 0.05,
+  envMapIntensity: 0.3,
+});
+
+const bodyDarkMat = new THREE.MeshStandardMaterial({
+  color: 0x5C3A1E,
+  roughness: 0.6,
+  metalness: 0.05,
+});
+
+const neckMat = new THREE.MeshStandardMaterial({
+  color: 0x3D2314,
+  roughness: 0.65,
+  metalness: 0.05,
+});
+
+const fretboardMat = new THREE.MeshStandardMaterial({
+  color: 0x1C1008,
+  roughness: 0.7,
+  metalness: 0.02,
+});
+
+const metalMat = new THREE.MeshStandardMaterial({
+  color: 0xC0C0C0,
+  roughness: 0.2,
+  metalness: 0.9,
+});
+
+const stringMat = new THREE.MeshStandardMaterial({
+  color: 0xE0E0E0,
+  roughness: 0.3,
+  metalness: 0.8,
+});
+
+const stringGoldMat = new THREE.MeshStandardMaterial({
+  color: 0xD4A574,
+  roughness: 0.35,
+  metalness: 0.8,
+});
+
+// BODY — ExtrudeGeometry with proper figure-8 acoustic shape
+const bodyShape = new THREE.Shape();
+// Draw the figure-8 outline (viewed from front, y-up)
+// Start at the top (where neck meets body)
+bodyShape.moveTo(0, 1.8);
+// Upper bout right side
+bodyShape.bezierCurveTo(0.55, 1.8, 0.9, 1.3, 0.9, 0.8);
+// Waist right (pinch inward)
+bodyShape.bezierCurveTo(0.9, 0.4, 0.55, 0.15, 0.5, 0.0);
+// Lower bout right (wider)
+bodyShape.bezierCurveTo(0.45, -0.15, 1.1, -0.5, 1.1, -1.0);
+bodyShape.bezierCurveTo(1.1, -1.6, 0.7, -2.0, 0, -2.0);
+// Lower bout left (mirror)
+bodyShape.bezierCurveTo(-0.7, -2.0, -1.1, -1.6, -1.1, -1.0);
+bodyShape.bezierCurveTo(-1.1, -0.5, -0.45, -0.15, -0.5, 0.0);
+// Waist left
+bodyShape.bezierCurveTo(-0.55, 0.15, -0.9, 0.4, -0.9, 0.8);
+// Upper bout left
+bodyShape.bezierCurveTo(-0.9, 1.3, -0.55, 1.8, 0, 1.8);
+
+const extrudeSettings = { depth: 0.35, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.06, bevelSegments: 6 };
+const bodyGeom = new THREE.ExtrudeGeometry(bodyShape, extrudeSettings);
+const body = new THREE.Mesh(bodyGeom, bodyMat);
+body.position.set(0, -0.2, -0.18);
+guitarGroup.add(body);
+
+// SOUND HOLE ring
+const holeRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.28, 0.025, 8, 32),
+  new THREE.MeshStandardMaterial({ color: 0x8B5E3C, roughness: 0.4, metalness: 0.1 })
+);
+holeRing.rotation.x = Math.PI / 2;
+holeRing.position.set(0, -0.3, 0.25);
+guitarGroup.add(holeRing);
+
+// Sound hole dark center
+const holeDark = new THREE.Mesh(
+  new THREE.CircleGeometry(0.26, 32),
+  new THREE.MeshStandardMaterial({ color: 0x050302, roughness: 0.9 })
+);
+holeDark.position.set(0, -0.3, 0.26);
+guitarGroup.add(holeDark);
+
+// NECK
+const neckGeom = new THREE.BoxGeometry(0.16, 2.2, 0.08);
+const neck = new THREE.Mesh(neckGeom, neckMat);
+neck.position.set(0, 2.9, 0);
+guitarGroup.add(neck);
+
+// FRETBOARD
+const fretboardGeom = new THREE.BoxGeometry(0.14, 2.1, 0.02);
+const fretboard = new THREE.Mesh(fretboardGeom, fretboardMat);
+fretboard.position.set(0, 2.9, 0.045);
+guitarGroup.add(fretboard);
+
+// FRETS
+for (let i = 0; i < 12; i++) {
+  const fret = new THREE.Mesh(
+    new THREE.BoxGeometry(0.145, 0.005, 0.025),
+    metalMat
+  );
+  fret.position.set(0, 2.0 + i * 0.16, 0.055);
+  guitarGroup.add(fret);
+}
+
+// FRET DOTS
+[2.3, 2.6, 2.9].forEach(y => {
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.01, 8, 8),
+    new THREE.MeshStandardMaterial({ color: 0xC4956A, emissive: 0xC4956A, emissiveIntensity: 0.2 })
+  );
+  dot.position.set(0, y, 0.055);
+  guitarGroup.add(dot);
+});
+
+// HEADSTOCK
+const headGeom = new THREE.BoxGeometry(0.18, 0.35, 0.06);
+const head = new THREE.Mesh(headGeom, neckMat);
+head.position.set(0, 4.2, 0);
+guitarGroup.add(head);
+
+// TUNERS
+for (let i = 0; i < 6; i++) {
+  const tuner = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.012, 0.07, 8),
+    metalMat
+  );
+  const side = i < 3 ? -1 : 1;
+  const row = i % 3;
+  tuner.position.set(side * 0.12, 4.1 + row * 0.1, 0);
+  tuner.rotation.z = Math.PI / 2;
+  guitarGroup.add(tuner);
+}
+
+// BRIDGE
+const bridge = new THREE.Mesh(
+  new THREE.BoxGeometry(0.24, 0.04, 0.02),
+  new THREE.MeshStandardMaterial({ color: 0x3D2314, roughness: 0.7 })
+);
+bridge.position.set(0, -1.4, 0.24);
+guitarGroup.add(bridge);
+
+// STRINGS
+const stringPositions = [-0.05, -0.03, -0.01, 0.01, 0.03, 0.05];
+stringPositions.forEach((x, i) => {
+  const isBass = i < 2;
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(x * 0.8, 4.1, 0.05),
+    new THREE.Vector3(x, 2.9, 0.055),
+    new THREE.Vector3(x, 0, 0.06),
+    new THREE.Vector3(x, -1.4, 0.06),
+  ]);
+  const tubeGeom = new THREE.TubeGeometry(curve, 24, isBass ? 0.003 : 0.002, 6, false);
+  const str = new THREE.Mesh(tubeGeom, i < 2 ? stringGoldMat : stringMat);
+  guitarGroup.add(str);
+});
+
+// Position guitar
+guitarGroup.position.y = -0.3;
+guitarGroup.rotation.y = -0.3;
+scene.add(guitarGroup);
+
+// ===== DUST PARTICLES =====
+const dustCount = 300;
+const dustGeom = new THREE.BufferGeometry();
+const dustPositions = new Float32Array(dustCount * 3);
+const dustSizes = new Float32Array(dustCount);
+const dustSpeeds = new Float32Array(dustCount);
+
+for (let i = 0; i < dustCount; i++) {
+  dustPositions[i * 3] = (Math.random() - 0.5) * 12;
+  dustPositions[i * 3 + 1] = (Math.random() - 0.5) * 10;
+  dustPositions[i * 3 + 2] = (Math.random() - 0.5) * 8;
+  dustSizes[i] = Math.random() * 2 + 0.5;
+  dustSpeeds[i] = Math.random() * 0.3 + 0.1;
+}
+
+dustGeom.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+dustGeom.setAttribute('size', new THREE.BufferAttribute(dustSizes, 1));
+
+const dustMat = new THREE.PointsMaterial({
+  color: 0xfff0e0,
+  size: 0.015,
+  transparent: true,
+  opacity: 0.4,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  sizeAttenuation: true,
+});
+
+const dust = new THREE.Points(dustGeom, dustMat);
+scene.add(dust);
+
+// ===== GROUND PLANE (subtle reflection) =====
+const groundGeom = new THREE.PlaneGeometry(30, 30);
+const groundMat = new THREE.MeshStandardMaterial({
+  color: 0x0a0a0f,
+  roughness: 0.8,
+  metalness: 0.1,
+});
+const ground = new THREE.Mesh(groundGeom, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -2.5;
+scene.add(ground);
+
+// ===== BACKGROUND LIGHT STREAKS =====
+const streakMat = new THREE.MeshBasicMaterial({ color: 0xfff0e0, transparent: true, opacity: 0.02 });
+for (let i = 0; i < 5; i++) {
+  const streak = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.02, 15),
+    streakMat
+  );
+  streak.position.set(-4 + i * 2, 3, -8 - Math.random() * 3);
+  streak.rotation.z = (Math.random() - 0.5) * 0.3;
+  scene.add(streak);
+}
+
+// ===== AMBIENT RING LIGHT (subtle) =====
+const ringLight = new THREE.PointLight(0xfff0e0, 0.3, 10);
+ringLight.position.set(0, 4, 0);
+scene.add(ringLight);
+
+// ===== SCROLL-DRIVEN ANIMATION =====
+let scrollProgress = 0;
+
+// Hero text fade
+gsap.to('#hero-text', {
+  opacity: 0,
+  scale: 0.95,
+  scrollTrigger: {
+    trigger: '.scroll-container',
+    start: 'top bottom',
+    end: '10% top',
+    scrub: true,
+  }
+});
+
+// Scroll indicator fade
+gsap.to('#scroll-ind', {
+  opacity: 0,
+  scrollTrigger: {
+    trigger: '.scroll-container',
+    start: 'top bottom',
+    end: '5% top',
+    scrub: true,
+  }
+});
+
+gsap.to('#scroll-ind', { opacity: 1, duration: 1, delay: 2 });
+
+// Guitar scroll — rotate, move, scale
+ScrollTrigger.create({
+  trigger: '.scroll-container',
+  start: 'top top',
+  end: 'bottom bottom',
+  scrub: 1,
+  onUpdate: (self) => {
+    scrollProgress = self.progress;
+  }
+});
+
+// Section text reveals
+['s1', 's2', 's3'].forEach((id, i) => {
+  const tl = gsap.timeline({
+    scrollTrigger: {
+      trigger: '#' + id,
+      start: 'top 70%',
+      end: 'top 30%',
+      scrub: 1,
+    }
+  });
+  tl.to(`#${id} .tag`, { opacity: 1, duration: 0.3 })
+    .to(`#${id} h2`, { opacity: 1, y: 0, duration: 0.4 }, '-=0.2')
+    .to(`#${id} p`, { opacity: 1, duration: 0.3 }, '-=0.2');
+
+  gsap.set(`#${id} .tag`, { opacity: 0, y: 15 });
+  gsap.set(`#${id} h2`, { opacity: 0, y: 20 });
+  gsap.set(`#${id} p`, { opacity: 0, y: 15 });
+});
+
+// CTA reveal
+const ctaTl = gsap.timeline({
+  scrollTrigger: { trigger: '#cta', start: 'top 60%' }
+});
+gsap.set('#cta h2', { opacity: 0, y: 30 });
+gsap.set('#cta p', { opacity: 0, y: 20 });
+gsap.set('#cta .btn', { opacity: 0, y: 20 });
+ctaTl.to('#cta h2', { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' })
+  .to('#cta p', { opacity: 1, y: 0, duration: 0.6 }, '-=0.4')
+  .to('#cta .btn', { opacity: 1, y: 0, duration: 0.6 }, '-=0.3');
+
+// Progress bar
+gsap.to('#sp', {
+  scaleX: 1,
+  scrollTrigger: { trigger: '.scroll-container', start: 'top top', end: 'bottom bottom', scrub: 0.3 }
+});
+
+// ===== ANIMATION LOOP =====
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  // Guitar rotation — slow idle + scroll-driven
+  guitarGroup.rotation.y = -0.3 + Math.sin(t * 0.15) * 0.1 + scrollProgress * Math.PI * 1.5;
+  guitarGroup.rotation.x = Math.sin(t * 0.1) * 0.02 + scrollProgress * 0.3;
+
+  // Guitar position — slight vertical float + scroll move
+  guitarGroup.position.y = -0.3 + Math.sin(t * 0.3) * 0.05 - scrollProgress * 0.5;
+
+  // Scale changes per section
+  const scale = 1 + scrollProgress * 0.15;
+  guitarGroup.scale.setScalar(scale);
+
+  // Camera subtle breathing
+  camera.position.x = Math.sin(t * 0.2) * 0.05;
+  camera.position.y = Math.cos(t * 0.15) * 0.03;
+  camera.lookAt(0, 0.5 - scrollProgress * 0.3, 0);
+
+  // Dust drift
+  const positions = dust.geometry.attributes.position.array;
+  for (let i = 0; i < dustCount; i++) {
+    positions[i * 3 + 1] += dustSpeeds[i] * 0.002;
+    positions[i * 3] += Math.sin(t * dustSpeeds[i] + i) * 0.0005;
+    if (positions[i * 3 + 1] > 5) positions[i * 3 + 1] = -5;
+  }
+  dust.geometry.attributes.position.needsUpdate = true;
+
+  // Dust rotation
+  dust.rotation.y = t * 0.01;
+
+  // Fog intensity changes with scroll
+  scene.fog.density = 0.08 - scrollProgress * 0.03;
+
+  // Spotlight intensity pulse
+  keyLight.intensity = 1.2 + Math.sin(t * 0.5) * 0.1;
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ===== RESIZE =====
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
