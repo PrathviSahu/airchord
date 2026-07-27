@@ -15,6 +15,11 @@ dist/
 website/dist/
 build/
 
+# Large 3D Assets (>100MB)
+*.obj
+website/public/models/
+*.fbx
+
 # macOS files
 .DS_Store
 
