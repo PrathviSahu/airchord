@@ -15,7 +15,7 @@ import { Song } from '../utils/songLibrary'
 import { useHandTracking, HandResult } from '../utils/useHandTracking'
 import { GestureEngine, GestureResult } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
-import { triggerGuitarChord, playPluckNote } from '../utils/guitarSound'
+import { triggerGuitarChord, playPluckNote, setCapoFret, getCapoFret } from '../utils/guitarSound'
 import { drawHandSkeleton } from '../utils/handTracker'
 import Guitar3D from './Guitar3D'
 
@@ -40,6 +40,12 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
   const [detectedChord, setDetectedChord] = useState<string>(mapping[0] || 'Em')
   const [detectedGestureLabel, setDetectedGestureLabel] = useState<string>(`✊ = ${mapping[0] || 'Em'}`)
   const [activeChordIndex, setActiveChordIndex] = useState<number | null>(0)
+  const [capoFret, setCapoFretState] = useState<number>(getCapoFret())
+
+  const handleCapoChange = (fret: number) => {
+    setCapoFretState(fret)
+    setCapoFret(fret)
+  }
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -221,6 +227,25 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-3">
+          {/* Capo Transposition Selector */}
+          <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-xs">
+            <span className="text-amber-400 font-bold font-mono">🎸 CAPO:</span>
+            <select
+              value={capoFret}
+              onChange={(e) => handleCapoChange(Number(e.target.value))}
+              className="bg-[#12121e] text-white border border-white/15 rounded-lg px-2 py-1 font-mono text-xs focus:outline-none focus:border-amber-400 cursor-pointer"
+            >
+              <option value={0}>No Capo (Open)</option>
+              <option value={1}>Capo 1st Fret (+1)</option>
+              <option value={2}>Capo 2nd Fret (+2)</option>
+              <option value={3}>Capo 3rd Fret (+3)</option>
+              <option value={4}>Capo 4th Fret (+4)</option>
+              <option value={5}>Capo 5th Fret (+5)</option>
+              <option value={6}>Capo 6th Fret (+6)</option>
+              <option value={7}>Capo 7th Fret (+7)</option>
+            </select>
+          </div>
+
           <button
             onClick={() => setIsPlaying(!isPlaying)}
             className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg ${
@@ -327,6 +352,11 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
           <div className="absolute top-6 left-6 flex items-center gap-2 text-xs font-mono text-white/40 bg-black/40 px-3 py-1.5 rounded-xl border border-white/5">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             3D Interactive Guitar Engine
+          </div>
+
+          <div className="absolute top-6 right-6 flex items-center gap-2 text-xs font-mono text-amber-300 bg-amber-500/10 px-3.5 py-1.5 rounded-xl border border-amber-500/30">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            {capoFret === 0 ? 'Capo: Open (No Capo)' : `Capo: Fret ${capoFret} (+${capoFret} Semitones)`}
           </div>
 
           {/* 3D Guitar Canvas */}

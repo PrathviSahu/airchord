@@ -4,6 +4,7 @@
 export type GuitarType = 'steel' | 'nylon' | 'electric' | '12string'
 
 let currentGuitarType: GuitarType = 'steel'
+let currentCapoFret: number = 0
 let audioCtx: AudioContext | null = null
 
 const waveCache: Partial<Record<GuitarType, PeriodicWave>> = {}
@@ -20,6 +21,14 @@ function getAudioContext(): AudioContext | null {
     audioCtx.resume()
   }
   return audioCtx
+}
+
+export function setCapoFret(fret: number) {
+  currentCapoFret = Math.max(0, Math.min(7, fret))
+}
+
+export function getCapoFret(): number {
+  return currentCapoFret
 }
 
 export function setGuitarType(type: GuitarType) {
@@ -96,7 +105,8 @@ export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2
     const ctx = getAudioContext()
     if (!ctx) return
 
-    const freq = NOTE_FREQS[note] ?? 329.63
+    const baseFreq = NOTE_FREQS[note] ?? 329.63
+    const freq = baseFreq * Math.pow(2, currentCapoFret / 12)
     const now = ctx.currentTime
     const type = currentGuitarType
 

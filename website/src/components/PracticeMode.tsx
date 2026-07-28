@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { Song } from '../utils/songLibrary'
 import { useHandTracking } from '../utils/useHandTracking'
-import { triggerGuitarChord } from '../utils/guitarSound'
+import { triggerGuitarChord, setCapoFret, getCapoFret } from '../utils/guitarSound'
 
 interface PracticeModeProps {
   song: Song
@@ -34,6 +34,12 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const [totalAttempts, setTotalAttempts] = useState(0)
   const [correctAttempts, setCorrectAttempts] = useState(0)
   const [wrongChordsCount, setWrongChordsCount] = useState(0)
+  const [capoFret, setCapoFretState] = useState<number>(getCapoFret())
+
+  const handleCapoChange = (fret: number) => {
+    setCapoFretState(fret)
+    setCapoFret(fret)
+  }
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
