@@ -342,33 +342,6 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
             </span>
           </div>
 
-          {/* Camera Viewport */}
-          <div className="relative h-64 bg-[#0e0e1a] rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center shadow-xl">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 transition-opacity duration-300 ${
-                isCameraActive ? 'opacity-80' : 'opacity-0 pointer-events-none'
-              }`}
-            />
-            <canvas
-              ref={canvasRef}
-              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none transition-opacity duration-300 ${
-                isCameraActive ? 'opacity-90' : 'opacity-0'
-              }`}
-            />
-
-            {!isCameraActive && (
-              <div className="text-center p-4">
-                <Camera className="w-8 h-8 text-white/20 mx-auto mb-2" />
-                <p className="text-xs text-white/40 mb-2">Camera Disabled</p>
-                {cameraError && <p className="text-[10px] text-rose-400 font-mono">{cameraError}</p>}
-              </div>
-            )}
-          </div>
-
           {/* Detected Gesture Card */}
           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl space-y-2">
             <div className="text-[10px] uppercase font-mono tracking-wider text-purple-400">Current Detected Gesture</div>
@@ -413,49 +386,61 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
           </div>
         </div>
 
-        {/* Center Column (Flex-1): 3D Guitar Viewport */}
-        <div className="flex-1 bg-[#050509] relative flex flex-col items-center justify-center p-6 border-r border-white/10">
-          <div className="absolute top-6 left-6 flex items-center gap-2 text-xs font-mono text-white/40 bg-black/40 px-3 py-1.5 rounded-xl border border-white/5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            3D Interactive Guitar Engine
+        {/* Center Column (Flex-1): Main Huge Camera Viewport with AI Neon Skeleton Overlay */}
+        <div className="flex-1 bg-[#050509] relative flex flex-col items-center justify-center p-6 border-r border-white/10 overflow-hidden">
+          <div className="absolute top-6 left-6 z-20 flex items-center gap-2 text-xs font-mono text-white/80 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/15">
+            <Camera className="w-3.5 h-3.5 text-purple-400" />
+            <span>LIVE WEBCAM AI TRACKING</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-1" />
+            <span className="text-emerald-400 font-bold">{confidence}% Confidence</span>
           </div>
 
-          <div className="absolute top-6 right-6 flex items-center gap-2 text-xs font-mono text-amber-300 bg-amber-500/10 px-3.5 py-1.5 rounded-xl border border-amber-500/30">
+          <div className="absolute top-6 right-6 z-20 flex items-center gap-2 text-xs font-mono text-amber-300 bg-amber-500/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-amber-500/30">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             {capoFret === 0 ? 'Capo: Open (No Capo)' : `Capo: Fret ${capoFret} (+${capoFret} Semitones)`}
           </div>
 
-          {/* 3D Guitar Canvas Stage */}
-          <div className="w-full h-full flex items-center justify-center relative">
-            {/* Ambient Stage Spotlights */}
-            <div className="absolute w-[450px] h-[450px] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute w-[350px] h-[350px] bg-purple-600/15 rounded-full blur-[100px] pointer-events-none" />
+          {/* Huge Main Stage Camera Video & Neon Skeleton Canvas */}
+          <div className="w-full h-full relative rounded-3xl overflow-hidden border border-white/15 bg-black/90 shadow-2xl flex items-center justify-center">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 transition-opacity duration-300 ${
+                isCameraActive ? 'opacity-90' : 'opacity-0 pointer-events-none'
+              }`}
+            />
+            <canvas
+              ref={canvasRef}
+              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none transition-opacity duration-300 ${
+                isCameraActive ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
 
-            <Canvas
-              camera={{ position: [0, 0, 6.8], fov: 45 }}
-              dpr={[1, 1.5]}
-              gl={{ antialias: true, alpha: true }}
-            >
-              <ambientLight intensity={3.5} />
-              <directionalLight position={[10, 10, 10]} intensity={4.5} color="#fbbf24" />
-              <directionalLight position={[-10, -10, -5]} intensity={2.0} color="#a855f7" />
-              <pointLight position={[0, 5, 8]} intensity={3.5} color="#ffffff" />
-              <pointLight position={[-8, 0, 5]} intensity={2.5} color="#ec4899" />
-              <Guitar3D />
-            </Canvas>
+            {!isCameraActive && (
+              <div className="text-center p-6 z-10">
+                <Camera className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                <p className="text-sm font-bold text-white/60 mb-2">Camera Feed Offline</p>
+                {cameraError && <p className="text-xs text-rose-400 font-mono">{cameraError}</p>}
+              </div>
+            )}
           </div>
 
-          {/* Strum Feedback Badge */}
-          <div className="absolute bottom-6 flex items-center gap-3 bg-black/80 backdrop-blur-xl px-6 py-3.5 rounded-2xl border border-white/20 shadow-2xl z-20">
-            <span className="text-xs text-white/60 font-mono">Current Strum Chord:</span>
-            <span className="text-3xl font-extrabold text-amber-300 font-mono">{detectedChord}</span>
+          {/* Strum Feedback Badge Overlay */}
+          <div className="absolute bottom-10 z-30 flex items-center gap-4 bg-black/85 backdrop-blur-2xl px-7 py-4 rounded-2xl border border-white/20 shadow-2xl">
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-mono tracking-wider text-purple-400">Current Detected Chord</span>
+              <div className="text-3xl font-black text-amber-300 font-mono">{detectedChord}</div>
+            </div>
             <button
               onClick={() => {
                 initAudioEngine()
                 triggerGuitarChord(detectedChord, 0.35)
               }}
-              className="ml-3 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white shadow-lg shadow-purple-600/40 transition-all hover:scale-105 active:scale-95"
+              className="ml-4 px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-black text-white shadow-xl shadow-purple-600/40 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
             >
+              <Volume2 className="w-4 h-4 text-amber-300" />
               Strum Chord 🎸
             </button>
           </div>
