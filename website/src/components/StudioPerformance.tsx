@@ -19,6 +19,10 @@ import { triggerGuitarChord, playPluckNote, setCapoFret, getCapoFret } from '../
 import { drawHandSkeleton } from '../utils/handTracker'
 import Guitar3D from './Guitar3D'
 
+const AVAILABLE_CHORDS = [
+  'Em', 'Am', 'C', 'D', 'G', 'F', 'B7', 'E', 'A', 'Bm', 'Dm', 'F#m', 'F#7', 'Cmaj7', 'Gsus4'
+]
+
 interface StudioPerformanceProps {
   song: Song
   mapping: string[]
@@ -37,6 +41,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
   const [isCameraActive, setIsCameraActive] = useState(true)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [confidence, setConfidence] = useState(98)
+  const [activeMapping, setActiveMapping] = useState<string[]>(mapping)
   const [detectedChord, setDetectedChord] = useState<string>(mapping[0] || 'Em')
   const [detectedGestureLabel, setDetectedGestureLabel] = useState<string>(`✊ = ${mapping[0] || 'Em'}`)
   const [activeChordIndex, setActiveChordIndex] = useState<number | null>(0)
@@ -45,6 +50,17 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
   const handleCapoChange = (fret: number) => {
     setCapoFretState(fret)
     setCapoFret(fret)
+  }
+
+  const handleChordMappingChange = (index: number, newChord: string) => {
+    const updated = [...activeMapping]
+    updated[index] = newChord
+    setActiveMapping(updated)
+
+    setDetectedChord(newChord)
+    setActiveChordIndex(index)
+    setDetectedGestureLabel(`${index} Fingers → ${newChord}`)
+    triggerGuitarChord(newChord, 0.25)
   }
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -72,7 +88,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
         const res: GestureResult | null = gestureEngineRef.current.processLandmarks(result.landmarks)
         if (res) {
           const fingerIndex = Math.min(5, Math.max(0, res.fingerCount))
-          const mappedChord = mapping[fingerIndex] || res.chord
+          const mappedChord = activeMapping[fingerIndex] || res.chord
           
           setDetectedChord(mappedChord)
           setActiveChordIndex(fingerIndex)
@@ -322,26 +338,35 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
             </div>
           </div>
 
-          {/* Finger-to-Chord Quick References */}
+          {/* Finger-to-Chord Quick References & Inline Customizer */}
           <div className="space-y-1.5 pt-2">
-            <div className="text-[10px] uppercase font-mono text-white/40 mb-1">Active Mapping:</div>
-            {mapping.slice(0, 5).map((chord, idx) => (
+            <div className="flex items-center justify-between text-[10px] uppercase font-mono text-white/40 mb-1">
+              <span>Active Chord Mapping:</span>
+              <span className="text-amber-400 font-bold">Editable ✏️</span>
+            </div>
+            {activeMapping.slice(0, 5).map((chord, idx) => (
               <div
                 key={idx}
-                onClick={() => {
-                  setDetectedChord(chord)
-                  setActiveChordIndex(idx)
-                  setDetectedGestureLabel(`${idx} Fingers → ${chord}`)
-                  triggerGuitarChord(chord, 0.25)
-                }}
-                className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl border cursor-pointer transition-all ${
+                className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl border transition-all ${
                   activeChordIndex === idx
                     ? 'bg-purple-600/30 border-purple-400 text-white shadow-md'
                     : 'bg-white/[0.03] border-white/5 text-white/60 hover:bg-white/10'
                 }`}
               >
-                <span>{idx} Fingers</span>
-                <span className="font-mono font-bold text-amber-300">{chord}</span>
+                <span className="font-mono text-white/80">{idx} Fingers</span>
+
+                {/* Interactive Chord Selector */}
+                <select
+                  value={chord}
+                  onChange={(e) => handleChordMappingChange(idx, e.target.value)}
+                  className="bg-[#12121e] text-amber-300 font-mono font-bold border border-white/15 rounded px-2 py-0.5 text-xs focus:outline-none focus:border-amber-400 cursor-pointer"
+                >
+                  {AVAILABLE_CHORDS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               </div>
             ))}
           </div>
