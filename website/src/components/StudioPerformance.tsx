@@ -98,10 +98,10 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
           setDetectedGestureLabel(`${fingerIndex} Fingers → ${mappedChord}`)
           setConfidence(Math.round(92 + Math.random() * 7))
 
-          // Trigger strum ONLY when gesture transition changes to a new chord AND strumming is enabled
+          // Trigger strum ONLY when gesture transition changes to a new chord AND performance is active
           if (mappedChord !== lastGestureChordRef.current) {
             lastGestureChordRef.current = mappedChord
-            if (isStrumming) {
+            if (isPlaying && isStrumming) {
               triggerGuitarChord(mappedChord, 0.25)
             }
           }
@@ -234,9 +234,9 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
     return () => clearInterval(timeInterval)
   }, [isPlaying, allLyrics])
 
-  // 2. Continuous Non-Stop BPM Rhythm Strummer Engine (runs whenever isStrumming is true)
+  // 2. BPM Rhythm Strummer Engine (runs ONLY when Studio Performance is active & Strumming is ON)
   useEffect(() => {
-    if (!isStrumming) return
+    if (!isPlaying || !isStrumming) return
 
     // BPM Beat Clock Interval (e.g. 60000 / 63bpm = 952ms per beat stroke)
     const beatMs = Math.round(60000 / (song.bpm || 60))
@@ -253,7 +253,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
     }, beatMs)
 
     return () => clearInterval(beatInterval)
-  }, [isStrumming, song.bpm, song.defaultStrumPattern])
+  }, [isPlaying, isStrumming, song.bpm, song.defaultStrumPattern])
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#06060a] text-white flex flex-col select-none font-sans overflow-hidden">
