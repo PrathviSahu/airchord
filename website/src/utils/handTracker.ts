@@ -24,23 +24,24 @@ export interface HandDetectionResult {
 export function countFingers(landmarks: Point2D[]): number {
   if (!landmarks || landmarks.length < 21) return 0
 
+  const wrist = landmarks[0]
+
+  const isExtended = (tipIdx: number, pipIdx: number) => {
+    const distTip = Math.hypot(landmarks[tipIdx].x - wrist.x, landmarks[tipIdx].y - wrist.y)
+    const distPIP = Math.hypot(landmarks[pipIdx].x - wrist.x, landmarks[pipIdx].y - wrist.y)
+    return distTip > distPIP * 1.15
+  }
+
   let extended = 0
+  if (isExtended(8, 6)) extended++   // Index
+  if (isExtended(12, 10)) extended++ // Middle
+  if (isExtended(16, 14)) extended++ // Ring
+  if (isExtended(20, 18)) extended++ // Pinky
 
-  // 1. Index finger
-  if (landmarks[8].y < landmarks[6].y) extended++
-
-  // 2. Middle finger
-  if (landmarks[12].y < landmarks[10].y) extended++
-
-  // 3. Ring finger
-  if (landmarks[16].y < landmarks[14].y) extended++
-
-  // 4. Pinky finger
-  if (landmarks[20].y < landmarks[18].y) extended++
-
-  // 5. Thumb finger (x distance relative to IP joint)
-  const thumbDist = Math.abs(landmarks[4].x - landmarks[2].x)
-  if (thumbDist > 0.05) extended++
+  // Thumb extension
+  const distThumbTip = Math.hypot(landmarks[4].x - wrist.x, landmarks[4].y - wrist.y)
+  const distThumbMCP = Math.hypot(landmarks[2].x - wrist.x, landmarks[2].y - wrist.y)
+  if (distThumbTip > distThumbMCP * 1.25) extended++
 
   return Math.min(5, Math.max(0, extended))
 }

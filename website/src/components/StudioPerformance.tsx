@@ -344,7 +344,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
               <span>Active Chord Mapping:</span>
               <span className="text-amber-400 font-bold">Editable ✏️</span>
             </div>
-            {activeMapping.slice(0, 5).map((chord, idx) => (
+            {activeMapping.slice(0, 6).map((chord, idx) => (
               <div
                 key={idx}
                 className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl border transition-all ${

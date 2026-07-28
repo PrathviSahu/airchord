@@ -65,37 +65,24 @@ export class GestureEngine {
     // Ring: 13(MCP), 14(PIP), 15(DIP), 16(TIP)
     // Pinky: 17(MCP), 18(PIP), 19(DIP), 20(TIP)
 
-    const thumbTip = landmarks[4]
-    const thumbIP = landmarks[3]
-    const indexMCP = landmarks[5]
-    const indexTip = landmarks[8]
+    const wrist = landmarks[0]
 
-    // Calculate distances
-    const tipToPalm = Math.hypot(thumbTip.x - indexMCP.x, thumbTip.y - indexMCP.y)
-    const ipToPalm = Math.hypot(thumbIP.x - indexMCP.x, thumbIP.y - indexMCP.y)
-    const tipToIndexTip = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y)
+    // Wrist-to-Tip vs Wrist-to-PIP distance ratio (angle-agnostic & tilt-proof)
+    const isExtended = (tipIdx: number, pipIdx: number) => {
+      const distTip = Math.hypot(landmarks[tipIdx].x - wrist.x, landmarks[tipIdx].y - wrist.y)
+      const distPIP = Math.hypot(landmarks[pipIdx].x - wrist.x, landmarks[pipIdx].y - wrist.y)
+      return distTip > distPIP * 1.15
+    }
 
-    // Thumb is extended if tip is further from palm than IP AND far from index tip
-    const thumbExtended = (tipToPalm > ipToPalm * 1.1) && (tipToIndexTip > 0.15)
+    const indexExtended = isExtended(8, 6)
+    const middleExtended = isExtended(12, 10)
+    const ringExtended = isExtended(16, 14)
+    const pinkyExtended = isExtended(20, 18)
 
-    // Index: tip (8) significantly above PIP (6)
-    const indexPIP = landmarks[6]
-    const indexExtended = (indexPIP.y - indexTip.y) > 0.035
-
-    // Middle: tip (12) significantly above PIP (10)
-    const middleTip = landmarks[12]
-    const middlePIP = landmarks[10]
-    const middleExtended = (middlePIP.y - middleTip.y) > 0.035
-
-    // Ring: tip (16) significantly above PIP (14)
-    const ringTip = landmarks[16]
-    const ringPIP = landmarks[14]
-    const ringExtended = (ringPIP.y - ringTip.y) > 0.035
-
-    // Pinky: tip (20) above PIP (18)
-    const pinkyTip = landmarks[20]
-    const pinkyPIP = landmarks[18]
-    const pinkyExtended = (pinkyPIP.y - pinkyTip.y) > 0.03
+    // Thumb extension: Wrist to Thumb Tip vs Wrist to Thumb MCP (#2)
+    const distThumbTip = Math.hypot(landmarks[4].x - wrist.x, landmarks[4].y - wrist.y)
+    const distThumbMCP = Math.hypot(landmarks[2].x - wrist.x, landmarks[2].y - wrist.y)
+    const thumbExtended = distThumbTip > distThumbMCP * 1.25
 
     let count = 0
     if (thumbExtended) count++
