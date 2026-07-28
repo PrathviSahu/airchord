@@ -168,9 +168,9 @@ export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2
     const oscGain = ctx.createGain()
     const attackTime = type === 'nylon' ? 0.012 : 0.006
     const decayDuration = type === 'nylon' ? 1.4 : type === 'electric' ? 2.5 : type === '12string' ? 2.2 : 1.8
-    oscGain.gain.setValueAtTime(0.001, now)
+    oscGain.gain.setValueAtTime(0.0001, now)
     oscGain.gain.linearRampToValueAtTime(volume * (type === '12string' ? 0.6 : 0.75), now + attackTime)
-    oscGain.gain.exponentialRampToValueAtTime(0.0004, now + decayDuration)
+    oscGain.gain.linearRampToValueAtTime(0.0001, now + decayDuration)
 
     // 3. Attack Transient Pluck Filter (Pick on steel vs Finger on nylon)
     const noiseLen = Math.round(ctx.sampleRate * (type === 'nylon' ? 0.015 : 0.022))
@@ -189,7 +189,7 @@ export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2
 
     const pickGain = ctx.createGain()
     pickGain.gain.setValueAtTime(volume * (type === 'nylon' ? 0.2 : 0.4), now)
-    pickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03)
+    pickGain.gain.linearRampToValueAtTime(0.0001, now + 0.03)
 
     // 4. Acoustic Body / Pickup Resonator Filters
     const bodyFilter = ctx.createBiquadFilter()
