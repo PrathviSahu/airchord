@@ -121,23 +121,23 @@ export default function Guitar({ scrollProgress }: GuitarProps) {
       {/* ── Body ─────────────────────────────────────────────────── */}
       <mesh geometry={bodyGeo} castShadow receiveShadow>
         <meshPhysicalMaterial
-          color="#1E0F08"
-          roughness={0.28}
-          metalness={0.0}
-          clearcoat={0.9}
-          clearcoatRoughness={0.08}
-          envMapIntensity={0.8}
+          color="#8B4513"
+          roughness={0.25}
+          metalness={0.1}
+          clearcoat={1.0}
+          clearcoatRoughness={0.05}
+          envMapIntensity={1.5}
         />
       </mesh>
 
-      {/* Body top face (slightly lighter) */}
+      {/* Body top face (warm amber sunburst wood) */}
       <mesh geometry={bodyGeo} position={[0, 0, 0.23]}>
         <meshPhysicalMaterial
-          color="#2A1308"
-          roughness={0.22}
-          metalness={0.0}
+          color="#D2691E"
+          roughness={0.20}
+          metalness={0.15}
           clearcoat={1.0}
-          clearcoatRoughness={0.05}
+          clearcoatRoughness={0.03}
           envMapIntensity={1.0}
         />
       </mesh>

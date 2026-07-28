@@ -17,7 +17,7 @@ import { Song } from '../utils/songLibrary'
 import { useHandTracking, HandResult } from '../utils/useHandTracking'
 import { GestureEngine, GestureResult } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
-import { triggerGuitarChord, playPluckNote, setCapoFret, getCapoFret, toggleStrumming, isStrummingActive } from '../utils/guitarSound'
+import { triggerGuitarChord, playPluckNote, setCapoFret, getCapoFret, toggleStrumming, isStrummingActive, initAudioEngine } from '../utils/guitarSound'
 import { drawHandSkeleton } from '../utils/handTracker'
 import Guitar3D from './Guitar3D'
 
@@ -223,7 +223,15 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
       // BPM Beat Clock Interval (e.g. 60000 / 63bpm = 952ms per beat stroke)
       const beatMs = Math.round(60000 / (song.bpm || 60))
       const beatInterval = setInterval(() => {
-        setActiveBeat(prev => (prev + 1) % (song.defaultStrumPattern?.length || 6))
+        setActiveBeat(prev => {
+          const nextBeat = (prev + 1) % (song.defaultStrumPattern?.length || 6)
+          const stroke = song.defaultStrumPattern?.[nextBeat] || 'D'
+          if (stroke !== '.') {
+            const currentLyricChord = allLyrics[currentLineIndex]?.chord || detectedChord
+            triggerGuitarChord(currentLyricChord, 0.22)
+          }
+          return nextBeat
+        })
       }, beatMs)
 
       return () => {
@@ -417,29 +425,38 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
             {capoFret === 0 ? 'Capo: Open (No Capo)' : `Capo: Fret ${capoFret} (+${capoFret} Semitones)`}
           </div>
 
-          {/* 3D Guitar Canvas */}
-          <div className="w-full h-full flex items-center justify-center">
+          {/* 3D Guitar Canvas Stage */}
+          <div className="w-full h-full flex items-center justify-center relative">
+            {/* Ambient Stage Spotlights */}
+            <div className="absolute w-[450px] h-[450px] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute w-[350px] h-[350px] bg-purple-600/15 rounded-full blur-[100px] pointer-events-none" />
+
             <Canvas
-              camera={{ position: [0, 0, 7], fov: 45 }}
+              camera={{ position: [0, 0, 6.8], fov: 45 }}
               dpr={[1, 1.5]}
               gl={{ antialias: true, alpha: true }}
             >
-              <ambientLight intensity={1.5} />
-              <directionalLight position={[5, 5, 5]} intensity={2.0} color="#b378b1" />
-              <pointLight position={[-5, -5, -5]} intensity={1.0} color="#3b82f6" />
+              <ambientLight intensity={3.5} />
+              <directionalLight position={[10, 10, 10]} intensity={4.5} color="#fbbf24" />
+              <directionalLight position={[-10, -10, -5]} intensity={2.0} color="#a855f7" />
+              <pointLight position={[0, 5, 8]} intensity={3.5} color="#ffffff" />
+              <pointLight position={[-8, 0, 5]} intensity={2.5} color="#ec4899" />
               <Guitar3D />
             </Canvas>
           </div>
 
           {/* Strum Feedback Badge */}
-          <div className="absolute bottom-6 flex items-center gap-3 bg-black/70 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/15 shadow-2xl">
+          <div className="absolute bottom-6 flex items-center gap-3 bg-black/80 backdrop-blur-xl px-6 py-3.5 rounded-2xl border border-white/20 shadow-2xl z-20">
             <span className="text-xs text-white/60 font-mono">Current Strum Chord:</span>
-            <span className="text-3xl font-extrabold text-white font-mono">{detectedChord}</span>
+            <span className="text-3xl font-extrabold text-amber-300 font-mono">{detectedChord}</span>
             <button
-              onClick={() => triggerGuitarChord(detectedChord, 0.25)}
-              className="ml-3 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white shadow-md shadow-purple-600/30 transition-all"
+              onClick={() => {
+                initAudioEngine()
+                triggerGuitarChord(detectedChord, 0.35)
+              }}
+              className="ml-3 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white shadow-lg shadow-purple-600/40 transition-all hover:scale-105 active:scale-95"
             >
-              Strum Chord
+              Strum Chord 🎸
             </button>
           </div>
         </div>
