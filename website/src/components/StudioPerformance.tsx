@@ -98,10 +98,12 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
           setDetectedGestureLabel(`${fingerIndex} Fingers → ${mappedChord}`)
           setConfidence(Math.round(92 + Math.random() * 7))
 
-          // Trigger strum ONLY when gesture transition changes to a new chord
+          // Trigger strum ONLY when gesture transition changes to a new chord AND strumming is enabled
           if (mappedChord !== lastGestureChordRef.current) {
             lastGestureChordRef.current = mappedChord
-            triggerGuitarChord(mappedChord, 0.25)
+            if (isStrumming) {
+              triggerGuitarChord(mappedChord, 0.25)
+            }
           }
         }
 

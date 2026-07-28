@@ -143,6 +143,7 @@ const STRING_PANS = [-0.3, -0.18, -0.05, 0.05, 0.18, 0.3]
  * Play a single studio guitar note with selected guitar type timbres
  */
 export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2) {
+  if (!isStrummingEnabled) return
   try {
     const ctx = getAudioContext()
     if (!ctx) return
@@ -278,6 +279,7 @@ export function playStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']
  * Downstrum: Low strings → High strings
  */
 export function playDownStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.2) {
+  if (!isStrummingEnabled) return
   const type = currentGuitarType
   const rollDelay = type === 'nylon' ? 42 : type === '12string' ? 32 : 36
   notes.forEach((note, idx) => {
@@ -292,6 +294,7 @@ export function playDownStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', '
  * Upstrum: High strings → Low strings
  */
 export function playUpStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.18) {
+  if (!isStrummingEnabled) return
   const type = currentGuitarType
   const rollDelay = type === 'nylon' ? 34 : 26
   const reversed = [...notes].reverse()
@@ -307,6 +310,7 @@ export function playUpStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4
  * Mute / Slap strum
  */
 export function playMuteStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.12) {
+  if (!isStrummingEnabled) return
   notes.slice(0, 4).forEach((note, idx) => {
     setTimeout(() => {
       playPluckNote(note, volume * 0.35, idx)
@@ -318,6 +322,7 @@ export function playMuteStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', '
  * Play a single strum pattern stroke step ('D' | 'U' | 'X' | '.')
  */
 export function playPatternBeat(stroke: string, notes: string[], volume = 0.2) {
+  if (!isStrummingEnabled) return
   const type = stroke.toUpperCase()
   if (type === 'D' || type === '↓') {
     playDownStrum(notes, volume)
