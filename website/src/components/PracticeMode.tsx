@@ -1,17 +1,21 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   ArrowLeft,
   Camera,
   RotateCcw,
+  Sparkles,
   CheckCircle2,
   AlertCircle,
+  Trophy,
+  Activity,
   Award,
-  Sparkles,
-  Play,
 } from 'lucide-react'
 import { Song } from '../utils/songLibrary'
-import { useHandTracking } from '../utils/useHandTracking'
+import { useHandTracking, HandResult } from '../utils/useHandTracking'
+import { GestureEngine, GestureResult } from '../utils/GestureEngine'
+import { getProfileById } from '../utils/GestureProfiles'
 import { triggerGuitarChord, setCapoFret, getCapoFret } from '../utils/guitarSound'
+import { drawHandSkeleton } from '../utils/handTracker'
 
 const AVAILABLE_CHORDS = [
   'Em', 'Am', 'C', 'D', 'G', 'F', 'B7', 'E', 'A', 'Bm', 'Dm', 'F#m', 'F#7', 'Cmaj7', 'Gsus4'
@@ -30,6 +34,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(0)
   const [isCameraActive, setIsCameraActive] = useState(true)
+  const [cameraError, setCameraError] = useState<string | null>(null)
   const [activeMapping, setActiveMapping] = useState<string[]>(song.fingerMapping || mapping)
   const [detectedChord, setDetectedChord] = useState<string>('Am')
   const [errorDiagnostic, setErrorDiagnostic] = useState<{ expected: string; detected: string } | null>(null)
@@ -40,6 +45,16 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const [correctAttempts, setCorrectAttempts] = useState(0)
   const [wrongChordsCount, setWrongChordsCount] = useState(0)
   const [capoFret, setCapoFretState] = useState<number>(getCapoFret())
+
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const lastGestureChordRef = useRef<string>('')
+  const gestureEngineRef = useRef<GestureEngine>(new GestureEngine(getProfileById('classic')))
+
+  const { initialize, processFrame, setOnResults } = useHandTracking()
+
+  const allLyrics = song.sections.flatMap(s => s.lyrics)
+  const currentTarget = allLyrics[currentStep] || allLyrics[0]
 
   const handleCapoChange = (fret: number) => {
     setCapoFretState(fret)
@@ -52,49 +67,148 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     setActiveMapping(updated)
   }
 
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Initialize MediaPipe tracking
+  useEffect(() => {
+    initialize()
+  }, [initialize])
 
-  const allLyrics = song.sections.flatMap(s => s.lyrics)
-  const currentTarget = allLyrics[currentStep] || allLyrics[0]
-
-  // Hand tracking logic
-  useHandTracking(
-    videoRef,
-    canvasRef,
-    isCameraActive,
-    (fingerCount) => {
+  // Setup hand result callback with error pause diagnostics
+  useEffect(() => {
+    setOnResults((result: HandResult | null) => {
       if (isFinished) return
 
-      if (fingerCount >= 0 && fingerCount < activeMapping.length) {
-        const chord = activeMapping[fingerCount] || 'G'
-        setDetectedChord(chord)
-        triggerGuitarChord(chord, 0.25)
-        setTotalAttempts(prev => prev + 1)
+      if (result && result.landmarks) {
+        const res: GestureResult | null = gestureEngineRef.current.processLandmarks(result.landmarks)
+        if (res) {
+          const fingerIndex = Math.min(5, Math.max(0, res.fingerCount))
+          const mappedChord = activeMapping[fingerIndex] || res.chord
+          
+          setDetectedChord(mappedChord)
 
-        const expectedChord = currentTarget.chord
+          // Trigger strum ONLY when gesture transition changes to a new chord
+          if (mappedChord !== lastGestureChordRef.current) {
+            lastGestureChordRef.current = mappedChord
+            triggerGuitarChord(mappedChord, 0.25)
+            setTotalAttempts(prev => prev + 1)
 
-        if (chord === expectedChord) {
-          // Correct chord played! Advance step.
-          setErrorDiagnostic(null)
-          setCorrectAttempts(prev => prev + 1)
+            const expectedChord = currentTarget.chord
 
-          if (currentStep < allLyrics.length - 1) {
-            setCurrentStep(prev => prev + 1)
-          } else {
-            setIsFinished(true)
+            if (mappedChord === expectedChord) {
+              // Correct chord played! Advance step.
+              setErrorDiagnostic(null)
+              setCorrectAttempts(prev => prev + 1)
+
+              if (currentStep < allLyrics.length - 1) {
+                setCurrentStep(prev => prev + 1)
+              } else {
+                setIsFinished(true)
+              }
+            } else {
+              // Incorrect chord played! Pause progression and show diagnostic alert.
+              setWrongChordsCount(prev => prev + 1)
+              setErrorDiagnostic({
+                expected: expectedChord,
+                detected: mappedChord,
+              })
+            }
           }
-        } else {
-          // Incorrect chord played! Pause progression and show alert.
-          setWrongChordsCount(prev => prev + 1)
-          setErrorDiagnostic({
-            expected: expectedChord,
-            detected: chord,
-          })
+        }
+
+        // Draw neon hand skeleton on canvas overlay
+        if (canvasRef.current && videoRef.current) {
+          const canvas = canvasRef.current
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            canvas.width = videoRef.current.videoWidth || 640
+            canvas.height = videoRef.current.videoHeight || 480
+            drawHandSkeleton(ctx, result.landmarks, canvas.width, canvas.height)
+          }
+        }
+      } else {
+        lastGestureChordRef.current = ''
+        if (canvasRef.current) {
+          const ctx = canvasRef.current.getContext('2d')
+          ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
         }
       }
+    })
+  }, [setOnResults, activeMapping, currentStep, currentTarget, isFinished, allLyrics.length])
+
+  // Frame processing loop
+  useEffect(() => {
+    let animId: number
+    function loop() {
+      if (isCameraActive && videoRef.current) {
+        processFrame(videoRef.current)
+      }
+      animId = requestAnimationFrame(loop)
     }
-  )
+    loop()
+    return () => cancelAnimationFrame(animId)
+  }, [isCameraActive, processFrame])
+
+  // Start webcam stream
+  useEffect(() => {
+    let stream: MediaStream | null = null
+
+    async function startCam() {
+      try {
+        setCameraError(null)
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+        })
+        stream = mediaStream
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(() => {})
+          }
+        }
+        setIsCameraActive(true)
+      } catch (err: unknown) {
+        console.warn('Camera access error:', err)
+        setCameraError('Webcam blocked or unavailable. Click Camera On to try again.')
+        setIsCameraActive(false)
+      }
+    }
+
+    startCam()
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [])
+
+  // Toggle camera button handler
+  const toggleCamera = async () => {
+    if (isCameraActive) {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream
+        stream.getTracks().forEach(t => t.stop())
+        videoRef.current.srcObject = null
+      }
+      setIsCameraActive(false)
+    } else {
+      try {
+        setCameraError(null)
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+        })
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(() => {})
+          }
+        }
+        setIsCameraActive(true)
+      } catch (err: unknown) {
+        setCameraError('Camera access blocked by browser.')
+        setIsCameraActive(false)
+      }
+    }
+  }
 
   const resetPractice = () => {
     setCurrentStep(0)
@@ -131,12 +245,45 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={resetPractice}
-          className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/80 flex items-center gap-2"
-        >
-          <RotateCcw className="w-3.5 h-3.5" /> Reset Session
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Capo Selector */}
+          <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-xs">
+            <span className="text-amber-400 font-bold font-mono">🎸 CAPO:</span>
+            <select
+              value={capoFret}
+              onChange={(e) => handleCapoChange(Number(e.target.value))}
+              className="bg-[#12121e] text-white border border-white/15 rounded-lg px-2 py-1 font-mono text-xs focus:outline-none focus:border-amber-400 cursor-pointer"
+            >
+              <option value={0}>No Capo (Open)</option>
+              <option value={1}>Capo 1st Fret (+1)</option>
+              <option value={2}>Capo 2nd Fret (+2)</option>
+              <option value={3}>Capo 3rd Fret (+3)</option>
+              <option value={4}>Capo 4th Fret (+4)</option>
+              <option value={5}>Capo 5th Fret (+5)</option>
+              <option value={6}>Capo 6th Fret (+6)</option>
+              <option value={7}>Capo 7th Fret (+7)</option>
+            </select>
+          </div>
+
+          <button
+            onClick={toggleCamera}
+            className={`px-3.5 py-2 rounded-xl text-xs font-medium flex items-center gap-2 border transition-all ${
+              isCameraActive
+                ? 'bg-purple-500/20 border-purple-400/50 text-purple-200'
+                : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5" />
+            {isCameraActive ? 'Camera On' : 'Camera Off'}
+          </button>
+
+          <button
+            onClick={resetPractice}
+            className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/80 flex items-center gap-2"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Reset Session
+          </button>
+        </div>
       </div>
 
       {/* Main Body */}
@@ -150,12 +297,24 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               autoPlay
               playsInline
               muted
-              className="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-80"
+              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 transition-opacity duration-300 ${
+                isCameraActive ? 'opacity-80' : 'opacity-0 pointer-events-none'
+              }`}
             />
             <canvas
               ref={canvasRef}
-              className="absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none opacity-90"
+              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none transition-opacity duration-300 ${
+                isCameraActive ? 'opacity-90' : 'opacity-0'
+              }`}
             />
+
+            {!isCameraActive && (
+              <div className="text-center p-4">
+                <Camera className="w-8 h-8 text-white/20 mx-auto mb-2" />
+                <p className="text-xs text-white/40 mb-2">Camera Disabled</p>
+                {cameraError && <p className="text-[10px] text-rose-400 font-mono">{cameraError}</p>}
+              </div>
+            )}
 
             {/* Error Diagnostic Overlay */}
             {errorDiagnostic && (
@@ -283,51 +442,51 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
 
       </div>
 
-      {/* 🌟 PERFORMANCE SCORECARD MODAL 🌟 */}
+      {/* End-of-Session Performance Scorecard Modal */}
       {isFinished && (
-        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 select-none">
-          <div className="max-w-md w-full bg-[#0e0e1a] border border-amber-500/40 p-8 rounded-3xl shadow-[0_0_50px_rgba(245,158,11,0.25)] text-center space-y-6">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center mx-auto text-amber-300 shadow-xl">
-              <Award className="w-8 h-8" />
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
+          <div className="bg-[#0e0e18] border border-white/15 rounded-3xl p-8 max-w-lg w-full text-center space-y-6 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-400 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20">
+              <Trophy className="w-8 h-8" />
             </div>
 
             <div>
-              <h2 className="text-2xl font-black text-white">Performance Scorecard</h2>
-              <p className="text-xs text-white/50">{song.title} — Practice Session Completed!</p>
+              <h2 className="text-2xl font-black text-white uppercase tracking-wider">SESSION COMPLETE!</h2>
+              <p className="text-xs text-white/50 font-mono mt-1">Practice Performance Scorecard for {song.title}</p>
             </div>
 
-            {/* Metrics Grid */}
-            <div className="grid grid-cols-2 gap-3 text-left">
-              <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-                <span className="text-[10px] text-white/40 uppercase font-mono block">Chord Accuracy</span>
-                <span className="text-2xl font-black text-amber-300">{chordAccuracy}%</span>
+            {/* Scorecard Stats Grid */}
+            <div className="grid grid-cols-2 gap-4 text-left font-mono">
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-1">
+                <span className="text-[10px] text-white/40 uppercase block">Chord Accuracy</span>
+                <span className="text-2xl font-black text-emerald-400">{chordAccuracy}%</span>
               </div>
-              <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-                <span className="text-[10px] text-white/40 uppercase font-mono block">Timing Score</span>
-                <span className="text-2xl font-black text-emerald-400">{timingAccuracy}%</span>
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-1">
+                <span className="text-[10px] text-white/40 uppercase block">Timing Precision</span>
+                <span className="text-2xl font-black text-purple-400">{timingAccuracy}%</span>
               </div>
-              <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-                <span className="text-[10px] text-white/40 uppercase font-mono block">Wrong Chords</span>
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-1">
+                <span className="text-[10px] text-white/40 uppercase block">Wrong Chords</span>
                 <span className="text-2xl font-black text-rose-400">{wrongChordsCount}</span>
               </div>
-              <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-                <span className="text-[10px] text-white/40 uppercase font-mono block">Avg Detection</span>
-                <span className="text-2xl font-black text-purple-300">31 ms</span>
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-1">
+                <span className="text-[10px] text-white/40 uppercase block">Avg Latency</span>
+                <span className="text-2xl font-black text-amber-300">18ms</span>
               </div>
             </div>
 
             <div className="flex gap-3 pt-2">
               <button
                 onClick={resetPractice}
-                className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all"
+                className="flex-1 py-3 bg-white/10 hover:bg-white/15 text-white font-bold rounded-xl text-xs transition-all border border-white/10"
               >
-                Try Again
+                Practice Again
               </button>
               <button
                 onClick={onBack}
-                className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all shadow-lg shadow-amber-500/30"
+                className="flex-1 py-3 bg-amber-400 hover:bg-amber-300 text-black font-extrabold rounded-xl text-xs transition-all shadow-lg shadow-amber-400/20"
               >
-                Back to Launcher
+                Return to Launcher
               </button>
             </div>
           </div>
