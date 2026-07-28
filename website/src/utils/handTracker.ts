@@ -38,10 +38,20 @@ export function countFingers(landmarks: Point2D[]): number {
   if (isExtended(16, 14)) extended++ // Ring
   if (isExtended(20, 18)) extended++ // Pinky
 
-  // Thumb extension
-  const distThumbTip = Math.hypot(landmarks[4].x - wrist.x, landmarks[4].y - wrist.y)
-  const distThumbMCP = Math.hypot(landmarks[2].x - wrist.x, landmarks[2].y - wrist.y)
-  if (distThumbTip > distThumbMCP * 1.25) extended++
+  // Thumb extension: Lateral distance from Index MCP (#5) and Pinky MCP (#17)
+  const thumbTip = landmarks[4]
+  const thumbIP = landmarks[3]
+  const thumbMCP = landmarks[2]
+  const indexMCP = landmarks[5]
+  const pinkyMCP = landmarks[17]
+
+  const distTipToIndex = Math.hypot(thumbTip.x - indexMCP.x, thumbTip.y - indexMCP.y)
+  const distIPToIndex = Math.hypot(thumbIP.x - indexMCP.x, thumbIP.y - indexMCP.y)
+  const distTipToPinky = Math.hypot(thumbTip.x - pinkyMCP.x, thumbTip.y - pinkyMCP.y)
+  const distMCPToPinky = Math.hypot(thumbMCP.x - pinkyMCP.x, thumbMCP.y - pinkyMCP.y)
+
+  const thumbExtended = (distTipToIndex > distIPToIndex * 1.14) && (distTipToPinky > distMCPToPinky * 0.95)
+  if (thumbExtended) extended++
 
   return Math.min(5, Math.max(0, extended))
 }

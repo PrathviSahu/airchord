@@ -79,10 +79,20 @@ export class GestureEngine {
     const ringExtended = isExtended(16, 14)
     const pinkyExtended = isExtended(20, 18)
 
-    // Thumb extension: Wrist to Thumb Tip vs Wrist to Thumb MCP (#2)
-    const distThumbTip = Math.hypot(landmarks[4].x - wrist.x, landmarks[4].y - wrist.y)
-    const distThumbMCP = Math.hypot(landmarks[2].x - wrist.x, landmarks[2].y - wrist.y)
-    const thumbExtended = distThumbTip > distThumbMCP * 1.25
+    // Thumb extension: Lateral distance from Index MCP (#5) and Pinky MCP (#17)
+    const thumbTip = landmarks[4]
+    const thumbIP = landmarks[3]
+    const thumbMCP = landmarks[2]
+    const indexMCP = landmarks[5]
+    const pinkyMCP = landmarks[17]
+
+    const distTipToIndex = Math.hypot(thumbTip.x - indexMCP.x, thumbTip.y - indexMCP.y)
+    const distIPToIndex = Math.hypot(thumbIP.x - indexMCP.x, thumbIP.y - indexMCP.y)
+    const distTipToPinky = Math.hypot(thumbTip.x - pinkyMCP.x, thumbTip.y - pinkyMCP.y)
+    const distMCPToPinky = Math.hypot(thumbMCP.x - pinkyMCP.x, thumbMCP.y - pinkyMCP.y)
+
+    // Thumb is extended if tip is stretched laterally away from Index MCP and Pinky MCP
+    const thumbExtended = (distTipToIndex > distIPToIndex * 1.14) && (distTipToPinky > distMCPToPinky * 0.95)
 
     let count = 0
     if (thumbExtended) count++
