@@ -12,8 +12,11 @@ import {
 } from 'lucide-react'
 import { Canvas } from '@react-three/fiber'
 import { Song } from '../utils/songLibrary'
-import { useHandTracking } from '../utils/useHandTracking'
+import { useHandTracking, HandResult } from '../utils/useHandTracking'
+import { GestureEngine, GestureResult } from '../utils/GestureEngine'
+import { getProfileById } from '../utils/GestureProfiles'
 import { triggerGuitarChord, playPluckNote } from '../utils/guitarSound'
+import { drawHandSkeleton } from '../utils/handTracker'
 import Guitar3D from './Guitar3D'
 
 interface StudioPerformanceProps {
@@ -32,14 +35,18 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
   const [currentTime, setCurrentTime] = useState(0)
   const [currentLineIndex, setCurrentLineIndex] = useState(0)
   const [isCameraActive, setIsCameraActive] = useState(true)
+  const [cameraError, setCameraError] = useState<string | null>(null)
   const [confidence, setConfidence] = useState(98)
-  const [detectedChord, setDetectedChord] = useState<string>('G')
-  const [detectedGestureLabel, setDetectedGestureLabel] = useState<string>('✋ = G')
-  const [lastGestureIndex, setLastGestureIndex] = useState<number | null>(null)
-  
+  const [detectedChord, setDetectedChord] = useState<string>(mapping[0] || 'Em')
+  const [detectedGestureLabel, setDetectedGestureLabel] = useState<string>(`✊ = ${mapping[0] || 'Em'}`)
+  const [activeChordIndex, setActiveChordIndex] = useState<number | null>(0)
+
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const animTimerRef = useRef<number | null>(null)
+  const lastGestureChordRef = useRef<string>('')
+  const gestureEngineRef = useRef<GestureEngine>(new GestureEngine(getProfileById('classic')))
+
+  const { initialize, processFrame, setOnResults } = useHandTracking()
 
   // Flatten lyrics across all sections
   const allLyrics = song.sections.flatMap(s => s.lyrics)
@@ -47,25 +54,127 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
   const nextLyric = allLyrics[currentLineIndex + 1]
   const upcomingLyric = allLyrics[currentLineIndex + 2]
 
-  // Hand Tracking Callback
-  const { isLoaded: isHandTrackerLoaded, error: cameraError } = useHandTracking(
-    videoRef,
-    canvasRef,
-    isCameraActive,
-    (fingerCount) => {
-      if (fingerCount >= 0 && fingerCount < mapping.length) {
-        const chord = mapping[fingerCount] || 'G'
-        setDetectedChord(chord)
-        setDetectedGestureLabel(`${fingerCount} Fingers → ${chord}`)
-        setConfidence(Math.round(92 + Math.random() * 7))
+  // Initialize MediaPipe tracking
+  useEffect(() => {
+    initialize()
+  }, [initialize])
 
-        if (fingerCount !== lastGestureIndex) {
-          setLastGestureIndex(fingerCount)
-          triggerGuitarChord(chord, 0.25)
+  // Setup hand result callback with debounced gesture transition check
+  useEffect(() => {
+    setOnResults((result: HandResult | null) => {
+      if (result && result.landmarks) {
+        const res: GestureResult | null = gestureEngineRef.current.processLandmarks(result.landmarks)
+        if (res) {
+          const fingerIndex = Math.min(5, Math.max(0, res.fingerCount))
+          const mappedChord = mapping[fingerIndex] || res.chord
+          
+          setDetectedChord(mappedChord)
+          setActiveChordIndex(fingerIndex)
+          setDetectedGestureLabel(`${fingerIndex} Fingers → ${mappedChord}`)
+          setConfidence(Math.round(92 + Math.random() * 7))
+
+          // Trigger strum ONLY when gesture transition changes to a new chord
+          if (mappedChord !== lastGestureChordRef.current) {
+            lastGestureChordRef.current = mappedChord
+            triggerGuitarChord(mappedChord, 0.25)
+          }
+        }
+
+        // Draw neon hand skeleton on canvas overlay
+        if (canvasRef.current && videoRef.current) {
+          const canvas = canvasRef.current
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            canvas.width = videoRef.current.videoWidth || 640
+            canvas.height = videoRef.current.videoHeight || 480
+            drawHandSkeleton(ctx, result.landmarks, canvas.width, canvas.height)
+          }
+        }
+      } else {
+        lastGestureChordRef.current = ''
+        if (canvasRef.current) {
+          const ctx = canvasRef.current.getContext('2d')
+          ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
         }
       }
+    })
+  }, [setOnResults, mapping])
+
+  // Frame processing loop
+  useEffect(() => {
+    let animId: number
+    function loop() {
+      if (isCameraActive && videoRef.current) {
+        processFrame(videoRef.current)
+      }
+      animId = requestAnimationFrame(loop)
     }
-  )
+    loop()
+    return () => cancelAnimationFrame(animId)
+  }, [isCameraActive, processFrame])
+
+  // Start webcam stream
+  useEffect(() => {
+    let stream: MediaStream | null = null
+
+    async function startCam() {
+      try {
+        setCameraError(null)
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+        })
+        stream = mediaStream
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(() => {})
+          }
+        }
+        setIsCameraActive(true)
+      } catch (err: unknown) {
+        console.warn('Camera access error:', err)
+        setCameraError('Webcam blocked or unavailable. Click Camera On to try again.')
+        setIsCameraActive(false)
+      }
+    }
+
+    startCam()
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [])
+
+  // Toggle camera button handler
+  const toggleCamera = async () => {
+    if (isCameraActive) {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream
+        stream.getTracks().forEach(t => t.stop())
+        videoRef.current.srcObject = null
+      }
+      setIsCameraActive(false)
+    } else {
+      try {
+        setCameraError(null)
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+        })
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(() => {})
+          }
+        }
+        setIsCameraActive(true)
+      } catch (err: unknown) {
+        setCameraError('Camera access blocked by browser.')
+        setIsCameraActive(false)
+      }
+    }
+  }
 
   // Non-stop Performance Timer
   useEffect(() => {
@@ -73,7 +182,6 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
       const interval = setInterval(() => {
         setCurrentTime(prev => {
           const next = prev + 1
-          // Advance lyric line based on timestamp
           const nextIdx = allLyrics.findIndex(l => l.time > next)
           if (nextIdx !== -1) {
             setCurrentLineIndex(Math.max(0, nextIdx - 1))
@@ -86,8 +194,6 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
       return () => clearInterval(interval)
     }
   }, [isPlaying, allLyrics])
-
-  const toggleCamera = () => setIsCameraActive(!isCameraActive)
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#06060a] text-white flex flex-col select-none font-sans overflow-hidden">
@@ -161,13 +267,13 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
               autoPlay
               playsInline
               muted
-              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 transition-opacity ${
-                isCameraActive ? 'opacity-80' : 'opacity-0'
+              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 transition-opacity duration-300 ${
+                isCameraActive ? 'opacity-80' : 'opacity-0 pointer-events-none'
               }`}
             />
             <canvas
               ref={canvasRef}
-              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none ${
+              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none transition-opacity duration-300 ${
                 isCameraActive ? 'opacity-90' : 'opacity-0'
               }`}
             />
@@ -175,7 +281,8 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
             {!isCameraActive && (
               <div className="text-center p-4">
                 <Camera className="w-8 h-8 text-white/20 mx-auto mb-2" />
-                <p className="text-xs text-white/40">Camera Disabled</p>
+                <p className="text-xs text-white/40 mb-2">Camera Disabled</p>
+                {cameraError && <p className="text-[10px] text-rose-400 font-mono">{cameraError}</p>}
               </div>
             )}
           </div>
@@ -194,8 +301,21 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
           <div className="space-y-1.5 pt-2">
             <div className="text-[10px] uppercase font-mono text-white/40 mb-1">Active Mapping:</div>
             {mapping.slice(0, 5).map((chord, idx) => (
-              <div key={idx} className="flex items-center justify-between text-xs px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5">
-                <span className="text-white/60">{idx} Fingers</span>
+              <div
+                key={idx}
+                onClick={() => {
+                  setDetectedChord(chord)
+                  setActiveChordIndex(idx)
+                  setDetectedGestureLabel(`${idx} Fingers → ${chord}`)
+                  triggerGuitarChord(chord, 0.25)
+                }}
+                className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl border cursor-pointer transition-all ${
+                  activeChordIndex === idx
+                    ? 'bg-purple-600/30 border-purple-400 text-white shadow-md'
+                    : 'bg-white/[0.03] border-white/5 text-white/60 hover:bg-white/10'
+                }`}
+              >
+                <span>{idx} Fingers</span>
                 <span className="font-mono font-bold text-amber-300">{chord}</span>
               </div>
             ))}
@@ -229,7 +349,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
             <span className="text-3xl font-extrabold text-white font-mono">{detectedChord}</span>
             <button
               onClick={() => triggerGuitarChord(detectedChord, 0.25)}
-              className="ml-3 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white shadow-md shadow-purple-600/30"
+              className="ml-3 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white shadow-md shadow-purple-600/30 transition-all"
             >
               Strum Chord
             </button>
