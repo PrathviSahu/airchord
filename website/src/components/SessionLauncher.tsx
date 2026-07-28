@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import {
   Play,
   Target,
@@ -10,19 +10,49 @@ import {
   ArrowRight,
   ShieldCheck,
   Disc,
+  Search,
+  Check,
+  X,
 } from 'lucide-react'
+import { SEED_SONGS, Song } from '../utils/songLibrary'
 
 interface SessionLauncherProps {
   onSelectMode: (mode: 'studio' | 'practice' | 'freeplay' | 'fingerstyle' | 'library' | 'profiles') => void
+  onSelectSong?: (song: Song) => void
   activeSongTitle?: string
   activeProfileName?: string
+  activeSong?: Song
 }
 
 export const SessionLauncher: React.FC<SessionLauncherProps> = ({
   onSelectMode,
+  onSelectSong,
   activeSongTitle = 'Perfect (Ed Sheeran)',
   activeProfileName = 'Beginner',
+  activeSong = SEED_SONGS[0],
 }) => {
+  const [songPickerMode, setSongPickerMode] = useState<'studio' | 'practice' | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const handleLaunchMode = (mode: 'studio' | 'practice') => {
+    setSongPickerMode(mode)
+  }
+
+  const handleChooseSongAndLaunch = (song: Song) => {
+    if (onSelectSong) {
+      onSelectSong(song)
+    }
+    if (songPickerMode) {
+      onSelectMode(songPickerMode)
+      setSongPickerMode(null)
+    }
+  }
+
+  const filteredSongs = SEED_SONGS.filter(
+    s =>
+      s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.artist.toLowerCase().includes(searchQuery.toLowerCase())
+  )
   return (
     <div className="fixed inset-0 z-[150] bg-[#06060a] text-white flex flex-col justify-between p-8 select-none font-sans overflow-y-auto">
       {/* Dynamic Background Glows */}
@@ -79,7 +109,7 @@ export const SessionLauncher: React.FC<SessionLauncherProps> = ({
           
           {/* Card 1: Studio Performance */}
           <div
-            onClick={() => onSelectMode('studio')}
+            onClick={() => handleLaunchMode('studio')}
             className="group relative bg-[#0d0d16] hover:bg-[#12121f] border border-purple-500/30 hover:border-purple-400 p-6 rounded-3xl cursor-pointer transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-purple-500/20 flex flex-col justify-between"
           >
             <div>
@@ -97,14 +127,14 @@ export const SessionLauncher: React.FC<SessionLauncherProps> = ({
               </p>
             </div>
             <div className="flex items-center justify-between pt-4 border-t border-white/10 text-xs font-semibold text-purple-400">
-              <span>Start Performance</span>
+              <span>Select Song & Play</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
 
           {/* Card 2: Practice Mode */}
           <div
-            onClick={() => onSelectMode('practice')}
+            onClick={() => handleLaunchMode('practice')}
             className="group relative bg-[#0d0d16] hover:bg-[#12121f] border border-amber-500/30 hover:border-amber-400 p-6 rounded-3xl cursor-pointer transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-amber-500/20 flex flex-col justify-between"
           >
             <div>
@@ -227,6 +257,90 @@ export const SessionLauncher: React.FC<SessionLauncherProps> = ({
           <span>Press ESC anytime to return to Launcher</span>
         </div>
       </div>
+
+      {/* Interactive "Which Song Would You Like to Play?" Modal */}
+      {songPickerMode && (
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
+          <div className="bg-[#0e0e18] border border-white/15 rounded-3xl p-8 max-w-2xl w-full flex flex-col max-h-[85vh] shadow-2xl space-y-6">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300">
+                  <Music className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-white uppercase tracking-wider">
+                    Which song would you like to play?
+                  </h2>
+                  <p className="text-xs text-white/40 font-mono">
+                    Select a song catalog track for {songPickerMode === 'studio' ? 'Studio Performance' : 'Practice Mode'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSongPickerMode(null)}
+                className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-white/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search song title or artist..."
+                className="w-full bg-white/5 border border-white/15 rounded-2xl pl-10 pr-4 py-3 text-xs text-white focus:outline-none focus:border-purple-400"
+              />
+            </div>
+
+            {/* Song Cards Grid */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {filteredSongs.map(song => {
+                const isCurrentActive = activeSong.id === song.id
+                return (
+                  <div
+                    key={song.id}
+                    onClick={() => handleChooseSongAndLaunch(song)}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${
+                      isCurrentActive
+                        ? 'bg-purple-600/20 border-purple-400 text-white shadow-lg shadow-purple-600/10'
+                        : 'bg-white/[0.03] border-white/10 text-white/80 hover:bg-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center text-amber-400 font-black font-mono text-base">
+                        🎸
+                      </div>
+                      <div>
+                        <div className="text-sm font-extrabold text-white group-hover:text-purple-300 transition-colors">
+                          {song.title}
+                        </div>
+                        <div className="text-xs text-white/40 font-mono">
+                          {song.artist} • {song.key} • {song.bpm} BPM • Capo {song.capo}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {song.chords.map(c => (
+                            <span key={c} className="px-1.5 py-0.5 bg-white/10 rounded text-[9px] font-mono text-amber-300 font-bold">
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md group-hover:scale-105 transition-all">
+                      Play This Song
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

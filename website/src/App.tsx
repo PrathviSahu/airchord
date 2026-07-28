@@ -78,6 +78,8 @@ export default function App() {
         return (
           <SessionLauncher
             onSelectMode={(selected) => setMode(selected)}
+            onSelectSong={(song) => setActiveSong(song)}
+            activeSong={activeSong}
             activeSongTitle={`${activeSong.title} (${activeSong.artist})`}
             activeProfileName={activeProfile.name}
           />
