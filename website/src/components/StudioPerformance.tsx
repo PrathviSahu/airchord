@@ -201,6 +201,16 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
     }
   }
 
+  const detectedChordRef = useRef(detectedChord)
+  useEffect(() => {
+    detectedChordRef.current = detectedChord
+  }, [detectedChord])
+
+  const currentLineIndexRef = useRef(currentLineIndex)
+  useEffect(() => {
+    currentLineIndexRef.current = currentLineIndex
+  }, [currentLineIndex])
+
   const [activeBeat, setActiveBeat] = useState(0)
 
   // Non-stop Performance Timer & BPM Beat Clock Sync
@@ -227,8 +237,8 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
           const nextBeat = (prev + 1) % (song.defaultStrumPattern?.length || 6)
           const stroke = song.defaultStrumPattern?.[nextBeat] || 'D'
           if (stroke !== '.') {
-            const currentLyricChord = allLyrics[currentLineIndex]?.chord || detectedChord
-            triggerGuitarChord(currentLyricChord, 0.22)
+            const activeChordToPlay = detectedChordRef.current || 'G'
+            triggerGuitarChord(activeChordToPlay, 0.22)
           }
           return nextBeat
         })
@@ -239,7 +249,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
         clearInterval(beatInterval)
       }
     }
-  }, [isPlaying, allLyrics, song.bpm, song.defaultStrumPattern?.length])
+  }, [isPlaying, allLyrics, song.bpm, song.defaultStrumPattern])
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#06060a] text-white flex flex-col select-none font-sans overflow-hidden">
