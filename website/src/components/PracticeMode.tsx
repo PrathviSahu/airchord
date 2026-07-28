@@ -13,6 +13,10 @@ import { Song } from '../utils/songLibrary'
 import { useHandTracking } from '../utils/useHandTracking'
 import { triggerGuitarChord, setCapoFret, getCapoFret } from '../utils/guitarSound'
 
+const AVAILABLE_CHORDS = [
+  'Em', 'Am', 'C', 'D', 'G', 'F', 'B7', 'E', 'A', 'Bm', 'Dm', 'F#m', 'F#7', 'Cmaj7', 'Gsus4'
+]
+
 interface PracticeModeProps {
   song: Song
   mapping: string[]
@@ -26,6 +30,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(0)
   const [isCameraActive, setIsCameraActive] = useState(true)
+  const [activeMapping, setActiveMapping] = useState<string[]>(song.fingerMapping || mapping)
   const [detectedChord, setDetectedChord] = useState<string>('Am')
   const [errorDiagnostic, setErrorDiagnostic] = useState<{ expected: string; detected: string } | null>(null)
   const [isFinished, setIsFinished] = useState(false)
@@ -39,6 +44,12 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const handleCapoChange = (fret: number) => {
     setCapoFretState(fret)
     setCapoFret(fret)
+  }
+
+  const handleChordMappingChange = (index: number, newChord: string) => {
+    const updated = [...activeMapping]
+    updated[index] = newChord
+    setActiveMapping(updated)
   }
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -55,8 +66,8 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     (fingerCount) => {
       if (isFinished) return
 
-      if (fingerCount >= 0 && fingerCount < mapping.length) {
-        const chord = mapping[fingerCount] || 'G'
+      if (fingerCount >= 0 && fingerCount < activeMapping.length) {
+        const chord = activeMapping[fingerCount] || 'G'
         setDetectedChord(chord)
         triggerGuitarChord(chord, 0.25)
         setTotalAttempts(prev => prev + 1)
@@ -197,48 +208,69 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
                     {currentTarget.chord}
                   </span>
                 </div>
-                <span className="text-sm font-bold font-mono text-white/80 bg-black/40 px-3 py-1 rounded-xl border border-white/10">
-                  {currentTarget.fingerGesture}
-                </span>
+                {(() => {
+                  const reqIdx = activeMapping.indexOf(currentTarget.chord)
+                  const gestureLabel = reqIdx !== -1 ? `${reqIdx} Fingers → ${currentTarget.chord}` : `Map ${currentTarget.chord}`
+                  return (
+                    <span className="text-xs font-bold font-mono text-amber-300 bg-amber-500/20 px-3.5 py-1.5 rounded-xl border border-amber-500/30">
+                      {gestureLabel}
+                    </span>
+                  )
+                })()}
               </div>
             </div>
 
             {/* Manual Test Buttons */}
             <div>
-              <div className="text-xs font-mono text-white/40 uppercase mb-2">Simulate Hand Gestures (Test Buttons):</div>
-              <div className="grid grid-cols-5 gap-2">
-                {mapping.slice(0, 5).map((chord, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setDetectedChord(chord)
-                      triggerGuitarChord(chord, 0.25)
-                      setTotalAttempts(prev => prev + 1)
-                      if (chord === currentTarget.chord) {
-                        setErrorDiagnostic(null)
-                        setCorrectAttempts(prev => prev + 1)
-                        if (currentStep < allLyrics.length - 1) {
-                          setCurrentStep(prev => prev + 1)
+              <div className="flex items-center justify-between text-xs font-mono text-white/40 uppercase mb-2">
+                <span>Simulate Hand Gestures (0-5 Fingers):</span>
+                <span className="text-amber-400 font-bold">Editable ✏️</span>
+              </div>
+              <div className="grid grid-cols-6 gap-2">
+                {activeMapping.slice(0, 6).map((chord, idx) => (
+                  <div key={idx} className="flex flex-col items-center gap-1">
+                    <button
+                      onClick={() => {
+                        setDetectedChord(chord)
+                        triggerGuitarChord(chord, 0.25)
+                        setTotalAttempts(prev => prev + 1)
+                        if (chord === currentTarget.chord) {
+                          setErrorDiagnostic(null)
+                          setCorrectAttempts(prev => prev + 1)
+                          if (currentStep < allLyrics.length - 1) {
+                            setCurrentStep(prev => prev + 1)
+                          } else {
+                            setIsFinished(true)
+                          }
                         } else {
-                          setIsFinished(true)
+                          setWrongChordsCount(prev => prev + 1)
+                          setErrorDiagnostic({
+                            expected: currentTarget.chord,
+                            detected: chord,
+                          })
                         }
-                      } else {
-                        setWrongChordsCount(prev => prev + 1)
-                        setErrorDiagnostic({
-                          expected: currentTarget.chord,
-                          detected: chord,
-                        })
-                      }
-                    }}
-                    className={`py-3 rounded-xl border text-center font-mono font-bold transition-all ${
-                      chord === currentTarget.chord
-                        ? 'bg-amber-500 text-black border-amber-300 shadow-lg scale-105'
-                        : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="text-[10px] text-white/50">{idx} Fingers</div>
-                    <div className="text-base">{chord}</div>
-                  </button>
+                      }}
+                      className={`w-full py-2.5 rounded-xl border text-center font-mono font-bold transition-all ${
+                        chord === currentTarget.chord
+                          ? 'bg-amber-500 text-black border-amber-300 shadow-lg scale-105'
+                          : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="text-[10px] text-white/60">{idx} Fingers</div>
+                      <div className="text-sm font-extrabold">{chord}</div>
+                    </button>
+                    <select
+                      value={chord}
+                      onChange={(e) => handleChordMappingChange(idx, e.target.value)}
+                      className="w-full bg-[#12121e] text-amber-300 font-mono font-bold border border-white/15 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:border-amber-400 cursor-pointer text-center"
+                    >
+                      {AVAILABLE_CHORDS.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 ))}
               </div>
             </div>

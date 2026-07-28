@@ -87,7 +87,7 @@ export default function App() {
         return (
           <StudioPerformance
             song={activeSong}
-            mapping={activeProfile.mapping}
+            mapping={activeSong.fingerMapping || activeProfile.mapping}
             onBack={() => setMode('launcher')}
           />
         )
@@ -96,7 +96,7 @@ export default function App() {
         return (
           <PracticeMode
             song={activeSong}
-            mapping={activeProfile.mapping}
+            mapping={activeSong.fingerMapping || activeProfile.mapping}
             onBack={() => setMode('launcher')}
           />
         )
