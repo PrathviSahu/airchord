@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Camera, Settings, RotateCcw, Volume2, Music, Sparkles, Sliders, Check, Play, Pause, Edit3, VolumeX, Mic, MicOff, Radio, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
-import { playPluckNote, playStrum, playDownStrum, playUpStrum, playPatternBeat, setGuitarType, getGuitarType, GuitarType } from '../utils/guitarSound'
+import { playPluckNote, playStrum, playDownStrum, playUpStrum, playPatternBeat, setGuitarType, getGuitarType, GuitarType, triggerGuitarChord, setCapoFret, getCapoFret, toggleStrumming, isStrummingActive } from '../utils/guitarSound'
 import { drawHandSkeleton } from '../utils/handTracker'
 import { useHandTracking, HandResult } from '../utils/useHandTracking'
 import { GestureEngine, GestureResult } from '../utils/GestureEngine'
@@ -205,12 +205,20 @@ export default function Studio({ onBack }: StudioProps) {
     playStrum(notes, 0.16)
   }
 
+  // Capo & Audio State
+  const [capoFret, setCapoFretState] = useState<number>(getCapoFret())
+  const [isStrumming, setIsStrumming] = useState<boolean>(isStrummingActive())
+
+  const handleCapoChange = (fret: number) => {
+    setCapoFretState(fret)
+    setCapoFret(fret)
+  }
+
   // Play chord function
   const triggerChord = (index: number, chordName: string) => {
     setActiveChordIndex(index)
     setActiveChord(chordName)
-    const notes = CHORD_NOTES_MAP[chordName] || ['E3', 'A3', 'D4', 'G4']
-    playStrum(notes, 0.16)
+    triggerGuitarChord(chordName, 0.2)
   }
 
   // Auto-strummer rhythm loop synced directly to BPM tempo
@@ -436,6 +444,42 @@ export default function Studio({ onBack }: StudioProps) {
 
         {/* Top Actions */}
         <div className="flex items-center gap-3">
+          {/* Capo Transposition Selector */}
+          <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-xs">
+            <span className="text-amber-400 font-bold font-mono">🎸 CAPO:</span>
+            <select
+              value={capoFret}
+              onChange={(e) => handleCapoChange(Number(e.target.value))}
+              className="bg-[#12121e] text-white border border-white/15 rounded-lg px-2 py-1 font-mono text-xs focus:outline-none focus:border-amber-400 cursor-pointer"
+            >
+              <option value={0}>No Capo (Open)</option>
+              <option value={1}>Capo 1st Fret (+1)</option>
+              <option value={2}>Capo 2nd Fret (+2)</option>
+              <option value={3}>Capo 3rd Fret (+3)</option>
+              <option value={4}>Capo 4th Fret (+4)</option>
+              <option value={5}>Capo 5th Fret (+5)</option>
+              <option value={6}>Capo 6th Fret (+6)</option>
+              <option value={7}>Capo 7th Fret (+7)</option>
+            </select>
+          </div>
+
+          {/* Strumming Start / Stop Button */}
+          <button
+            onClick={() => {
+              const active = toggleStrumming()
+              setIsStrumming(active)
+              if (active) triggerGuitarChord(activeChord, 0.3)
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 border transition-all ${
+              isStrumming
+                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-md shadow-amber-500/20'
+                : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+            }`}
+          >
+            {isStrumming ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5 text-rose-400" />}
+            {isStrumming ? 'Strumming ON 🎸' : 'Strumming OFF 🔇'}
+          </button>
+
           <button
             onClick={toggleCamera}
             className={`px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${
@@ -447,11 +491,6 @@ export default function Studio({ onBack }: StudioProps) {
             <Camera className="w-3.5 h-3.5" />
             {isCameraActive ? 'Disable Camera' : 'Enable Camera'}
           </button>
-          <div className="h-4 w-px bg-white/10 mx-1" />
-          <div className="flex items-center gap-2 text-xs text-white/40">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Audio Engine Ready
-          </div>
         </div>
       </div>
 
