@@ -198,10 +198,13 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
     }
   }
 
-  // Non-stop Performance Timer
+  const [activeBeat, setActiveBeat] = useState(0)
+
+  // Non-stop Performance Timer & BPM Beat Clock Sync
   useEffect(() => {
     if (isPlaying) {
-      const interval = setInterval(() => {
+      // 1-second lyric timeline clock
+      const timeInterval = setInterval(() => {
         setCurrentTime(prev => {
           const next = prev + 1
           const nextIdx = allLyrics.findIndex(l => l.time > next)
@@ -213,9 +216,19 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
           return next
         })
       }, 1000)
-      return () => clearInterval(interval)
+
+      // BPM Beat Clock Interval (e.g. 60000 / 63bpm = 952ms per beat stroke)
+      const beatMs = Math.round(60000 / (song.bpm || 60))
+      const beatInterval = setInterval(() => {
+        setActiveBeat(prev => (prev + 1) % (song.defaultStrumPattern?.length || 6))
+      }, beatMs)
+
+      return () => {
+        clearInterval(timeInterval)
+        clearInterval(beatInterval)
+      }
     }
-  }, [isPlaying, allLyrics])
+  }, [isPlaying, allLyrics, song.bpm, song.defaultStrumPattern?.length])
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#06060a] text-white flex flex-col select-none font-sans overflow-hidden">
@@ -432,7 +445,15 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
                   <span className="px-2 py-0.5 bg-amber-400 text-black font-mono font-black rounded text-xs">
                     {currentLyric.chord}
                   </span>
-                  <span className="text-[10px] text-white/50 font-mono">{currentLyric.fingerGesture}</span>
+                  {(() => {
+                    const reqIdx = activeMapping.indexOf(currentLyric.chord)
+                    const gestureLabel = reqIdx !== -1 ? `${reqIdx} Fingers → ${currentLyric.chord}` : `Map ${currentLyric.chord}`
+                    return (
+                      <span className="text-[10px] text-amber-300 font-mono font-bold bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                        {gestureLabel}
+                      </span>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -443,9 +464,20 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
                   <div className="text-xs font-semibold text-white/80">
                     "{nextLyric.text}"
                   </div>
-                  <span className="inline-block px-2 py-0.5 bg-white/10 text-amber-300 font-mono rounded text-[11px]">
-                    {nextLyric.chord}
-                  </span>
+                  <div className="flex items-center justify-between pt-0.5">
+                    <span className="inline-block px-2 py-0.5 bg-white/10 text-amber-300 font-mono rounded text-[11px]">
+                      {nextLyric.chord}
+                    </span>
+                    {(() => {
+                      const reqIdx = activeMapping.indexOf(nextLyric.chord)
+                      const gestureLabel = reqIdx !== -1 ? `${reqIdx} Fingers → ${nextLyric.chord}` : `Map ${nextLyric.chord}`
+                      return (
+                        <span className="text-[10px] text-white/50 font-mono">
+                          {gestureLabel}
+                        </span>
+                      )
+                    })()}
+                  </div>
                 </div>
               )}
 
@@ -488,11 +520,25 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
             </div>
           </div>
 
-          {/* Strumming Pattern Reference */}
+          {/* Strumming Pattern Reference with Beat Synchronization */}
           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl space-y-2">
-            <div className="text-[10px] font-mono uppercase text-white/40">Default Strumming Pattern:</div>
-            <div className="text-lg font-mono font-bold text-purple-300 tracking-widest">
-              {song.displayPattern}
+            <div className="flex items-center justify-between text-[10px] font-mono uppercase text-white/40">
+              <span>Strumming Pattern Rhythm ({song.bpm} BPM):</span>
+              {isPlaying && <span className="text-emerald-400 font-bold animate-pulse">● PLAYING BEAT</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              {(song.displayPattern.split(' ') || ['↓', '•', '↓', '↑', '↓', '↑']).map((symbol, idx) => (
+                <span
+                  key={idx}
+                  className={`flex-1 py-2 text-center rounded-xl font-mono text-lg font-black border transition-all ${
+                    isPlaying && activeBeat === idx
+                      ? 'bg-amber-400 text-black border-amber-300 shadow-lg shadow-amber-400/40 scale-110'
+                      : 'bg-black/40 text-purple-300 border-white/10'
+                  }`}
+                >
+                  {symbol}
+                </span>
+              ))}
             </div>
           </div>
         </div>
