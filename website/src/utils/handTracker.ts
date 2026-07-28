@@ -38,16 +38,21 @@ export function countFingers(landmarks: Point2D[]): number {
   if (isExtended(16, 14, 1.08)) extended++ // Ring
   if (isExtended(20, 18, 1.05)) extended++ // Pinky (forgiving pinky threshold)
 
-  // Thumb extension: Distance from Wrist (#0) and Index Base (#5)
+  // Thumb extension: Perpendicular lateral distance from Wrist -> IndexMCP axis
   const thumbTip = landmarks[4]
-  const thumbMCP = landmarks[2]
   const indexMCP = landmarks[5]
 
-  const distThumbTipToWrist = Math.hypot(thumbTip.x - wrist.x, thumbTip.y - wrist.y)
-  const distThumbMCPToWrist = Math.hypot(thumbMCP.x - wrist.x, thumbMCP.y - wrist.y)
-  const distThumbTipToIndex = Math.hypot(thumbTip.x - indexMCP.x, thumbTip.y - indexMCP.y)
+  const palmDx = indexMCP.x - wrist.x
+  const palmDy = indexMCP.y - wrist.y
+  const palmLen = Math.hypot(palmDx, palmDy) || 0.1
 
-  const thumbExtended = (distThumbTipToWrist > distThumbMCPToWrist * 1.10) && (distThumbTipToIndex > 0.065)
+  const thumbDx = thumbTip.x - wrist.x
+  const thumbDy = thumbTip.y - wrist.y
+
+  // Cross product yields exact perpendicular distance from palm central line
+  const perpDist = Math.abs(thumbDx * palmDy - thumbDy * palmDx) / palmLen
+
+  const thumbExtended = perpDist > 0.085
   if (thumbExtended) extended++
 
   return Math.min(5, Math.max(0, extended))

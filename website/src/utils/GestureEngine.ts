@@ -79,17 +79,22 @@ export class GestureEngine {
     const ringExtended = isExtended(16, 14, 1.08)
     const pinkyExtended = isExtended(20, 18, 1.05) // Forgiving pinky threshold
 
-    // Thumb extension: Distance from Wrist (#0) and Index Base (#5)
+    // Thumb extension: Perpendicular lateral distance from Wrist -> IndexMCP axis
     const thumbTip = landmarks[4]
-    const thumbMCP = landmarks[2]
     const indexMCP = landmarks[5]
 
-    const distThumbTipToWrist = Math.hypot(thumbTip.x - wrist.x, thumbTip.y - wrist.y)
-    const distThumbMCPToWrist = Math.hypot(thumbMCP.x - wrist.x, thumbMCP.y - wrist.y)
-    const distThumbTipToIndex = Math.hypot(thumbTip.x - indexMCP.x, thumbTip.y - indexMCP.y)
+    const palmDx = indexMCP.x - wrist.x
+    const palmDy = indexMCP.y - wrist.y
+    const palmLen = Math.hypot(palmDx, palmDy) || 0.1
 
-    // Thumb is extended if tip is further from wrist than MCP AND separated from index base
-    const thumbExtended = (distThumbTipToWrist > distThumbMCPToWrist * 1.10) && (distThumbTipToIndex > 0.065)
+    const thumbDx = thumbTip.x - wrist.x
+    const thumbDy = thumbTip.y - wrist.y
+
+    // Cross product yields exact perpendicular distance from palm central line
+    const perpDist = Math.abs(thumbDx * palmDy - thumbDy * palmDx) / palmLen
+
+    // Thumb is extended ONLY if it sticks out laterally beyond the palm boundary (>= 0.085)
+    const thumbExtended = perpDist > 0.085
 
     let count = 0
     if (thumbExtended) count++
