@@ -9,7 +9,7 @@ import { SongLibraryModal } from './components/SongLibraryModal'
 import { ProfileEditorModal } from './components/ProfileEditorModal'
 import Studio from './components/Studio'
 import { SEED_SONGS, Song } from './utils/songLibrary'
-import { PRESET_GESTURE_PROFILES, GestureProfile } from './utils/gestureProfiles'
+import { PRESET_GESTURE_PROFILES, GestureProfile } from './utils/GestureProfiles'
 
 export type AppMode =
   | 'landing'
