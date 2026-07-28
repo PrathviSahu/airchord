@@ -108,6 +108,22 @@ export class GestureEngine {
   }
 
   processLandmarks(landmarks: { x: number; y: number; z?: number }[]): GestureResult | null {
+    if (!landmarks || landmarks.length < 21) return null
+
+    // Anatomical hand ratio check (rejects ear / face / background false positives)
+    const wrist = landmarks[0]
+    const middleMCP = landmarks[9]
+    const indexMCP = landmarks[5]
+    const pinkyMCP = landmarks[17]
+
+    const palmLength = Math.hypot(middleMCP.x - wrist.x, middleMCP.y - wrist.y)
+    const palmWidth = Math.hypot(pinkyMCP.x - indexMCP.x, pinkyMCP.y - indexMCP.y)
+
+    // A real hand in video frame must have valid palm proportions
+    if (palmLength < 0.055 || palmWidth < 0.032) {
+      return null
+    }
+
     const fingerCount = this.countFingers(landmarks)
     const chord = getChordForFingers(this.profile, fingerCount)
 

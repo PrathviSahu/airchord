@@ -33,9 +33,9 @@ export function useHandTracking() {
         },
         runningMode: 'VIDEO',
         numHands: 1,
-        minHandDetectionConfidence: 0.4,
-        minHandPresenceConfidence: 0.4,
-        minTrackingConfidence: 0.4,
+        minHandDetectionConfidence: 0.75,
+        minHandPresenceConfidence: 0.75,
+        minTrackingConfidence: 0.70,
       })
 
       console.log('✅ HandLandmarker initialized successfully')
