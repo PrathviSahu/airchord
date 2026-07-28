@@ -9,12 +9,14 @@ import {
   Trophy,
   Activity,
   Award,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import { Song } from '../utils/songLibrary'
 import { useHandTracking, HandResult } from '../utils/useHandTracking'
 import { GestureEngine, GestureResult } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
-import { triggerGuitarChord, setCapoFret, getCapoFret } from '../utils/guitarSound'
+import { triggerGuitarChord, setCapoFret, getCapoFret, toggleStrumming, isStrummingActive } from '../utils/guitarSound'
 import { drawHandSkeleton } from '../utils/handTracker'
 
 const AVAILABLE_CHORDS = [
@@ -45,6 +47,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const [correctAttempts, setCorrectAttempts] = useState(0)
   const [wrongChordsCount, setWrongChordsCount] = useState(0)
   const [capoFret, setCapoFretState] = useState<number>(getCapoFret())
+  const [isStrumming, setIsStrumming] = useState<boolean>(isStrummingActive())
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -264,6 +267,23 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               <option value={7}>Capo 7th Fret (+7)</option>
             </select>
           </div>
+
+          {/* Strumming Start / Stop Button */}
+          <button
+            onClick={() => {
+              const active = toggleStrumming()
+              setIsStrumming(active)
+              if (active) triggerGuitarChord(detectedChord, 0.3)
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 border transition-all ${
+              isStrumming
+                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-md shadow-amber-500/20'
+                : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+            }`}
+          >
+            {isStrumming ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5 text-rose-400" />}
+            {isStrumming ? 'Strumming ON 🎸' : 'Strumming OFF 🔇'}
+          </button>
 
           <button
             onClick={toggleCamera}

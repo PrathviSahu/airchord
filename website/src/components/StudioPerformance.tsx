@@ -9,13 +9,15 @@ import {
   Music,
   Sliders,
   CheckCircle2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import { Canvas } from '@react-three/fiber'
 import { Song } from '../utils/songLibrary'
 import { useHandTracking, HandResult } from '../utils/useHandTracking'
 import { GestureEngine, GestureResult } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
-import { triggerGuitarChord, playPluckNote, setCapoFret, getCapoFret } from '../utils/guitarSound'
+import { triggerGuitarChord, playPluckNote, setCapoFret, getCapoFret, toggleStrumming, isStrummingActive } from '../utils/guitarSound'
 import { drawHandSkeleton } from '../utils/handTracker'
 import Guitar3D from './Guitar3D'
 
@@ -46,6 +48,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
   const [detectedGestureLabel, setDetectedGestureLabel] = useState<string>(`✊ = ${mapping[0] || 'Em'}`)
   const [activeChordIndex, setActiveChordIndex] = useState<number | null>(0)
   const [capoFret, setCapoFretState] = useState<number>(getCapoFret())
+  const [isStrumming, setIsStrumming] = useState<boolean>(isStrummingActive())
 
   const handleCapoChange = (fret: number) => {
     setCapoFretState(fret)
@@ -274,6 +277,23 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
               <option value={7}>Capo 7th Fret (+7)</option>
             </select>
           </div>
+
+          {/* Strumming Start / Stop Button */}
+          <button
+            onClick={() => {
+              const active = toggleStrumming()
+              setIsStrumming(active)
+              if (active) triggerGuitarChord(detectedChord, 0.3)
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 border transition-all ${
+              isStrumming
+                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-md shadow-amber-500/20'
+                : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+            }`}
+          >
+            {isStrumming ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5 text-rose-400" />}
+            {isStrumming ? 'Strumming ON 🎸' : 'Strumming OFF 🔇'}
+          </button>
 
           <button
             onClick={() => setIsPlaying(!isPlaying)}

@@ -9,6 +9,48 @@ let audioCtx: AudioContext | null = null
 
 const waveCache: Partial<Record<GuitarType, PeriodicWave>> = {}
 
+let isStrummingEnabled: boolean = true
+
+export function setStrummingEnabled(enabled: boolean) {
+  isStrummingEnabled = enabled
+  if (enabled) {
+    initAudioEngine()
+  }
+}
+
+export function isStrummingActive(): boolean {
+  return isStrummingEnabled
+}
+
+export function toggleStrumming(): boolean {
+  isStrummingEnabled = !isStrummingEnabled
+  if (isStrummingEnabled) {
+    initAudioEngine()
+  }
+  return isStrummingEnabled
+}
+
+export function initAudioEngine(): AudioContext | null {
+  const ctx = getAudioContext()
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().catch(() => {})
+  }
+  return ctx
+}
+
+// Auto-unlock AudioContext on first user interaction anywhere in browser
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    initAudioEngine()
+    window.removeEventListener('click', unlockAudio)
+    window.removeEventListener('keydown', unlockAudio)
+    window.removeEventListener('touchstart', unlockAudio)
+  }
+  window.addEventListener('click', unlockAudio)
+  window.addEventListener('keydown', unlockAudio)
+  window.addEventListener('touchstart', unlockAudio)
+}
+
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null
   if (!audioCtx) {
@@ -18,7 +60,7 @@ function getAudioContext(): AudioContext | null {
     }
   }
   if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume()
+    audioCtx.resume().catch(() => {})
   }
   return audioCtx
 }
@@ -215,6 +257,8 @@ const CHORD_NOTES: Record<string, string[]> = {
 }
 
 export function triggerGuitarChord(chordName: string = 'Em', volume = 0.2) {
+  if (!isStrummingEnabled) return
+  initAudioEngine()
   const notes = CHORD_NOTES[chordName] || CHORD_NOTES['Em']
   playDownStrum(notes, volume)
 }
