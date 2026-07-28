@@ -213,43 +213,45 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
 
   const [activeBeat, setActiveBeat] = useState(0)
 
-  // Non-stop Performance Timer & BPM Beat Clock Sync
+  // 1. Song Teleprompter Timeline Timer (runs when Studio Performance is active)
   useEffect(() => {
-    if (isPlaying) {
-      // 1-second lyric timeline clock
-      const timeInterval = setInterval(() => {
-        setCurrentTime(prev => {
-          const next = prev + 1
-          const nextIdx = allLyrics.findIndex(l => l.time > next)
-          if (nextIdx !== -1) {
-            setCurrentLineIndex(Math.max(0, nextIdx - 1))
-          } else if (next >= (allLyrics[allLyrics.length - 1]?.time || 30)) {
-            setCurrentLineIndex(allLyrics.length - 1)
-          }
-          return next
-        })
-      }, 1000)
+    if (!isPlaying) return
+    const timeInterval = setInterval(() => {
+      setCurrentTime(prev => {
+        const next = prev + 1
+        const nextIdx = allLyrics.findIndex(l => l.time > next)
+        if (nextIdx !== -1) {
+          setCurrentLineIndex(Math.max(0, nextIdx - 1))
+        } else if (next >= (allLyrics[allLyrics.length - 1]?.time || 30)) {
+          setCurrentLineIndex(allLyrics.length - 1)
+        }
+        return next
+      })
+    }, 1000)
 
-      // BPM Beat Clock Interval (e.g. 60000 / 63bpm = 952ms per beat stroke)
-      const beatMs = Math.round(60000 / (song.bpm || 60))
-      const beatInterval = setInterval(() => {
-        setActiveBeat(prev => {
-          const nextBeat = (prev + 1) % (song.defaultStrumPattern?.length || 6)
-          const stroke = song.defaultStrumPattern?.[nextBeat] || 'D'
-          if (stroke !== '.') {
-            const activeChordToPlay = detectedChordRef.current || 'G'
-            triggerGuitarChord(activeChordToPlay, 0.22)
-          }
-          return nextBeat
-        })
-      }, beatMs)
+    return () => clearInterval(timeInterval)
+  }, [isPlaying, allLyrics])
 
-      return () => {
-        clearInterval(timeInterval)
-        clearInterval(beatInterval)
-      }
-    }
-  }, [isPlaying, allLyrics, song.bpm, song.defaultStrumPattern])
+  // 2. Continuous Non-Stop BPM Rhythm Strummer Engine (runs whenever isStrumming is true)
+  useEffect(() => {
+    if (!isStrumming) return
+
+    // BPM Beat Clock Interval (e.g. 60000 / 63bpm = 952ms per beat stroke)
+    const beatMs = Math.round(60000 / (song.bpm || 60))
+    const beatInterval = setInterval(() => {
+      setActiveBeat(prev => {
+        const nextBeat = (prev + 1) % (song.defaultStrumPattern?.length || 6)
+        const stroke = song.defaultStrumPattern?.[nextBeat] || 'D'
+        if (stroke !== '.') {
+          const activeChordToPlay = detectedChordRef.current || 'G'
+          triggerGuitarChord(activeChordToPlay, 0.25)
+        }
+        return nextBeat
+      })
+    }, beatMs)
+
+    return () => clearInterval(beatInterval)
+  }, [isStrumming, song.bpm, song.defaultStrumPattern])
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#06060a] text-white flex flex-col select-none font-sans overflow-hidden">
