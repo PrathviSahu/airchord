@@ -68,31 +68,28 @@ export class GestureEngine {
     const wrist = landmarks[0]
 
     // Wrist-to-Tip vs Wrist-to-PIP distance ratio (angle-agnostic & tilt-proof)
-    const isExtended = (tipIdx: number, pipIdx: number) => {
+    const isExtended = (tipIdx: number, pipIdx: number, threshold = 1.08) => {
       const distTip = Math.hypot(landmarks[tipIdx].x - wrist.x, landmarks[tipIdx].y - wrist.y)
       const distPIP = Math.hypot(landmarks[pipIdx].x - wrist.x, landmarks[pipIdx].y - wrist.y)
-      return distTip > distPIP * 1.15
+      return distTip > distPIP * threshold
     }
 
-    const indexExtended = isExtended(8, 6)
-    const middleExtended = isExtended(12, 10)
-    const ringExtended = isExtended(16, 14)
-    const pinkyExtended = isExtended(20, 18)
+    const indexExtended = isExtended(8, 6, 1.08)
+    const middleExtended = isExtended(12, 10, 1.08)
+    const ringExtended = isExtended(16, 14, 1.08)
+    const pinkyExtended = isExtended(20, 18, 1.05) // Forgiving pinky threshold
 
-    // Thumb extension: Lateral distance from Index MCP (#5) and Pinky MCP (#17)
+    // Thumb extension: Distance from Wrist (#0) and Index Base (#5)
     const thumbTip = landmarks[4]
-    const thumbIP = landmarks[3]
     const thumbMCP = landmarks[2]
     const indexMCP = landmarks[5]
-    const pinkyMCP = landmarks[17]
 
-    const distTipToIndex = Math.hypot(thumbTip.x - indexMCP.x, thumbTip.y - indexMCP.y)
-    const distIPToIndex = Math.hypot(thumbIP.x - indexMCP.x, thumbIP.y - indexMCP.y)
-    const distTipToPinky = Math.hypot(thumbTip.x - pinkyMCP.x, thumbTip.y - pinkyMCP.y)
-    const distMCPToPinky = Math.hypot(thumbMCP.x - pinkyMCP.x, thumbMCP.y - pinkyMCP.y)
+    const distThumbTipToWrist = Math.hypot(thumbTip.x - wrist.x, thumbTip.y - wrist.y)
+    const distThumbMCPToWrist = Math.hypot(thumbMCP.x - wrist.x, thumbMCP.y - wrist.y)
+    const distThumbTipToIndex = Math.hypot(thumbTip.x - indexMCP.x, thumbTip.y - indexMCP.y)
 
-    // Thumb is extended if tip is stretched laterally away from Index MCP and Pinky MCP
-    const thumbExtended = (distTipToIndex > distIPToIndex * 1.14) && (distTipToPinky > distMCPToPinky * 0.95)
+    // Thumb is extended if tip is further from wrist than MCP AND separated from index base
+    const thumbExtended = (distThumbTipToWrist > distThumbMCPToWrist * 1.10) && (distThumbTipToIndex > 0.065)
 
     let count = 0
     if (thumbExtended) count++

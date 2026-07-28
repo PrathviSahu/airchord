@@ -26,31 +26,28 @@ export function countFingers(landmarks: Point2D[]): number {
 
   const wrist = landmarks[0]
 
-  const isExtended = (tipIdx: number, pipIdx: number) => {
+  const isExtended = (tipIdx: number, pipIdx: number, threshold = 1.08) => {
     const distTip = Math.hypot(landmarks[tipIdx].x - wrist.x, landmarks[tipIdx].y - wrist.y)
     const distPIP = Math.hypot(landmarks[pipIdx].x - wrist.x, landmarks[pipIdx].y - wrist.y)
-    return distTip > distPIP * 1.15
+    return distTip > distPIP * threshold
   }
 
   let extended = 0
-  if (isExtended(8, 6)) extended++   // Index
-  if (isExtended(12, 10)) extended++ // Middle
-  if (isExtended(16, 14)) extended++ // Ring
-  if (isExtended(20, 18)) extended++ // Pinky
+  if (isExtended(8, 6, 1.08)) extended++   // Index
+  if (isExtended(12, 10, 1.08)) extended++ // Middle
+  if (isExtended(16, 14, 1.08)) extended++ // Ring
+  if (isExtended(20, 18, 1.05)) extended++ // Pinky (forgiving pinky threshold)
 
-  // Thumb extension: Lateral distance from Index MCP (#5) and Pinky MCP (#17)
+  // Thumb extension: Distance from Wrist (#0) and Index Base (#5)
   const thumbTip = landmarks[4]
-  const thumbIP = landmarks[3]
   const thumbMCP = landmarks[2]
   const indexMCP = landmarks[5]
-  const pinkyMCP = landmarks[17]
 
-  const distTipToIndex = Math.hypot(thumbTip.x - indexMCP.x, thumbTip.y - indexMCP.y)
-  const distIPToIndex = Math.hypot(thumbIP.x - indexMCP.x, thumbIP.y - indexMCP.y)
-  const distTipToPinky = Math.hypot(thumbTip.x - pinkyMCP.x, thumbTip.y - pinkyMCP.y)
-  const distMCPToPinky = Math.hypot(thumbMCP.x - pinkyMCP.x, thumbMCP.y - pinkyMCP.y)
+  const distThumbTipToWrist = Math.hypot(thumbTip.x - wrist.x, thumbTip.y - wrist.y)
+  const distThumbMCPToWrist = Math.hypot(thumbMCP.x - wrist.x, thumbMCP.y - wrist.y)
+  const distThumbTipToIndex = Math.hypot(thumbTip.x - indexMCP.x, thumbTip.y - indexMCP.y)
 
-  const thumbExtended = (distTipToIndex > distIPToIndex * 1.14) && (distTipToPinky > distMCPToPinky * 0.95)
+  const thumbExtended = (distThumbTipToWrist > distThumbMCPToWrist * 1.10) && (distThumbTipToIndex > 0.065)
   if (thumbExtended) extended++
 
   return Math.min(5, Math.max(0, extended))
