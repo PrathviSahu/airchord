@@ -425,7 +425,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
               playsInline
               muted
               className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 transition-opacity duration-300 ${
-                isCameraActive ? 'opacity-90' : 'opacity-0 pointer-events-none'
+                isCameraActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
               }`}
             />
             <canvas

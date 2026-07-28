@@ -506,21 +506,18 @@ export default function Studio({ onBack }: StudioProps) {
               autoPlay
               playsInline
               muted
-              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 transition-opacity duration-500 ${
-                isCameraActive ? 'opacity-80' : 'opacity-0 pointer-events-none'
+              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 transition-opacity duration-300 ${
+                isCameraActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
               }`}
             />
 
             {/* AI Neon Hand Skeleton Canvas */}
             <canvas
               ref={canvasRef}
-              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none transition-opacity duration-500 ${
-                isCameraActive ? 'opacity-90' : 'opacity-0'
+              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none transition-opacity duration-300 ${
+                isCameraActive ? 'opacity-100' : 'opacity-0'
               }`}
             />
-
-            {/* AI HUD Overlay Scanlines */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#000000_100%)] opacity-80 pointer-events-none" />
 
             {/* Offline / Disabled Camera Fallback */}
             {!isCameraActive && (
