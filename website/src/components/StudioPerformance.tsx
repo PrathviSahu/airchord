@@ -1,4 +1,3 @@
-import React, { useState, useEffect, useRef } from 'react'
 import {
   ArrowLeft,
   Camera,
@@ -11,6 +10,9 @@ import {
   CheckCircle2,
   Volume2,
   VolumeX,
+  ChevronLeft,
+  ChevronRight,
+  Gauge,
 } from 'lucide-react'
 import { Canvas } from '@react-three/fiber'
 import { Song } from '../utils/songLibrary'
@@ -49,6 +51,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
   const [activeChordIndex, setActiveChordIndex] = useState<number | null>(0)
   const [capoFret, setCapoFretState] = useState<number>(getCapoFret())
   const [isStrumming, setIsStrumming] = useState<boolean>(isStrummingActive())
+  const [songBpm, setSongBpm] = useState<number>(song.bpm || 63)
 
   const handleCapoChange = (fret: number) => {
     setCapoFretState(fret)
@@ -239,7 +242,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
     if (!isPlaying || !isStrumming) return
 
     // BPM Beat Clock Interval (e.g. 60000 / 63bpm = 952ms per beat stroke)
-    const beatMs = Math.round(60000 / (song.bpm || 60))
+    const beatMs = Math.round(60000 / (songBpm || 60))
     const beatInterval = setInterval(() => {
       setActiveBeat(prev => {
         const nextBeat = (prev + 1) % (song.defaultStrumPattern?.length || 6)
@@ -253,7 +256,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
     }, beatMs)
 
     return () => clearInterval(beatInterval)
-  }, [isPlaying, isStrumming, song.bpm, song.defaultStrumPattern])
+  }, [isPlaying, isStrumming, songBpm, song.defaultStrumPattern])
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#06060a] text-white flex flex-col select-none font-sans overflow-hidden">
@@ -465,15 +468,34 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
           
           {/* Logic Pro Teleprompter */}
           <div>
-            <div className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Music className="w-4 h-4" />
-              Song Teleprompter
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                <Music className="w-4 h-4" />
+                Song Teleprompter
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentLineIndex(prev => Math.max(0, prev - 1))}
+                  className="px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/70 hover:text-white hover:bg-white/10 flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3 h-3" /> Prev
+                </button>
+                <button
+                  onClick={() => setCurrentLineIndex(prev => Math.min(allLyrics.length - 1, prev + 1))}
+                  className="px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/70 hover:text-white hover:bg-white/10 flex items-center gap-1"
+                >
+                  Next <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3 bg-black/60 p-4 rounded-2xl border border-white/10">
               {/* Current Line */}
               <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl space-y-1">
-                <span className="text-[9px] uppercase font-mono font-bold text-amber-400">Current</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] uppercase font-mono font-bold text-amber-400">Current Line</span>
+                  <span className="text-[9px] font-mono text-white/40">{currentLineIndex + 1} / {allLyrics.length}</span>
+                </div>
                 <div className="text-sm font-extrabold text-white leading-snug">
                   "{currentLyric.text}"
                 </div>
@@ -559,7 +581,7 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
           {/* Strumming Pattern Reference with Beat Synchronization */}
           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl space-y-2">
             <div className="flex items-center justify-between text-[10px] font-mono uppercase text-white/40">
-              <span>Strumming Pattern Rhythm ({song.bpm} BPM):</span>
+              <span>Strumming Pattern Rhythm ({songBpm} BPM):</span>
               {isPlaying && <span className="text-emerald-400 font-bold animate-pulse">● PLAYING BEAT</span>}
             </div>
             <div className="flex items-center gap-2">
@@ -575,6 +597,74 @@ export const StudioPerformance: React.FC<StudioPerformanceProps> = ({
                   {symbol}
                 </span>
               ))}
+            </div>
+          </div>
+
+          {/* BPM Metronome Meter & Speed Controller */}
+          <div className="bg-white/5 border border-white/10 p-4 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-300 uppercase tracking-wider font-mono">
+                <Gauge className="w-4 h-4 text-amber-400" />
+                <span>BPM Metronome Meter</span>
+              </div>
+              <span className="text-sm font-extrabold font-mono text-white bg-amber-500/20 px-2.5 py-0.5 rounded border border-amber-500/30">
+                {songBpm} BPM
+              </span>
+            </div>
+
+            {/* Pulsing 4-LED Metronome Visualizer Bar */}
+            <div className="grid grid-cols-4 gap-2 py-1">
+              {[0, 1, 2, 3].map((b) => {
+                const isActive = isPlaying && (activeBeat % 4 === b)
+                return (
+                  <div
+                    key={b}
+                    className={`py-2 rounded-xl text-center text-xs font-black font-mono border transition-all ${
+                      isActive
+                        ? 'bg-emerald-400 text-black border-emerald-300 shadow-lg shadow-emerald-400/50 scale-105 animate-pulse'
+                        : 'bg-black/40 text-white/40 border-white/10'
+                    }`}
+                  >
+                    BEAT {b + 1}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Interactive BPM Tempo Speed Slider */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between text-[10px] font-mono text-white/50">
+                <span>Tempo Speed</span>
+                <span>{songBpm} BPM</span>
+              </div>
+              <input
+                type="range"
+                min={40}
+                max={160}
+                value={songBpm}
+                onChange={(e) => setSongBpm(Number(e.target.value))}
+                className="w-full accent-amber-400 cursor-pointer"
+              />
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <button
+                  onClick={() => setSongBpm(prev => Math.max(40, prev - 5))}
+                  className="flex-1 py-1 rounded bg-white/5 border border-white/10 text-xs font-mono text-white/70 hover:text-white hover:bg-white/10"
+                >
+                  -5 BPM
+                </button>
+                <button
+                  onClick={() => setSongBpm(song.bpm || 63)}
+                  className="flex-1 py-1 rounded bg-white/5 border border-white/10 text-xs font-mono text-amber-300 hover:bg-white/10"
+                >
+                  Reset ({song.bpm})
+                </button>
+                <button
+                  onClick={() => setSongBpm(prev => Math.min(160, prev + 5))}
+                  className="flex-1 py-1 rounded bg-white/5 border border-white/10 text-xs font-mono text-white/70 hover:text-white hover:bg-white/10"
+                >
+                  +5 BPM
+                </button>
+              </div>
             </div>
           </div>
         </div>
