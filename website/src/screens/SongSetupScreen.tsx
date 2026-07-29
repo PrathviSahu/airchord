@@ -29,13 +29,11 @@ const SECTION_COLORS: Record<string, string> = {
   Outro:  'text-rose-400 border-rose-500/30 bg-rose-500/10',
 }
 
-// ── Finger gesture labels ─────────────────────────────────────────────
-const FINGER_LABELS = ['✊ 0 — Fist', '☝️ 1 — Index', '✌️ 2 — Peace', '🤟 3 — Three', '🖐️ 4 — Four', '✋ 5 — Palm']
-
-interface SongSetupScreenProps {
+// ── Finger gesture labels ───interface SongSetupScreenProps {
   song: Song
   onBack: () => void
   onStartPlaying: (config: SessionConfig) => void
+  onPractice: (config: SessionConfig) => void
 }
 
 export interface SessionConfig {
@@ -47,7 +45,7 @@ export interface SessionConfig {
   fingerMapping: string[]
 }
 
-export default function SongSetupScreen({ song, onBack, onStartPlaying }: SongSetupScreenProps) {
+export default function SongSetupScreen({ song, onBack, onStartPlaying, onPractice }: SongSetupScreenProps) {
   const [capo, setCapo]               = useState(song.capo)
   const [bpm, setBpm]                 = useState(song.bpm)
   const [selectedPreset, setPreset]   = useState<number>(() => {
@@ -60,7 +58,6 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying }: SongSe
   const [editingMapping, setEditingMapping] = useState(false)
   const [engineState, setEngineState] = useState<EngineMode>(getEngineMode())
 
-
   // Flatten all lyrics for display
   const allLyricsFlat = useMemo(() =>
     song.sections.flatMap(s => s.lyrics.map(l => ({ ...l, sectionName: s.name }))),
@@ -68,22 +65,28 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying }: SongSe
 
   // Current strum display
   const activePattern = isCustom
-    ? STRUM_PRESETS[selectedPreset] // fallback, overridden by customPattern for display
+    ? STRUM_PRESETS[selectedPreset]
     : STRUM_PRESETS[selectedPreset]
 
+  const getConfig = (): SessionConfig => ({
+    song,
+    capo,
+    bpm,
+    strumPattern: isCustom
+      ? customPattern.trim().split(/\s+/)
+      : STRUM_PRESETS[selectedPreset].pattern,
+    displayPattern: isCustom
+      ? customPattern.trim()
+      : STRUM_PRESETS[selectedPreset].display,
+    fingerMapping,
+  })
+
   const handleStart = () => {
-    onStartPlaying({
-      song,
-      capo,
-      bpm,
-      strumPattern: isCustom
-        ? customPattern.trim().split(/\s+/)
-        : STRUM_PRESETS[selectedPreset].pattern,
-      displayPattern: isCustom
-        ? customPattern.trim()
-        : STRUM_PRESETS[selectedPreset].display,
-      fingerMapping,
-    })
+    onStartPlaying(getConfig())
+  }
+
+  const handlePractice = () => {
+    onPractice(getConfig())
   }
 
   return (
@@ -106,14 +109,22 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying }: SongSe
           <p className="text-sm font-black text-white">Song Setup</p>
         </div>
 
-        <button
-          onClick={handleStart}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm text-black transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-600/30"
-          style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' }}
-        >
-          <Play className="w-4 h-4 fill-current" />
-          Start Playing
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePractice}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all"
+          >
+            Practice Room 🎯
+          </button>
+          <button
+            onClick={handleStart}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm text-black transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-600/30"
+            style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' }}
+          >
+            <Play className="w-4 h-4 fill-current" />
+            Start Playing
+          </button>
+        </div>
       </div>
 
       {/* ── Main layout: 2 columns ── */}

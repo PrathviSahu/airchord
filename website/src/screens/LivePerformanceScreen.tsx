@@ -41,6 +41,14 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const [ytMinimized, setYtMinimized]       = useState(false)
   const ytWindowRef                         = useRef<Window | null>(null)
 
+  // Recording Module State
+  const [isRecording, setIsRecording]       = useState(false)
+  const [recordingTime, setRecordingTime]   = useState(0)
+  const [recordedUrl, setRecordedUrl]       = useState<string | null>(null)
+  const mediaRecorderRef                     = useRef<MediaRecorder | null>(null)
+  const recordedChunksRef                    = useRef<Blob[]>([])
+  const recTimerRef                          = useRef<any>(null)
+
   // Refs
   const videoRef      = useRef<HTMLVideoElement>(null)
   const canvasRef     = useRef<HTMLCanvasElement>(null)
@@ -197,6 +205,71 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
   const handlePause = useCallback(() => setIsPlaying(p => !p), [])
 
+  // ── Recording Module Handlers ─────────────────────────────────────────
+  const handleStartRecording = useCallback(() => {
+    try {
+      recordedChunksRef.current = []
+      let stream: MediaStream | null = null
+
+      if (canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
+        stream = (canvasRef.current as any).captureStream(30)
+      } else if (streamRef.current) {
+        stream = streamRef.current
+      }
+
+      if (!stream) return
+
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' })
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunksRef.current.push(e.data)
+        }
+      }
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
+        const url  = URL.createObjectURL(blob)
+        setRecordedUrl(url)
+        setIsRecording(false)
+      }
+
+      mediaRecorderRef.current = recorder
+      recorder.start(100)
+      setIsRecording(true)
+      setRecordingTime(0)
+
+      recTimerRef.current = setInterval(() => {
+        setRecordingTime(t => t + 1)
+      }, 1000)
+    } catch {
+      // Fallback if mimeType is unsupported
+      try {
+        if (streamRef.current) {
+          const recorder = new MediaRecorder(streamRef.current)
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data)
+          }
+          recorder.onstop = () => {
+            const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
+            setRecordedUrl(URL.createObjectURL(blob))
+            setIsRecording(false)
+          }
+          mediaRecorderRef.current = recorder
+          recorder.start(100)
+          setIsRecording(true)
+          setRecordingTime(0)
+          recTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
+        }
+      } catch { /* ignore */ }
+    }
+  }, [])
+
+  const handleStopRecording = useCallback(() => {
+    if (recTimerRef.current) clearInterval(recTimerRef.current)
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+  }, [])
+
   const currentLyric   = allLyrics[currentLine]
   const nextLyric      = allLyrics[currentLine + 1]
   const fingerIdx      = detectedFingers ?? -1
@@ -260,18 +333,35 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
         {/* Controls */}
         <div className="flex items-center gap-2">
+          {/* Recording module button */}
+          {!isRecording ? (
+            <button
+              onClick={handleStartRecording}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 border border-red-500/50 text-red-200 backdrop-blur-xl transition-all text-xs font-bold shadow-lg shadow-red-600/20"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+              Record Performance 🔴
+            </button>
+          ) : (
+            <button
+              onClick={handleStopRecording}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 border border-red-400 text-white font-bold backdrop-blur-xl transition-all text-xs shadow-lg shadow-red-600/40 animate-pulse"
+            >
+              <span className="w-2.5 h-2.5 rounded-sm bg-white" />
+              Stop Rec ({Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')})
+            </button>
+          )}
+
           {/* YouTube background player toggle */}
           <button
             onClick={() => {
               const query = encodeURIComponent(`${song.title} ${song.artist} official`)
               const url = `https://www.youtube.com/results?search_query=${query}`
-              // Close old popup if open
               if (ytWindowRef.current && !ytWindowRef.current.closed) {
                 ytWindowRef.current.close()
                 setShowYT(false)
                 return
               }
-              // Open a small popup window beside the app
               const popup = window.open(
                 url,
                 'airchord_bg_song',
@@ -560,7 +650,62 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
             </div>
           </div>
         </div>
-      )}
+      {/* ── Recorded Performance Preview & Download Modal ── */}
+      <AnimatePresence>
+        {recordedUrl && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="w-full max-w-lg rounded-3xl bg-[#0c0c18] border border-white/10 p-6 space-y-5 shadow-2xl"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    🎬 Performance Recorded!
+                  </span>
+                  <h3 className="text-lg font-black text-white mt-1">{song.title} Performance</h3>
+                </div>
+                <button
+                  onClick={() => setRecordedUrl(null)}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Video Player */}
+              <div className="relative rounded-2xl overflow-hidden bg-black aspect-video border border-white/10 shadow-lg">
+                <video
+                  src={recordedUrl}
+                  controls
+                  autoPlay
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3">
+                <a
+                  href={recordedUrl}
+                  download={`${song.title.toLowerCase().replace(/\s+/g, '_')}_performance.webm`}
+                  className="flex-1 py-3.5 rounded-xl font-black text-xs text-black shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' }}
+                >
+                  Download Performance Video 💾
+                </a>
+                <button
+                  onClick={() => setRecordedUrl(null)}
+                  className="py-3.5 px-5 rounded-xl text-xs font-mono text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                >
+                  Discard
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

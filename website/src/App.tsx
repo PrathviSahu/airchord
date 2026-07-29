@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import LandingPage from './screens/LandingPage'
 import SongSearchScreen from './screens/SongSearchScreen'
 import SongSetupScreen, { SessionConfig } from './screens/SongSetupScreen'
+import PracticeRoomScreen from './screens/PracticeRoomScreen'
 import LivePerformanceScreen from './screens/LivePerformanceScreen'
 import { SEED_SONGS, Song } from './utils/songLibrary'
 
-export type AppMode = 'landing' | 'song-search' | 'song-setup' | 'live'
+export type AppMode = 'landing' | 'song-search' | 'song-setup' | 'practice' | 'live'
 
 // ── Splash Screen ──────────────────────────────────────────────────
 function SplashScreen({ onDone }: { onDone: () => void }) {
@@ -44,6 +45,7 @@ export default function App() {
       if (e.key === 'Escape') {
         setMode(prev => {
           if (prev === 'live')        return 'song-setup'
+          if (prev === 'practice')    return 'song-setup'
           if (prev === 'song-setup')  return 'song-search'
           if (prev === 'song-search') return 'landing'
           return 'landing'
@@ -84,8 +86,21 @@ export default function App() {
               setSessionConfig(config)
               setMode('live')
             }}
+            onPractice={(config) => {
+              setSessionConfig(config)
+              setMode('practice')
+            }}
           />
         )
+
+      case 'practice':
+        return sessionConfig ? (
+          <PracticeRoomScreen
+            config={sessionConfig}
+            onBack={() => setMode('song-setup')}
+            onStartLive={() => setMode('live')}
+          />
+        ) : null
 
       case 'live':
         return sessionConfig ? (
