@@ -53,7 +53,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
   const { initialize, processFrame, setOnResults } = useHandTracking()
 
-  // ── Boot camera ──────────────────────────────────────────────────────
+  // ── Boot camera + auto-start on ready ─────────────────────────────
   useEffect(() => {
     async function startCam() {
       try {
@@ -77,6 +77,17 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       streamRef.current?.getTracks().forEach(t => t.stop())
     }
   }, [])
+
+  // ── Auto-start countdown as soon as camera is ready ──────────────
+  useEffect(() => {
+    if (!cameraReady) return
+    // Small delay so camera feed renders before countdown
+    const t = setTimeout(() => {
+      handleStartWithCountdown()
+    }, 600)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraReady])
 
   // ── MediaPipe hand tracking ──────────────────────────────────────────
   useEffect(() => { initialize() }, [initialize])
@@ -376,12 +387,13 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         {countdown !== null && (
           <motion.div
             key={countdown}
-            className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none"
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none"
             initial={{ opacity: 0, scale: 1.4 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.7 }}
             transition={{ duration: 0.35 }}
           >
+            <p className="text-white/50 text-sm font-mono mb-4 tracking-widest uppercase">Get Ready…</p>
             <span
               className="font-black tabular-nums"
               style={{
@@ -392,34 +404,12 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
             >
               {countdown}
             </span>
+            <p className="text-white/30 text-xs font-mono mt-4">
+              🎸 {song.chords.join('  ·  ')}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ── Before-start overlay ── */}
-      {!isPlaying && countdown === null && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center px-10"
-          >
-            <p className="text-white/60 text-sm font-mono mb-6">
-              Camera is ready. Auto-strum will start with a 3-second countdown.
-            </p>
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={handleStartWithCountdown}
-              className="px-10 py-4 rounded-2xl font-black text-black text-lg flex items-center gap-3 mx-auto shadow-2xl shadow-purple-600/40"
-              style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)' }}
-            >
-              <Play className="w-6 h-6 fill-current" />
-              Start Playing
-            </motion.button>
-          </motion.div>
-        </div>
-      )}
 
       {/* ── Bottom HUD (visible only when playing) ── */}
       {(isPlaying || activeBeat >= 0) && (
