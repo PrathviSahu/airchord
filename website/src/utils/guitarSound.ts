@@ -442,22 +442,49 @@ function getActiveEngine(): IGuitarEngine {
   return synthEngine
 }
 
-// ── Chord Voicing Map ─────────────────────────────────────────────────────────
+// ── Chord Voicing Map (Standard 6-String Guitar Voicings) ────────────────────
 const CHORD_NOTES: Record<string, string[]> = {
-  Em:    ['E2','B2','E3','G3','B3','E4'],
-  Am:    ['A2','E3','A3','C4','E4'],
+  // Open / Primary Major Chords
   C:     ['C3','E3','G3','C4','E4'],
   D:     ['D3','A3','D4','F#4'],
-  G:     ['G2','B2','D3','G3','B3','G4'],
-  F:     ['F2','C3','F3','A3','C4','F4'],
-  B7:    ['B2','D#3','A3','B3','F#4'],
   E:     ['E2','B2','E3','G#3','B3','E4'],
+  F:     ['F2','C3','F3','A3','C4','F4'],
+  G:     ['G2','B2','D3','G3','B3','G4'],
   A:     ['A2','E3','A3','C#4','E4'],
-  Bm:    ['B2','F#3','B3','D4','F#4'],
+  B:     ['B2','F#3','B3','D#4','F#4'],
+
+  // Open / Primary Minor Chords
+  Cm:    ['C3','G3','C4','D#4','G4'],
   Dm:    ['D3','A3','D4','F4'],
+  Em:    ['E2','B2','E3','G3','B3','E4'],
+  Fm:    ['F2','C3','F3','G#3','C4','F4'],
+  Gm:    ['G2','D3','G3','A#3','D4','G4'],
+  Am:    ['A2','E3','A3','C4','E4'],
+  Bm:    ['B2','F#3','B3','D4','F#4'],
+
+  // Dominant 7th Chords
+  C7:    ['C3','E3','A#3','C4','E4'],
+  D7:    ['D3','A3','C4','F#4'],
+  E7:    ['E2','B2','D3','G#3','B3','E4'],
+  F7:    ['F2','C3','D#3','A3','C4','F4'],
+  G7:    ['G2','B2','D3','G3','B3','F4'],
+  A7:    ['A2','E3','G3','C#4','E4'],
+  B7:    ['B2','D#3','A3','B3','F#4'],
+
+  // Sharps & Flats
+  'F#':  ['F#2','C#3','F#3','A#3','C#4','F#4'],
   'F#m': ['F#2','C#3','F#3','A3','C#4','F#4'],
-  'F#7': ['F#2','A#2','E3','F#3','C#4'],
+  'F#7': ['F#2','C#3','E3','A#3','C#4','F#4'],
+  Bb:    ['A#2','F3','A#3','D4','F4'],
+  Eb:    ['D#3','A#3','D#4','G4'],
+  Ab:    ['G#2','D#3','G#3','C4','D#4','G#4'],
+
+  // Extended & Suspended Chords
+  Am7:   ['A2','E3','G3','C4','E4'],
+  Cadd9: ['C3','E3','G3','D4','E4'],
+  Gsus4: ['G2','C3','D3','G3','C4','G4'],
 }
+
 
 // ── Public Unified API ───────────────────────────────────────────────────────
 export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
