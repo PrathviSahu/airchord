@@ -79,42 +79,46 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   useEffect(() => { initialize() }, [initialize])
 
   useEffect(() => {
-    setOnResults((results) => {
+    setOnResults((result: import('../utils/useHandTracking').HandResult | null) => {
       if (!canvasRef.current || !videoRef.current) return
+
       const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
       canvas.width  = videoRef.current.videoWidth  || 1280
       canvas.height = videoRef.current.videoHeight || 720
-      const ctx = canvas.getContext('2d')
-      ctx?.clearRect(0, 0, canvas.width, canvas.height)
 
-      if (results.multiHandLandmarks?.length) {
-        const lm = results.multiHandLandmarks[0]
-        if (ctx) drawHandSkeleton(ctx, lm, canvas.width, canvas.height, true)
+      if (!ctx) return
 
-        // Gesture engine
-        const gesture = gestureRef.current.process(lm)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      if (result && result.landmarks && result.landmarks.length > 0) {
+        // Draw neon hand skeleton — 4 params (no 5th arg)
+        drawHandSkeleton(ctx, result.landmarks, canvas.width, canvas.height)
+
+        // Gesture engine — use processLandmarks, not process
+        const gesture = gestureRef.current.processLandmarks(result.landmarks)
         if (gesture) {
-          const fingers = gesture.fingerCount
+          const fingers = Math.min(5, Math.max(0, gesture.fingerCount))
           const chord   = fingerMapping[fingers] || fingerMapping[0]
           setDetectedFingers(fingers)
           setDetectedChord(chord)
         }
-      } else {
-        // No hand detected — clear
-        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
       }
+      // If null → no hand visible, canvas already cleared above
     })
   }, [setOnResults, fingerMapping])
 
-  // Frame loop
+  // Frame loop — only process when camera is actually ready
   useEffect(() => {
-    let id: number
-    const loop = () => {
-      if (cameraReady && videoRef.current) processFrame(videoRef.current)
-      id = requestAnimationFrame(loop)
+    let animId: number
+    function loop() {
+      if (cameraReady && videoRef.current) {
+        processFrame(videoRef.current)
+      }
+      animId = requestAnimationFrame(loop)
     }
     loop()
-    return () => cancelAnimationFrame(id)
+    return () => cancelAnimationFrame(animId)
   }, [cameraReady, processFrame])
 
   // ── Apply capo ───────────────────────────────────────────────────────
