@@ -347,31 +347,32 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       )}
 
       {/* ── Top bar ── */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-4 z-20">
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 sm:px-6 py-2 sm:py-4 z-20 bg-gradient-to-b from-black/70 via-black/30 to-transparent">
         {/* Song info */}
-        <div className="bg-black/40 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10">
-          <p className="text-xs font-black text-white">{song.title}</p>
-          <p className="text-[10px] text-white/40 font-mono">{song.artist} · {bpm} BPM · {capo > 0 ? `Capo ${capo}` : 'No Capo'}</p>
+        <div className="bg-black/50 backdrop-blur-xl px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl border border-white/10 max-w-[140px] sm:max-w-none">
+          <p className="text-xs font-black text-white truncate">{song.title}</p>
+          <p className="text-[9px] sm:text-[10px] text-white/40 font-mono truncate">{song.artist} · {bpm} BPM</p>
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Recording module button */}
           {!isRecording ? (
             <button
               onClick={handleStartRecording}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 border border-red-500/50 text-red-200 backdrop-blur-xl transition-all text-xs font-bold shadow-lg shadow-red-600/20"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 border border-red-500/50 text-red-200 backdrop-blur-xl transition-all text-xs font-bold shadow-lg shadow-red-600/20"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-              Record Performance 🔴
+              <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-red-500 animate-pulse" />
+              <span className="hidden sm:inline">Record Performance 🔴</span>
+              <span className="sm:hidden text-[11px]">Rec 🔴</span>
             </button>
           ) : (
             <button
               onClick={handleStopRecording}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 border border-red-400 text-white font-bold backdrop-blur-xl transition-all text-xs shadow-lg shadow-red-600/40 animate-pulse"
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-red-600 border border-red-400 text-white font-bold backdrop-blur-xl transition-all text-xs shadow-lg shadow-red-600/40 animate-pulse"
             >
-              <span className="w-2.5 h-2.5 rounded-sm bg-white" />
-              Stop Rec ({Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')})
+              <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-sm bg-white" />
+              <span>Stop ({Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')})</span>
             </button>
           )}
 
@@ -530,24 +531,24 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
       {/* ── Bottom HUD (visible only when playing) ── */}
       {(isPlaying || activeBeat >= 0) && (
-        <div className="absolute bottom-0 left-0 right-0 z-20 px-6 pb-6 space-y-3">
+        <div className="absolute bottom-0 left-0 right-0 z-20 px-3 sm:px-6 pb-3 sm:pb-6 space-y-2 sm:space-y-3">
 
           {/* Chord & gesture hint row */}
-          <div className="flex items-stretch gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-3">
 
             {/* Current detected gesture → chord */}
             <motion.div
               key={detectedChord}
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-5 py-3 flex items-center gap-3"
+              className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between sm:justify-start gap-3"
             >
-              <div className="text-3xl">
+              <div className="text-2xl sm:text-3xl">
                 {fingerIdx >= 0 ? FINGER_EMOJI[fingerIdx] : '🎸'}
               </div>
               <div>
                 <p className="text-[9px] font-mono text-white/40 uppercase tracking-wider">You're playing</p>
-                <p className="text-2xl font-black text-amber-300 leading-none">{detectedChord}</p>
+                <p className="text-xl sm:text-2xl font-black text-amber-300 leading-none">{detectedChord}</p>
                 {fingerIdx >= 0 && (
                   <p className="text-[10px] font-mono text-white/40">{fingerIdx} finger{fingerIdx !== 1 ? 's' : ''}</p>
                 )}

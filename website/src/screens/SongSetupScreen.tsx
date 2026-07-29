@@ -94,47 +94,47 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
 
   return (
     <div
-      className="fixed inset-0 flex flex-col font-sans select-none"
+      className="fixed inset-0 flex flex-col font-sans select-none overflow-y-auto lg:overflow-hidden"
       style={{ background: 'linear-gradient(160deg, #070710 0%, #050508 60%, #080510 100%)' }}
     >
       {/* ── Top bar ── */}
-      <div className="shrink-0 flex items-center justify-between px-8 py-4 border-b border-white/5">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-8 py-3 sm:py-4 border-b border-white/5 bg-black/30 backdrop-blur-xl">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-sm text-white/40 hover:text-white/70 transition-colors font-mono"
+          className="flex items-center gap-2 text-xs sm:text-sm text-white/40 hover:text-white/70 transition-colors font-mono"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Songs
         </button>
 
         <div className="text-center">
-          <p className="text-xs font-mono text-white/30 uppercase tracking-widest">Step 2 of 3</p>
-          <p className="text-sm font-black text-white">Song Setup</p>
+          <p className="text-[10px] sm:text-xs font-mono text-white/30 uppercase tracking-widest">Step 2 of 3</p>
+          <p className="text-xs sm:text-sm font-black text-white">{song.title}</p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={handlePractice}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all"
           >
-            Practice Room 🎯
+            Practice 🎯
           </button>
           <button
             onClick={handleStart}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm text-black transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-600/30"
+            className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm text-black transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-600/30"
             style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' }}
           >
-            <Play className="w-4 h-4 fill-current" />
+            <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
             Start Playing
           </button>
         </div>
       </div>
 
-      {/* ── Main layout: 2 columns ── */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* ── Main layout: 2 columns on desktop, stacked on mobile ── */}
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-y-auto lg:overflow-hidden">
 
         {/* ── LEFT: Lyrics + Chords ── */}
-        <div className="flex-1 overflow-y-auto px-8 py-6 border-r border-white/5">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 border-b lg:border-b-0 lg:border-r border-white/5">
           {/* Song header */}
           <div className="mb-6">
             <h1 className="text-2xl font-black text-white">{song.title}</h1>
@@ -197,7 +197,7 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
         </div>
 
         {/* ── RIGHT: Settings panel ── */}
-        <div className="w-[340px] shrink-0 overflow-y-auto px-6 py-6 space-y-5">
+        <div className="w-full lg:w-[340px] shrink-0 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5">
           <p className="text-xs font-mono text-white/30 uppercase tracking-widest mb-4">Performance Settings</p>
 
           {/* ── Audio Engine Selection ── */}
