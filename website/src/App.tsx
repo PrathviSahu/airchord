@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import LandingPage from './screens/LandingPage'
+import SongSearchScreen from './screens/SongSearchScreen'
+import SongSetupScreen, { SessionConfig } from './screens/SongSetupScreen'
+import LivePerformanceScreen from './screens/LivePerformanceScreen'
 import { SessionLauncher } from './components/SessionLauncher'
 import { StudioPerformance } from './components/StudioPerformance'
 import { PracticeMode } from './components/PracticeMode'
@@ -13,6 +16,9 @@ import { PRESET_GESTURE_PROFILES, GestureProfile } from './utils/GestureProfiles
 
 export type AppMode =
   | 'landing'
+  | 'song-search'
+  | 'song-setup'
+  | 'live'
   | 'launcher'
   | 'studio'
   | 'practice'
@@ -49,15 +55,21 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [mode, setMode] = useState<AppMode>('landing')
 
-  // Global Session State
-  const [activeSong, setActiveSong] = useState<Song>(SEED_SONGS[0]) // Default: Perfect
-  const [activeProfile, setActiveProfile] = useState<GestureProfile>(PRESET_GESTURE_PROFILES[0]) // Default: Beginner
+  const [activeSong, setActiveSong] = useState<Song>(SEED_SONGS[0])
+  const [activeProfile, setActiveProfile] = useState<GestureProfile>(PRESET_GESTURE_PROFILES[0])
+  const [sessionConfig, setSessionConfig] = useState<SessionConfig | null>(null)
 
-  // Keyboard shortcut: ESC returns to Session Launcher or Landing Page
+  // Keyboard: ESC to go back one step
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setMode(prev => (prev === 'launcher' ? 'landing' : 'launcher'))
+        setMode(prev => {
+          if (prev === 'live') return 'song-setup'
+          if (prev === 'song-setup') return 'song-search'
+          if (prev === 'song-search') return 'landing'
+          if (prev === 'launcher') return 'landing'
+          return 'song-search'
+        })
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -66,18 +78,52 @@ export default function App() {
 
   const renderActiveMode = () => {
     switch (mode) {
+
+      // ── Primary 3-step workflow ─────────────────────────────────────
       case 'landing':
         return (
           <LandingPage
-            onEnter={() => setMode('launcher')}
-            onOpenStudio={() => setMode('launcher')}
+            onEnter={() => setMode('song-search')}
+            onOpenStudio={() => setMode('song-search')}
           />
         )
 
+      case 'song-search':
+        return (
+          <SongSearchScreen
+            onSelectSong={(song) => {
+              setActiveSong(song)
+              setMode('song-setup')
+            }}
+            onBack={() => setMode('landing')}
+          />
+        )
+
+      case 'song-setup':
+        return (
+          <SongSetupScreen
+            song={activeSong}
+            onBack={() => setMode('song-search')}
+            onStartPlaying={(config) => {
+              setSessionConfig(config)
+              setMode('live')
+            }}
+          />
+        )
+
+      case 'live':
+        return sessionConfig ? (
+          <LivePerformanceScreen
+            config={sessionConfig}
+            onEnd={() => setMode('song-setup')}
+          />
+        ) : null
+
+      // ── Legacy advanced modes ───────────────────────────────────────
       case 'launcher':
         return (
           <SessionLauncher
-            onSelectMode={(selected) => setMode(selected)}
+            onSelectMode={(selected) => setMode(selected as AppMode)}
             onSelectSong={(song) => setActiveSong(song)}
             activeSong={activeSong}
             activeSongTitle={`${activeSong.title} (${activeSong.artist})`}
