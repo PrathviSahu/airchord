@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, ContactShadows } from '@react-three/drei'
 import * as THREE from 'three'
@@ -85,9 +85,16 @@ function CameraRig({ scrollProgress }: { scrollProgress: React.MutableRefObject<
 // ── Scene ─────────────────────────────────────────────────────────────
 interface StageSceneProps {
   scrollProgress: React.MutableRefObject<number>
+  onLoaded?: () => void
 }
 
-function SceneContents({ scrollProgress }: StageSceneProps) {
+function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
+  useEffect(() => {
+    // Fire onLoaded after a short frame settle so canvas has painted
+    const t = setTimeout(() => { onLoaded?.() }, 800)
+    return () => clearTimeout(t)
+  }, [onLoaded])
+
   return (
     <>
       {/* Lightfall shader as fullscreen background — same WebGL context */}
@@ -120,7 +127,7 @@ function SceneContents({ scrollProgress }: StageSceneProps) {
   )
 }
 
-export default function StageScene({ scrollProgress }: StageSceneProps) {
+export default function StageScene({ scrollProgress, onLoaded }: StageSceneProps) {
   return (
     <Canvas
       camera={{ position: [0, 1.2, 14.5], fov: 40, near: 0.1, far: 70 }}
@@ -138,7 +145,7 @@ export default function StageScene({ scrollProgress }: StageSceneProps) {
         background: 'transparent',              // canvas itself is transparent
       }}
     >
-      <SceneContents scrollProgress={scrollProgress} />
+      <SceneContents scrollProgress={scrollProgress} onLoaded={onLoaded} />
     </Canvas>
   )
 }

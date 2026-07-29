@@ -1,7 +1,8 @@
-import { useRef, useEffect, useState, Suspense } from 'react'
-import { motion, useScroll, useTransform, useInView } from 'framer-motion'
+import { useRef, useEffect, useState, Suspense, useCallback } from 'react'
+import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import StageScene from '../components/StageScene'
+import GuitarLoadingScreen from '../components/GuitarLoadingScreen'
 import { playPluckNote, playStrum } from '../utils/guitarSound'
 
 const FADE_UP = {
@@ -169,6 +170,8 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
   const scrollProgress = useRef(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll()
+  const [isLoaded, setIsLoaded] = useState(false)
+  const handleLoaded = useCallback(() => setIsLoaded(true), [])
 
   // Keep scrollProgress ref in sync with framer's scroll value
   useEffect(() => {
@@ -182,6 +185,9 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
 
   return (
     <div ref={containerRef} style={{ background: '#050505' }}>
+      {/* ── Guitar loading screen — shown until 3D scene is ready ── */}
+      <GuitarLoadingScreen isLoaded={isLoaded} />
+
       {/* ── Single Three.js canvas: Lightfall BG + rotating guitar, one WebGL context ── */}
       <div style={{
         position: 'fixed',
@@ -190,7 +196,7 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
         pointerEvents: 'none',
       }}>
         <Suspense fallback={null}>
-          <StageScene scrollProgress={scrollProgress} />
+          <StageScene scrollProgress={scrollProgress} onLoaded={handleLoaded} />
         </Suspense>
       </div>
 
