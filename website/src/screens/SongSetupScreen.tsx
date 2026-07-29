@@ -5,6 +5,7 @@ import {
   RotateCcw, Check, Edit3, ChevronRight, Info
 } from 'lucide-react'
 import { Song, TimestampedLyric } from '../utils/songLibrary'
+import { getEngineMode, setEngineMode, EngineMode } from '../utils/guitarSound'
 
 // ── Strum pattern presets ─────────────────────────────────────────────
 const STRUM_PRESETS = [
@@ -57,6 +58,8 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying }: SongSe
   const [customPattern, setCustom]    = useState(song.displayPattern)
   const [isCustom, setIsCustom]       = useState(false)
   const [editingMapping, setEditingMapping] = useState(false)
+  const [engineState, setEngineState] = useState<EngineMode>(getEngineMode())
+
 
   // Flatten all lyrics for display
   const allLyricsFlat = useMemo(() =>
@@ -182,6 +185,47 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying }: SongSe
         {/* ── RIGHT: Settings panel ── */}
         <div className="w-[340px] shrink-0 overflow-y-auto px-6 py-6 space-y-5">
           <p className="text-xs font-mono text-white/30 uppercase tracking-widest mb-4">Performance Settings</p>
+
+          {/* ── Audio Engine Selection ── */}
+          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-white">Audio Engine Driver</p>
+                <p className="text-[10px] text-white/30 font-mono mt-0.5">Pluggable Sound Engine</p>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Modular</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => { setEngineMode('sampled'); setEngineState('sampled') }}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  engineState === 'sampled'
+                    ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
+                    : 'bg-white/3 border-white/8 hover:bg-white/6'
+                }`}
+              >
+                <p className={`text-xs font-bold ${engineState === 'sampled' ? 'text-purple-200' : 'text-white/60'}`}>
+                  🎸 Studio Acoustic
+                </p>
+                <p className="text-[9px] font-mono text-amber-300/80 mt-1">Real Samples</p>
+              </button>
+
+              <button
+                onClick={() => { setEngineMode('synth'); setEngineState('synth') }}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  engineState === 'synth'
+                    ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
+                    : 'bg-white/3 border-white/8 hover:bg-white/6'
+                }`}
+              >
+                <p className={`text-xs font-bold ${engineState === 'synth' ? 'text-purple-200' : 'text-white/60'}`}>
+                  ⚡ Classic Synth
+                </p>
+                <p className="text-[9px] font-mono text-white/30 mt-1">3-Oscillator</p>
+              </button>
+            </div>
+          </div>
 
           {/* ── Capo ── */}
           <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
