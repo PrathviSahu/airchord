@@ -6,7 +6,7 @@ import RealGuitar3D from './RealGuitar3D'
 import LightfallBackground from './LightfallBackground'
 import FloatingChordBadges from './FloatingChordBadges'
 
-// ── Lighting — dynamic studio lighting with multi-angle spotlights ───
+// ── Lighting — warm studio lighting with natural wood tone highlights ──
 function StageLighting() {
   const spotRef = useRef<THREE.SpotLight>(null)
   const { pointer } = useThree()
@@ -24,33 +24,33 @@ function StageLighting() {
       <spotLight
         ref={spotRef}
         position={[0, 16, 8]}
-        angle={0.4}
-        penumbra={0.7}
-        intensity={35}
-        color="#FFF8EE"
+        angle={0.38}
+        penumbra={0.75}
+        intensity={22}
+        color="#FFEEDD"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0001}
-        distance={50}
-        decay={1.1}
+        distance={48}
+        decay={1.2}
       />
-      {/* 2. Direct Front Studio Light — illuminates front wood body & soundhole */}
-      <directionalLight position={[0, 5, 12]} intensity={4.5} color="#FFF5E6" />
+      {/* 2. Warm Front Key Light — brings out rich mahogany & spruce wood grain */}
+      <directionalLight position={[0, 4, 10]} intensity={1.8} color="#FFE4C4" />
 
-      {/* 3. Top-Right Studio Accent Spotlight — highlights fretboard & neck */}
-      <spotLight position={[6, 12, 8]} angle={0.5} penumbra={0.6} intensity={18} color="#F3E8FF" />
+      {/* 3. Soft Top-Right Fretboard Highlight */}
+      <spotLight position={[5, 10, 7]} angle={0.45} penumbra={0.7} intensity={8} color="#FFF2E6" />
 
-      {/* 4. Front-Left Key Fill — highlights body curve */}
-      <directionalLight position={[-6, 4, 8]} intensity={3.2} color="#FFFFFF" />
+      {/* 4. Soft Left Body Rim */}
+      <directionalLight position={[-5, 3, 6]} intensity={1.2} color="#FFFDF9" />
 
       {/* 5. Electric Blue Stage Rim (Left Back) */}
-      <pointLight position={[-9, 5, -2]} intensity={6.0} color="#60A5FA" distance={35} decay={1.5} />
+      <pointLight position={[-9, 4, -2]} intensity={4.2} color="#60A5FA" distance={30} decay={1.8} />
 
-      {/* 6. Warm Amber Stage Rim (Right Back) */}
-      <pointLight position={[9, -1, 4]} intensity={5.0} color="#F59E0B" distance={30} decay={1.5} />
+      {/* 6. Warm Gold Stage Rim (Right Back) */}
+      <pointLight position={[9, -1, 3]} intensity={3.5} color="#F59E0B" distance={25} decay={1.8} />
 
-      {/* 7. Bright Ambient Fill — prevents dark shadow blackouts */}
-      <ambientLight intensity={0.95} color="#FFFFFF" />
+      {/* 7. Warm Balanced Ambient Fill */}
+      <ambientLight intensity={0.48} color="#FFFDF7" />
     </>
   )
 }
@@ -60,7 +60,7 @@ function StageFloor() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -4.5, 0]} receiveShadow>
       <planeGeometry args={[40, 40]} />
-      <shadowMaterial opacity={0.4} />
+      <shadowMaterial opacity={0.45} />
     </mesh>
   )
 }
@@ -112,8 +112,8 @@ function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
       <StageFloor />
       <CameraRig scrollProgress={scrollProgress} />
 
-      {/* Environment for bright reflections on guitar clearcoat & metallic hardware */}
-      <Environment preset="studio" environmentIntensity={0.85} />
+      {/* Environment tuned for authentic natural acoustic wood luster without silver reflections */}
+      <Environment preset="studio" environmentIntensity={0.35} />
 
       {/* Real downloaded guitar model */}
       <group position={[0, 0, 0]}>
@@ -125,7 +125,7 @@ function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
 
       <ContactShadows
         position={[0, -4.2, 0]}
-        opacity={0.45}
+        opacity={0.5}
         scale={10}
         blur={3.5}
         far={5}
@@ -145,7 +145,7 @@ export default function StageScene({ scrollProgress, onLoaded }: StageSceneProps
         antialias: true,
         alpha: true,                              // transparent so Lightfall shows behind
         toneMapping: THREE.ACESFilmicToneMapping,
-        toneMappingExposure: 1.45,
+        toneMappingExposure: 1.20,
       }}
       style={{
         width: '100%',
