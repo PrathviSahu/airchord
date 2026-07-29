@@ -6,14 +6,13 @@ import RealGuitar3D from './RealGuitar3D'
 import LightfallBackground from './LightfallBackground'
 import FloatingChordBadges from './FloatingChordBadges'
 
-// ── Lighting — dynamic spotlight follows mouse tilt ──────────────────
+// ── Lighting — dynamic studio lighting with multi-angle spotlights ───
 function StageLighting() {
   const spotRef = useRef<THREE.SpotLight>(null)
   const { pointer } = useThree()
 
   useFrame(() => {
     if (spotRef.current) {
-      // Spotlight position follows cursor for live stage feeling
       const targetSpotX = pointer.x * 2.0
       spotRef.current.position.x += (targetSpotX - spotRef.current.position.x) * 0.05
     }
@@ -21,28 +20,37 @@ function StageLighting() {
 
   return (
     <>
-      {/* Main key light — warm spot from above */}
+      {/* 1. Main Overhead Stage Spotlight (follows cursor) */}
       <spotLight
         ref={spotRef}
         position={[0, 16, 8]}
-        angle={0.35}
-        penumbra={0.8}
-        intensity={24}
-        color="#FFF6E8"
+        angle={0.4}
+        penumbra={0.7}
+        intensity={35}
+        color="#FFF8EE"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0001}
-        distance={45}
-        decay={1.2}
+        distance={50}
+        decay={1.1}
       />
-      {/* Front key fill — brings out body surface texture & strings */}
-      <directionalLight position={[2, 4, 10]} intensity={2.8} color="#FFFFFF" />
-      {/* Blue stage rim from left */}
-      <pointLight position={[-8, 4, -3]} intensity={3.5} color="#5090FF" distance={30} decay={1.8} />
-      {/* Warm gold rim from right */}
-      <pointLight position={[8, -2, 3]} intensity={2.2} color="#FFD080" distance={25} decay={1.8} />
-      {/* Ambient fill */}
-      <ambientLight intensity={0.35} color="#ffffff" />
+      {/* 2. Direct Front Studio Light — illuminates front wood body & soundhole */}
+      <directionalLight position={[0, 5, 12]} intensity={4.5} color="#FFF5E6" />
+
+      {/* 3. Top-Right Studio Accent Spotlight — highlights fretboard & neck */}
+      <spotLight position={[6, 12, 8]} angle={0.5} penumbra={0.6} intensity={18} color="#F3E8FF" />
+
+      {/* 4. Front-Left Key Fill — highlights body curve */}
+      <directionalLight position={[-6, 4, 8]} intensity={3.2} color="#FFFFFF" />
+
+      {/* 5. Electric Blue Stage Rim (Left Back) */}
+      <pointLight position={[-9, 5, -2]} intensity={6.0} color="#60A5FA" distance={35} decay={1.5} />
+
+      {/* 6. Warm Amber Stage Rim (Right Back) */}
+      <pointLight position={[9, -1, 4]} intensity={5.0} color="#F59E0B" distance={30} decay={1.5} />
+
+      {/* 7. Bright Ambient Fill — prevents dark shadow blackouts */}
+      <ambientLight intensity={0.95} color="#FFFFFF" />
     </>
   )
 }
@@ -52,7 +60,7 @@ function StageFloor() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -4.5, 0]} receiveShadow>
       <planeGeometry args={[40, 40]} />
-      <shadowMaterial opacity={0.5} />
+      <shadowMaterial opacity={0.4} />
     </mesh>
   )
 }
@@ -104,8 +112,8 @@ function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
       <StageFloor />
       <CameraRig scrollProgress={scrollProgress} />
 
-      {/* Environment for reflections on guitar clearcoat */}
-      <Environment preset="studio" environmentIntensity={0.2} />
+      {/* Environment for bright reflections on guitar clearcoat & metallic hardware */}
+      <Environment preset="studio" environmentIntensity={0.85} />
 
       {/* Real downloaded guitar model */}
       <group position={[0, 0, 0]}>
@@ -117,7 +125,7 @@ function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
 
       <ContactShadows
         position={[0, -4.2, 0]}
-        opacity={0.55}
+        opacity={0.45}
         scale={10}
         blur={3.5}
         far={5}
@@ -137,7 +145,7 @@ export default function StageScene({ scrollProgress, onLoaded }: StageSceneProps
         antialias: true,
         alpha: true,                              // transparent so Lightfall shows behind
         toneMapping: THREE.ACESFilmicToneMapping,
-        toneMappingExposure: 1.15,
+        toneMappingExposure: 1.45,
       }}
       style={{
         width: '100%',
