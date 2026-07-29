@@ -144,7 +144,7 @@ const PRESETS: Record<GuitarType, GuitarPreset> = {
   '12string':{ chorus: 6, decayMul: 1.3, pickHz: 2600, bodyLow: 130,  bodyMid: 2000, bodyGain: 5.0, shelfGain: 2.0 },
 }
 
-// ── Core note synthesizer ─────────────────────────────────────────────────────
+// ── Core note synthesizer with Human Touch ────────────────────────────────────
 export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
   if (!isStrummingEnabled) return
   try {
@@ -157,6 +157,17 @@ export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
     const baseHz = NOTE_FREQS[note] ?? 329.63
     const freq   = baseHz * Math.pow(2, currentCapoFret / 12)
     const now    = ctx.currentTime
+
+    // ── Human touch 1: Micro-pitch drift & fret pressure variance (±3.5 cents) ──
+    const pitchJitterCents = (Math.random() - 0.5) * 7.0
+    const pitchJitterFactor = Math.pow(2, pitchJitterCents / 1200)
+    const targetFreq = freq * pitchJitterFactor
+
+    // Pluck attack tension: string goes ~12 cents sharp for the first 30ms when struck hard
+    const initialTensionSpike = targetFreq * (1.0 + 0.007 * (volume / 0.35))
+
+    // ── Human touch 2: Velocity / Volume dynamics randomization (±15%) ────────
+    const humanVolume = volume * (0.86 + Math.random() * 0.28)
 
     // String-specific decay: lower strings (lower idx) ring longer
     const decay = (type === 'nylon' ? 1.5 : type === 'electric' ? 2.8 : 2.0)
@@ -175,13 +186,20 @@ export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
     osc3.setPeriodicWave(wave)
 
     const centRatio = Math.pow(2, preset.chorus / 1200)
-    osc1.frequency.value = freq
-    osc2.frequency.value = freq * centRatio
-    osc3.frequency.value = freq / centRatio
+
+    // Apply attack pitch settling (human pluck attack physics)
+    osc1.frequency.setValueAtTime(initialTensionSpike, now)
+    osc1.frequency.exponentialRampToValueAtTime(targetFreq, now + 0.035)
+
+    osc2.frequency.setValueAtTime(initialTensionSpike * centRatio, now)
+    osc2.frequency.exponentialRampToValueAtTime(targetFreq * centRatio, now + 0.035)
+
+    osc3.frequency.setValueAtTime(initialTensionSpike / centRatio, now)
+    osc3.frequency.exponentialRampToValueAtTime(targetFreq / centRatio, now + 0.035)
 
     // ── ADSR gain (exponential decay — sounds like a real string) ─────
     const envGain = ctx.createGain()
-    const peak    = volume * 0.78
+    const peak    = humanVolume * 0.78
     envGain.gain.setValueAtTime(0.0001, now)
     envGain.gain.linearRampToValueAtTime(peak, now + 0.004)          // 4ms attack
     envGain.gain.setValueAtTime(peak, now + 0.004)
@@ -196,7 +214,7 @@ export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
     osc2.connect(mix2); mix2.connect(envGain)
     osc3.connect(mix3); mix3.connect(envGain)
 
-    // ── Pick noise transient ─────────────────────────────────────────
+    // ── Human touch 3: Pick noise transient & pick angle variance ─────
     const noiseLen = Math.round(ctx.sampleRate * 0.028)
     const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate)
     const nd       = noiseBuf.getChannelData(0)
@@ -208,11 +226,12 @@ export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
 
     const pickBP = ctx.createBiquadFilter()
     pickBP.type = 'bandpass'
-    pickBP.frequency.value = preset.pickHz
-    pickBP.Q.value         = 1.8
+    // Pick strike frequency varies slightly per hit (pick angle / position variance)
+    pickBP.frequency.value = preset.pickHz * (0.88 + Math.random() * 0.24)
+    pickBP.Q.value         = 1.8 * (0.9 + Math.random() * 0.2)
 
     const pickEnv = ctx.createGain()
-    pickEnv.gain.setValueAtTime(volume * 0.30, now)
+    pickEnv.gain.setValueAtTime(humanVolume * (0.24 + Math.random() * 0.12), now)
     pickEnv.gain.exponentialRampToValueAtTime(0.0001, now + 0.025)
 
     pickSrc.connect(pickBP)
@@ -244,7 +263,6 @@ export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
     pan?.pan.setValueAtTime(STRING_PANS[stringIndex % 6] ?? 0, now)
 
     // ── Signal chain ──────────────────────────────────────────────────
-    // (oscs → envGain) + pickEnv → bodyLo → bodyHi → shelf → pan → buses
     envGain.connect(bodyLo)
     pickEnv.connect(bodyLo)
     bodyLo.connect(bodyHi)
@@ -271,8 +289,6 @@ const waveCache: Partial<Record<GuitarType, PeriodicWave>> = {}
 function buildGuitarWave(ctx: AudioContext, type: GuitarType): PeriodicWave {
   if (waveCache[type]) return waveCache[type]!
 
-  // Real (cosine) and imaginary (sine) components
-  // These match measured guitar spectra from acoustic research papers.
   let real: number[]
   let imag: number[]
 
@@ -317,7 +333,7 @@ const CHORD_NOTES: Record<string, string[]> = {
   'F#7': ['F#2','A#2','E3','F#3','C#4'],
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Public API with Humanized Strumming Engine ────────────────────────────────
 
 export function triggerGuitarChord(chordName = 'Em', volume = 0.32) {
   if (!isStrummingEnabled) return
@@ -334,35 +350,61 @@ export function playStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.32
   playDownStrum(notes, volume)
 }
 
-/** Downstrum: Low E → High e */
+/** Downstrum: Low E → High e with Human Strum Timing & Dynamics */
 export function playDownStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.32) {
   if (!isStrummingEnabled) return
-  const roll = currentGuitarType === 'nylon' ? 40 : currentGuitarType === '12string' ? 28 : 32
+  
+  // Human strum speed varies slightly on each stroke (±15%)
+  const baseRoll = currentGuitarType === 'nylon' ? 40 : currentGuitarType === '12string' ? 28 : 32
+  const strumSpeedFactor = 0.88 + Math.random() * 0.24
+  const roll = baseRoll * strumSpeedFactor
+
   notes.forEach((note, idx) => {
+    // Micro-timing jitter per string (±4ms random human hand imperfection)
+    const microJitter = (Math.random() - 0.5) * 8
+    
+    // Human strum curve: hand accelerates through middle strings slightly
+    const nonLinearProgress = Math.pow(idx / (notes.length - 1 || 1), 0.92)
+    const delay = Math.max(0, nonLinearProgress * (notes.length - 1) * roll + microJitter)
+
     setTimeout(() => {
-      const vol = idx < 2 ? volume * 1.15 : idx > 3 ? volume * 0.88 : volume
-      playPluckNote(note, vol, idx)
-    }, idx * roll)
+      // Dynamic accenting: Bass strings get slightly more weight, off-strings slight random variation
+      const stringAccent = idx < 2 ? 1.15 : idx > 3 ? 0.88 : 1.0
+      const humanVol = volume * stringAccent * (0.90 + Math.random() * 0.20)
+      playPluckNote(note, humanVol, idx)
+    }, delay)
   })
 }
 
-/** Upstrum: High e → Low E */
+/** Upstrum: High e → Low E with Human Strum Timing & Dynamics */
 export function playUpStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.28) {
   if (!isStrummingEnabled) return
-  const roll = currentGuitarType === 'nylon' ? 30 : 22
-  ;[...notes].reverse().forEach((note, idx) => {
+  
+  const baseRoll = currentGuitarType === 'nylon' ? 30 : 22
+  const strumSpeedFactor = 0.86 + Math.random() * 0.28
+  const roll = baseRoll * strumSpeedFactor
+
+  const rev = [...notes].reverse()
+  rev.forEach((note, idx) => {
+    const microJitter = (Math.random() - 0.5) * 7
+    const nonLinearProgress = Math.pow(idx / (rev.length - 1 || 1), 0.94)
+    const delay = Math.max(0, nonLinearProgress * (rev.length - 1) * roll + microJitter)
+
     setTimeout(() => {
-      const vol = idx < 3 ? volume * 1.05 : volume * 0.82
-      playPluckNote(note, vol, 5 - idx)
-    }, idx * roll)
+      const stringAccent = idx < 3 ? 1.06 : 0.84
+      const humanVol = volume * stringAccent * (0.88 + Math.random() * 0.24)
+      playPluckNote(note, humanVol, 5 - idx)
+    }, delay)
   })
 }
 
-/** Palm-muted strum */
+/** Palm-muted strum with Human Micro-Timing */
 export function playMuteStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.12) {
   if (!isStrummingEnabled) return
   notes.slice(0, 4).forEach((note, idx) => {
-    setTimeout(() => playPluckNote(note, volume * 0.28, idx), idx * 10)
+    const microJitter = (Math.random() - 0.5) * 5
+    const delay = Math.max(0, idx * 10 + microJitter)
+    setTimeout(() => playPluckNote(note, volume * (0.24 + Math.random() * 0.08), idx), delay)
   })
 }
 
@@ -374,3 +416,4 @@ export function playPatternBeat(stroke: string, notes: string[], volume = 0.32) 
   else if (s === 'U' || s === '↑') playUpStrum(notes, volume)
   else if (s === 'X' || s === '✕') playMuteStrum(notes, volume)
 }
+
