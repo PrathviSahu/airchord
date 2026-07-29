@@ -137,6 +137,31 @@ export const SEED_SONGS: Song[] = [
           { text: 'Meri aashiqui ab tum hi ho', chord: 'G', time: 28, fingerGesture: '🖐️ Four (4) → G' },
         ],
       },
+      {
+        name: 'Verse',
+        lyrics: [
+          { text: 'Tera mera rishta hai kaisa', chord: 'Em', time: 32, fingerGesture: '✊ Fist (0) → Em' },
+          { text: 'Ek pal door gawara nahi', chord: 'Am', time: 36, fingerGesture: '☝️ Index (1) → Am' },
+          { text: 'Tere liye har roz hain jeete', chord: 'D', time: 40, fingerGesture: '✌️ Peace (2) → D' },
+          { text: 'Tujhko diya mera waqt sabhi', chord: 'C', time: 44, fingerGesture: '🤟 Three (3) → C' },
+        ],
+      },
+      {
+        name: 'Bridge',
+        lyrics: [
+          { text: 'Koi lamha mera na ho tere bina', chord: 'Am', time: 48, fingerGesture: '☝️ Index (1) → Am' },
+          { text: 'Har saans pe naam tera', chord: 'D', time: 52, fingerGesture: '✌️ Peace (2) → D' },
+        ],
+      },
+      {
+        name: 'Chorus',
+        lyrics: [
+          { text: 'Kyunki tum hi ho, ab tum hi ho', chord: 'Em', time: 56, fingerGesture: '✊ Fist (0) → Em' },
+          { text: 'Zindagi ab tum hi ho', chord: 'Am', time: 60, fingerGesture: '☝️ Index (1) → Am' },
+          { text: 'Chain bhi, mera dard bhi', chord: 'D', time: 64, fingerGesture: '✌️ Peace (2) → D' },
+          { text: 'Meri aashiqui ab tum hi ho', chord: 'G', time: 68, fingerGesture: '🖐️ Four (4) → G' },
+        ],
+      },
     ],
   },
   {
@@ -156,12 +181,30 @@ export const SEED_SONGS: Song[] = [
     fingerMapping: ['C', 'Am', 'F', 'G', 'Em', 'Dm'],
     sections: [
       {
+        name: 'Verse',
+        lyrics: [
+          { text: 'Mujhko kitna pyaar hai tumse', chord: 'C', time: 0, fingerGesture: '✊ Fist (0) → C' },
+          { text: 'Kaise bataun mere dil ko', chord: 'Am', time: 4, fingerGesture: '☝️ Index (1) → Am' },
+          { text: 'Kajra mohabbat wala ankhiyon mein', chord: 'F', time: 8, fingerGesture: '✌️ Peace (2) → F' },
+          { text: 'Tu jo mila to sab kuch mila', chord: 'G', time: 12, fingerGesture: '🤟 Three (3) → G' },
+        ],
+      },
+      {
         name: 'Chorus',
         lyrics: [
-          { text: 'Kesariya tera ishq hai piya', chord: 'C', time: 0, fingerGesture: '✊ Fist (0) → C' },
-          { text: 'Rang jaaun jo main haath lagaun', chord: 'Am', time: 4, fingerGesture: '☝️ Index (1) → Am' },
-          { text: 'Din beete saara teri fikr mein', chord: 'F', time: 8, fingerGesture: '✌️ Peace (2) → F' },
-          { text: 'Rain saari teri kair maangoon', chord: 'G', time: 12, fingerGesture: '🤟 Three (3) → G' },
+          { text: 'Kesariya tera ishq hai piya', chord: 'C', time: 16, fingerGesture: '✊ Fist (0) → C' },
+          { text: 'Rang jaaun jo main haath lagaun', chord: 'Am', time: 20, fingerGesture: '☝️ Index (1) → Am' },
+          { text: 'Din beete saara teri fikr mein', chord: 'F', time: 24, fingerGesture: '✌️ Peace (2) → F' },
+          { text: 'Rain saari teri kair maangoon', chord: 'G', time: 28, fingerGesture: '🤟 Three (3) → G' },
+        ],
+      },
+      {
+        name: 'Chorus',
+        lyrics: [
+          { text: 'Kesariya tera ishq hai piya', chord: 'C', time: 32, fingerGesture: '✊ Fist (0) → C' },
+          { text: 'Rang jaaun jo main haath lagaun', chord: 'Am', time: 36, fingerGesture: '☝️ Index (1) → Am' },
+          { text: 'Din beete saara teri fikr mein', chord: 'F', time: 40, fingerGesture: '✌️ Peace (2) → F' },
+          { text: 'Rain saari teri kair maangoon', chord: 'G', time: 44, fingerGesture: '🤟 Three (3) → G' },
         ],
       },
     ],
@@ -197,6 +240,8 @@ export const SEED_SONGS: Song[] = [
         lyrics: [
           { text: 'Welcome to the Hotel California', chord: 'G', time: 20, fingerGesture: '🖐️ Four (4) → G' },
           { text: 'Such a lovely place, such a lovely face', chord: 'D', time: 25, fingerGesture: '🖐️ Five (5) → D' },
+          { text: 'Plenty of room at the Hotel California', chord: 'Em', time: 30, fingerGesture: '✊ Fist (0) → Em' },
+          { text: 'Any time of year, you can find it here', chord: 'F#7', time: 35, fingerGesture: '☝️ Index (1) → F#7' },
         ],
       },
     ],
@@ -224,6 +269,24 @@ export const SEED_SONGS: Song[] = [
           { text: 'Apna bana le mujhe apna bana le piya', chord: 'Bm', time: 4, fingerGesture: '☝️ Index (1) → Bm' },
           { text: 'Dil ke makan mein tu mehmaan lagta hai', chord: 'G', time: 8, fingerGesture: '✌️ Peace (2) → G' },
           { text: 'Aankhon se sunta hai baatein kahe bina', chord: 'A', time: 12, fingerGesture: '🤟 Three (3) → A' },
+        ],
+      },
+      {
+        name: 'Verse',
+        lyrics: [
+          { text: 'Subah ki chai mein jo mithaas hoti hai', chord: 'D', time: 16, fingerGesture: '✊ Fist (0) → D' },
+          { text: 'Waisa hi lagta hai jab tu paas hoti hai', chord: 'Bm', time: 20, fingerGesture: '☝️ Index (1) → Bm' },
+          { text: 'Apna bana le mujhe, apna bana le piya', chord: 'G', time: 24, fingerGesture: '✌️ Peace (2) → G' },
+          { text: 'Sab kuch ganwa ke bhi tujhko hi paana hai', chord: 'A', time: 28, fingerGesture: '🤟 Three (3) → A' },
+        ],
+      },
+      {
+        name: 'Chorus',
+        lyrics: [
+          { text: 'Tu mera koi na hoke bhi kuch lage', chord: 'D', time: 32, fingerGesture: '✊ Fist (0) → D' },
+          { text: 'Apna bana le mujhe apna bana le piya', chord: 'Bm', time: 36, fingerGesture: '☝️ Index (1) → Bm' },
+          { text: 'Dil ke makan mein tu mehmaan lagta hai', chord: 'G', time: 40, fingerGesture: '✌️ Peace (2) → G' },
+          { text: 'Aankhon se sunta hai baatein kahe bina', chord: 'A', time: 44, fingerGesture: '🤟 Three (3) → A' },
         ],
       },
     ],
