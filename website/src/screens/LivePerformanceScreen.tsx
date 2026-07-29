@@ -41,6 +41,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const [countdown, setCountdown]           = useState<number | null>(null)
   const [showYT, setShowYT]                 = useState(false)
   const [ytMinimized, setYtMinimized]       = useState(false)
+  const ytWindowRef                         = useRef<Window | null>(null)
 
   // Refs
   const videoRef      = useRef<HTMLVideoElement>(null)
@@ -246,7 +247,24 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         <div className="flex items-center gap-2">
           {/* YouTube background player toggle */}
           <button
-            onClick={() => { setShowYT(s => !s); setYtMinimized(false) }}
+            onClick={() => {
+              const query = encodeURIComponent(`${song.title} ${song.artist} official`)
+              const url = `https://www.youtube.com/results?search_query=${query}`
+              // Close old popup if open
+              if (ytWindowRef.current && !ytWindowRef.current.closed) {
+                ytWindowRef.current.close()
+                setShowYT(false)
+                return
+              }
+              // Open a small popup window beside the app
+              const popup = window.open(
+                url,
+                'airchord_bg_song',
+                'width=480,height=320,top=80,right=20,toolbar=no,menubar=no,scrollbars=yes,resizable=yes'
+              )
+              ytWindowRef.current = popup
+              setShowYT(true)
+            }}
             title="Play original song in background (for testing)"
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl backdrop-blur-xl border transition-all text-xs font-bold ${
               showYT
@@ -255,7 +273,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
             }`}
           >
             <Youtube className="w-3.5 h-3.5" />
-            {showYT ? 'Hide BG Song' : 'Play BG Song 🎧'}
+            {showYT ? 'Close BG Song' : 'Play BG Song 🎧'}
           </button>
 
           <button
@@ -273,60 +291,80 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         </div>
       </div>
 
-      {/* ── Floating YouTube background player ── */}
+      {/* ── Floating 'Now Playing' card (shows when YouTube popup is open) ── */}
       <AnimatePresence>
         {showYT && (
           <motion.div
-            key="yt-player"
+            key="yt-card"
             initial={{ opacity: 0, scale: 0.85, y: -20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.85, y: -20 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute top-20 right-6 z-30 rounded-2xl overflow-hidden border border-white/15 shadow-2xl shadow-black/60"
+            className="absolute top-20 right-6 z-30 rounded-2xl border border-white/15 shadow-2xl shadow-black/60 w-72"
             style={{ background: 'rgba(8,8,16,0.95)', backdropFilter: 'blur(20px)' }}
           >
-            {/* Player header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-white/8">
+            {/* Card header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-[10px] font-bold text-white/70 uppercase tracking-wider">BG Song — {song.title}</span>
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-[11px] font-bold text-white/80 uppercase tracking-wider">BG Song Playing</span>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setYtMinimized(m => !m)}
-                  className="text-[10px] font-mono text-white/40 hover:text-white/70 px-2 py-0.5 rounded"
-                >
-                  {ytMinimized ? '▲ Expand' : '▼ Minimize'}
-                </button>
-                <button
-                  onClick={() => setShowYT(false)}
-                  className="text-white/30 hover:text-rose-400 p-1"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  ytWindowRef.current?.close()
+                  setShowYT(false)
+                }}
+                className="text-white/30 hover:text-rose-400 transition-colors p-1"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </div>
 
-            {/* YouTube iframe — search for song on YouTube */}
-            {!ytMinimized && (
-              <div className="relative">
-                <iframe
-                  width="340"
-                  height="192"
-                  src={`https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(song.title + ' ' + song.artist + ' original song')}&autoplay=1&rel=0&modestbranding=1`}
-                  title={`${song.title} - ${song.artist}`}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="block"
-                  style={{ border: 'none' }}
-                />
+            {/* Song info */}
+            <div className="px-4 py-3 space-y-2">
+              <div>
+                <p className="text-sm font-black text-white">{song.title}</p>
+                <p className="text-xs text-white/50 font-mono">{song.artist}</p>
               </div>
-            )}
+
+              {/* Re-open / focus button */}
+              <button
+                onClick={() => {
+                  if (ytWindowRef.current && !ytWindowRef.current.closed) {
+                    ytWindowRef.current.focus()
+                  } else {
+                    const query = encodeURIComponent(`${song.title} ${song.artist} official`)
+                    const url = `https://www.youtube.com/results?search_query=${query}`
+                    const popup = window.open(
+                      url,
+                      'airchord_bg_song',
+                      'width=480,height=320,top=80,right=20,toolbar=no,menubar=no,scrollbars=yes,resizable=yes'
+                    )
+                    ytWindowRef.current = popup
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-[1.02] active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #ff0000 0%, #cc0000 100%)' }}
+              >
+                <Youtube className="w-4 h-4" />
+                Open / Refocus YouTube Window
+              </button>
+
+              {/* Direct search link fallback */}
+              <a
+                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(song.title + ' ' + song.artist + ' official')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[10px] font-mono text-white/40 hover:text-white/60 border border-white/8 hover:border-white/15 transition-all"
+              >
+                Open in new tab instead ↗
+              </a>
+            </div>
 
             {/* Tip */}
-            <div className="px-3 py-2 bg-amber-500/8 border-t border-amber-500/15">
-              <p className="text-[9px] font-mono text-amber-300/60">
-                🎧 Testing mode — listen to the original while matching chord gestures
+            <div className="px-4 py-2.5 bg-amber-500/8 border-t border-amber-500/15 rounded-b-2xl">
+              <p className="text-[9px] font-mono text-amber-300/60 leading-relaxed">
+                🎧 Search the song in the YouTube window, hit play, then come back here and practice your chord gestures
               </p>
             </div>
           </motion.div>
