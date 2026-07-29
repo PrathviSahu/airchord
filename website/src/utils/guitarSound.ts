@@ -1,15 +1,17 @@
 // ── AirChord Modular Audio Engine Architecture ────────────────────────────────
 // Supports pluggable engine drivers:
 // 1. Studio Acoustic Sampled Engine (High-realism sampled acoustic guitar with SoundFont/WAV buffers)
-// 2. Classic Synth Engine (3-oscillator humanized acoustic synthesis)
+// 2. Nylon Classical Engine (Mellow fingerstyle classical sound)
+// 3. Classic Synth Engine (3-oscillator humanized acoustic synthesis)
 
 export type GuitarType = 'steel' | 'nylon' | 'electric' | '12string'
-export type EngineMode = 'sampled' | 'synth'
+export type EngineMode = 'sampled' | 'nylon' | 'synth'
 
 let currentEngineMode: EngineMode = 'sampled'
 let currentGuitarType: GuitarType = 'steel'
 let currentCapoFret   = 0
 let audioCtx: AudioContext | null = null
+let lastPlayedChord   = ''
 
 // ── Pluggable Engine Interface ───────────────────────────────────────────────
 export interface IGuitarEngine {
@@ -48,7 +50,7 @@ function buildMaster(ctx: AudioContext) {
   reverbConv.buffer = buf
 
   dryBus = ctx.createGain(); dryBus.gain.value = 0.82
-  wetBus = ctx.createGain(); wetBus.gain.value = 0.14
+  wetBus = ctx.createGain(); wetBus.gain.value = 0.16
 
   compressor = ctx.createDynamicsCompressor()
   compressor.threshold.value = -16
@@ -58,7 +60,7 @@ function buildMaster(ctx: AudioContext) {
   compressor.release.value   = 0.20
 
   masterOut = ctx.createGain()
-  masterOut.gain.value = 0.65
+  masterOut.gain.value = 0.68
 
   dryBus.connect(compressor)
   wetBus.connect(reverbConv!)
@@ -81,6 +83,10 @@ export function toggleStrumming()               {
 export function initAudioEngine(): AudioContext | null {
   const ctx = getAudioContext()
   if (ctx?.state === 'suspended') ctx.resume().catch(() => {})
+  if (ctx) {
+    buildMaster(ctx)
+    preloadCommonSamples(ctx)
+  }
   return ctx
 }
 
@@ -125,6 +131,36 @@ const NOTE_FREQS: Record<string, number> = {
 }
 
 const STRING_PANS = [-0.26, -0.14, -0.04, 0.04, 0.14, 0.26]
+
+// ── Fret Scratch Noise (Finger Slide Simulation) ──────────────────────────────
+function playFretScratchNoise(ctx: AudioContext) {
+  try {
+    const now = ctx.currentTime
+    const len = Math.round(ctx.sampleRate * 0.035)
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+    const data = buf.getChannelData(0)
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.sin((Math.PI * i) / len)
+    }
+
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+
+    const filter = ctx.createBiquadFilter()
+    filter.type = 'highpass'
+    filter.frequency.value = 4500
+
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0.04, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03)
+
+    src.connect(filter)
+    filter.connect(gain)
+    gain.connect(dryBus!)
+
+    src.start(now)
+  } catch { /* ignore */ }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DRIVER 1: Synth Guitar Engine (3-oscillator + body EQ + humanized touch)
@@ -318,7 +354,23 @@ class SynthGuitarEngine implements IGuitarEngine {
 // High-realism sampled acoustic guitar with SoundFont audio buffer caching
 // ─────────────────────────────────────────────────────────────────────────────
 const sampleCache: Record<string, AudioBuffer> = {}
-let isSamplesLoading = false
+const COMMON_NOTES = ['E2','A2','D3','G3','B3','E4','C3','F2','G2','C4','D4','F4','F#4','A3','E3']
+
+async function preloadCommonSamples(ctx: AudioContext) {
+  for (const n of COMMON_NOTES) {
+    if (!sampleCache[n]) {
+      try {
+        const noteName = n.replace('#', 's')
+        const url = `https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/${noteName}.mp3`
+        const resp = await fetch(url)
+        if (resp.ok) {
+          const ab = await resp.arrayBuffer()
+          sampleCache[n] = await ctx.decodeAudioData(ab)
+        }
+      } catch { /* ignore */ }
+    }
+  }
+}
 
 class SampledGuitarEngine implements IGuitarEngine {
   id   = 'sampled'
@@ -329,7 +381,6 @@ class SampledGuitarEngine implements IGuitarEngine {
   private async loadSampleForNote(ctx: AudioContext, note: string): Promise<AudioBuffer | null> {
     if (sampleCache[note]) return sampleCache[note]
     try {
-      // Fetch acoustic_guitar_steel soundfont mp3/wav note sample from CDN
       const noteName = note.replace('#', 's')
       const url = `https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/${noteName}.mp3`
       const resp = await fetch(url)
@@ -349,7 +400,6 @@ class SampledGuitarEngine implements IGuitarEngine {
     if (!ctx) return
     buildMaster(ctx)
 
-    // Calculate capo frequency shift
     const baseHz = NOTE_FREQS[note] ?? 329.63
     const capoFreq = baseHz * Math.pow(2, currentCapoFret / 12)
     const playbackRate = capoFreq / baseHz
@@ -357,7 +407,6 @@ class SampledGuitarEngine implements IGuitarEngine {
     const humanVolume = volume * (0.88 + Math.random() * 0.24)
     const now = ctx.currentTime
 
-    // Check if we have sample in cache
     const buf = sampleCache[note]
     if (buf) {
       try {
@@ -381,10 +430,7 @@ class SampledGuitarEngine implements IGuitarEngine {
         this.fallbackSynth.playPluckNote(note, volume, stringIndex)
       }
     } else {
-      // Async preload sample for future hits while triggering smooth fallback
-      if (!isSamplesLoading) {
-        this.loadSampleForNote(ctx, note).catch(() => {})
-      }
+      this.loadSampleForNote(ctx, note).catch(() => {})
       this.fallbackSynth.playPluckNote(note, volume, stringIndex)
     }
   }
@@ -436,9 +482,15 @@ const synthEngine = new SynthGuitarEngine()
 const sampledEngine = new SampledGuitarEngine()
 
 function getActiveEngine(): IGuitarEngine {
+  if (currentEngineMode === 'nylon') {
+    setGuitarType('nylon')
+    return synthEngine
+  }
   if (currentEngineMode === 'sampled') {
+    setGuitarType('steel')
     return sampledEngine
   }
+  setGuitarType('steel')
   return synthEngine
 }
 
@@ -485,7 +537,6 @@ const CHORD_NOTES: Record<string, string[]> = {
   Gsus4: ['G2','C3','D3','G3','C4','G4'],
 }
 
-
 // ── Public Unified API ───────────────────────────────────────────────────────
 export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
   getActiveEngine().playPluckNote(note, volume, stringIndex)
@@ -493,6 +544,12 @@ export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
 
 export function triggerGuitarChord(chordName = 'Em', volume = 0.32) {
   if (!isStrummingEnabled) return
+  const ctx = getAudioContext()
+  if (ctx && lastPlayedChord !== '' && lastPlayedChord !== chordName) {
+    playFretScratchNoise(ctx)
+  }
+  lastPlayedChord = chordName
+
   initAudioEngine()
   const notes = CHORD_NOTES[chordName] || CHORD_NOTES['Em']
   getActiveEngine().playDownStrum(notes, volume)

@@ -196,33 +196,47 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying }: SongSe
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Modular</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => { setEngineMode('sampled'); setEngineState('sampled') }}
-                className={`p-3 rounded-xl border text-left transition-all ${
+                className={`p-2.5 rounded-xl border text-left transition-all ${
                   engineState === 'sampled'
                     ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
                     : 'bg-white/3 border-white/8 hover:bg-white/6'
                 }`}
               >
-                <p className={`text-xs font-bold ${engineState === 'sampled' ? 'text-purple-200' : 'text-white/60'}`}>
-                  🎸 Studio Acoustic
+                <p className={`text-[11px] font-bold ${engineState === 'sampled' ? 'text-purple-200' : 'text-white/60'}`}>
+                  🎸 Acoustic
                 </p>
-                <p className="text-[9px] font-mono text-amber-300/80 mt-1">Real Samples</p>
+                <p className="text-[9px] font-mono text-amber-300/80 mt-0.5">Sampled</p>
+              </button>
+
+              <button
+                onClick={() => { setEngineMode('nylon'); setEngineState('nylon') }}
+                className={`p-2.5 rounded-xl border text-left transition-all ${
+                  engineState === 'nylon'
+                    ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
+                    : 'bg-white/3 border-white/8 hover:bg-white/6'
+                }`}
+              >
+                <p className={`text-[11px] font-bold ${engineState === 'nylon' ? 'text-purple-200' : 'text-white/60'}`}>
+                  🎶 Nylon
+                </p>
+                <p className="text-[9px] font-mono text-cyan-300/80 mt-0.5">Classical</p>
               </button>
 
               <button
                 onClick={() => { setEngineMode('synth'); setEngineState('synth') }}
-                className={`p-3 rounded-xl border text-left transition-all ${
+                className={`p-2.5 rounded-xl border text-left transition-all ${
                   engineState === 'synth'
                     ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
                     : 'bg-white/3 border-white/8 hover:bg-white/6'
                 }`}
               >
-                <p className={`text-xs font-bold ${engineState === 'synth' ? 'text-purple-200' : 'text-white/60'}`}>
-                  ⚡ Classic Synth
+                <p className={`text-[11px] font-bold ${engineState === 'synth' ? 'text-purple-200' : 'text-white/60'}`}>
+                  ⚡ Synth
                 </p>
-                <p className="text-[9px] font-mono text-white/30 mt-1">3-Oscillator</p>
+                <p className="text-[9px] font-mono text-white/30 mt-0.5">3-Osc</p>
               </button>
             </div>
           </div>
