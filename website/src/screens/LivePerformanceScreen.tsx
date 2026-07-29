@@ -158,13 +158,19 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     return () => clearInterval(iv)
   }, [isPlaying, isMuted, bpm, strumPattern])
 
-  // ── Lyric auto-advance ───────────────────────────────────────────────
+  // ── Lyric auto-advance + stop at end ────────────────────────────────
   useEffect(() => {
     if (!isPlaying) return
     const secPerLine = (60 / bpm) * 4 // ~4 beats per lyric line
     const iv = setInterval(() => {
       setCurrentLine(prev => {
-        if (prev >= allLyrics.length - 1) return prev
+        if (prev >= allLyrics.length - 1) {
+          // Last line reached — stop the performance
+          clearInterval(iv)
+          setIsPlaying(false)
+          setActiveBeat(-1)
+          return prev
+        }
         return prev + 1
       })
     }, secPerLine * 1000)
