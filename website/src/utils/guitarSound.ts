@@ -362,12 +362,15 @@ async function preloadCommonSamples(ctx: AudioContext) {
       try {
         const noteName = n.replace('#', 's')
         const url = `https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/${noteName}.mp3`
-        const resp = await fetch(url)
-        if (resp.ok) {
-          const ab = await resp.arrayBuffer()
-          sampleCache[n] = await ctx.decodeAudioData(ab)
+        const resp = await fetch(url, { mode: 'cors' }).catch(() => null)
+        if (resp && resp.ok) {
+          const ab = await resp.arrayBuffer().catch(() => null)
+          if (ab) {
+            const decoded = await ctx.decodeAudioData(ab).catch(() => null)
+            if (decoded) sampleCache[n] = decoded
+          }
         }
-      } catch { /* ignore */ }
+      } catch { /* silent fallback */ }
     }
   }
 }
@@ -383,11 +386,12 @@ class SampledGuitarEngine implements IGuitarEngine {
     try {
       const noteName = note.replace('#', 's')
       const url = `https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/${noteName}.mp3`
-      const resp = await fetch(url)
-      if (!resp.ok) return null
-      const arrayBuf = await resp.arrayBuffer()
-      const audioBuf = await ctx.decodeAudioData(arrayBuf)
-      sampleCache[note] = audioBuf
+      const resp = await fetch(url, { mode: 'cors' }).catch(() => null)
+      if (!resp || !resp.ok) return null
+      const arrayBuf = await resp.arrayBuffer().catch(() => null)
+      if (!arrayBuf) return null
+      const audioBuf = await ctx.decodeAudioData(arrayBuf).catch(() => null)
+      if (audioBuf) sampleCache[note] = audioBuf
       return audioBuf
     } catch {
       return null
