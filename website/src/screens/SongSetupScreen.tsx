@@ -27,6 +27,8 @@ const SECTION_COLORS: Record<string, string> = {
   Chorus: 'text-purple-400 border-purple-500/30 bg-purple-500/10',
   Bridge: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
   Outro:  'text-rose-400 border-rose-500/30 bg-rose-500/10',
+}
+
 // ── Finger gesture labels ─────────────────────────────────────────────
 const FINGER_LABELS = ['✊ 0 — Fist', '☝️ 1 — Index', '✌️ 2 — Peace', '🤟 3 — Three', '🖐️ 4 — Four', '✋ 5 — Palm']
 
