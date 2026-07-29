@@ -667,12 +667,10 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
             </button>
 
             {/* Line counter */}
-            <div className="text-[9px] font-mono text-white/25 text-right leading-tight">
-              <div>{currentLine + 1}</div>
-              <div>/{allLyrics.length}</div>
-            </div>
           </div>
         </div>
+      )}
+
       {/* ── Recorded Performance Preview & Download Modal ── */}
       <AnimatePresence>
         {recordedUrl && (
