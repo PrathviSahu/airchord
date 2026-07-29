@@ -9,6 +9,30 @@ let audioCtx: AudioContext | null = null
 
 const waveCache: Partial<Record<GuitarType, PeriodicWave>> = {}
 
+// ── Master audio chain: compressor → masterGain → destination ─────────────
+// Created once, shared by all notes. Prevents clipping while keeping loudness.
+let masterGainNode: GainNode | null = null
+let masterCompressor: DynamicsCompressorNode | null = null
+
+function getMasterChain(ctx: AudioContext): AudioNode {
+  if (!masterGainNode || !masterCompressor) {
+    // Transparent limiter compressor
+    masterCompressor = ctx.createDynamicsCompressor()
+    masterCompressor.threshold.value = -18   // Start compressing at -18 dBFS
+    masterCompressor.knee.value      = 8     // Smooth knee
+    masterCompressor.ratio.value     = 6     // 6:1 — gentle but effective
+    masterCompressor.attack.value    = 0.003 // 3ms attack (catches fast transients)
+    masterCompressor.release.value   = 0.12  // 120ms release
+
+    masterGainNode = ctx.createGain()
+    masterGainNode.gain.value = 0.72         // Master output level — room to breathe below 1.0
+
+    masterCompressor.connect(masterGainNode)
+    masterGainNode.connect(ctx.destination)
+  }
+  return masterCompressor
+}
+
 let isStrummingEnabled: boolean = true
 
 export function setStrummingEnabled(enabled: boolean) {
@@ -170,7 +194,7 @@ export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2
     const attackTime = type === 'nylon' ? 0.012 : 0.006
     const decayDuration = type === 'nylon' ? 1.4 : type === 'electric' ? 2.5 : type === '12string' ? 2.2 : 1.8
     oscGain.gain.setValueAtTime(0.0001, now)
-    oscGain.gain.linearRampToValueAtTime(volume * (type === '12string' ? 0.85 : 1.05), now + attackTime)
+    oscGain.gain.linearRampToValueAtTime(volume * (type === '12string' ? 0.70 : 0.82), now + attackTime)
     oscGain.gain.linearRampToValueAtTime(0.0001, now + decayDuration)
 
     // 3. Attack Transient Pluck Filter (Pick on steel vs Finger on nylon)
@@ -189,7 +213,7 @@ export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2
     if (type !== 'nylon') pickFilter.Q.setValueAtTime(2.2, now)
 
     const pickGain = ctx.createGain()
-    pickGain.gain.setValueAtTime(volume * (type === 'nylon' ? 0.3 : 0.55), now)
+    pickGain.gain.setValueAtTime(volume * (type === 'nylon' ? 0.25 : 0.38), now)
     pickGain.gain.linearRampToValueAtTime(0.0001, now + 0.03)
 
     // 4. Acoustic Body / Pickup Resonator Filters
@@ -213,7 +237,9 @@ export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2
       panner.pan.setValueAtTime(STRING_PANS[stringIndex % 6] || 0, now)
     }
 
-    // Connect Audio Pipeline
+    // Connect Audio Pipeline → route through master chain
+    const masterIn = getMasterChain(ctx)
+
     osc1.connect(oscGain)
     osc2.connect(oscGain)
     pickSource.connect(pickFilter)
@@ -224,9 +250,9 @@ export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2
 
     if (panner) {
       bodyFilter.connect(panner)
-      panner.connect(ctx.destination)
+      panner.connect(masterIn)
     } else {
-      bodyFilter.connect(ctx.destination)
+      bodyFilter.connect(masterIn)
     }
 
     osc1.start(now)
@@ -257,7 +283,7 @@ const CHORD_NOTES: Record<string, string[]> = {
   'F#7': ['F#2', 'A#2', 'E3', 'F#3', 'C#4'],
 }
 
-export function triggerGuitarChord(chordName: string = 'Em', volume = 0.55) {
+export function triggerGuitarChord(chordName: string = 'Em', volume = 0.35) {
   if (!isStrummingEnabled) return
   initAudioEngine()
   const notes = CHORD_NOTES[chordName] || CHORD_NOTES['Em']
@@ -271,14 +297,14 @@ export function playGuitarChord(chordName: string = 'Em', volume = 0.2) {
 /**
  * Standard guitar strum (Downstrum)
  */
-export function playStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.55) {
+export function playStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.35) {
   playDownStrum(notes, volume)
 }
 
 /**
  * Downstrum: Low strings → High strings
  */
-export function playDownStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.55) {
+export function playDownStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.35) {
   if (!isStrummingEnabled) return
   const type = currentGuitarType
   const rollDelay = type === 'nylon' ? 42 : type === '12string' ? 32 : 36
@@ -293,7 +319,7 @@ export function playDownStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', '
 /**
  * Upstrum: High strings → Low strings
  */
-export function playUpStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.50) {
+export function playUpStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.32) {
   if (!isStrummingEnabled) return
   const type = currentGuitarType
   const rollDelay = type === 'nylon' ? 34 : 26
