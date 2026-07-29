@@ -4,28 +4,9 @@ import LandingPage from './screens/LandingPage'
 import SongSearchScreen from './screens/SongSearchScreen'
 import SongSetupScreen, { SessionConfig } from './screens/SongSetupScreen'
 import LivePerformanceScreen from './screens/LivePerformanceScreen'
-import { SessionLauncher } from './components/SessionLauncher'
-import { StudioPerformance } from './components/StudioPerformance'
-import { PracticeMode } from './components/PracticeMode'
-import { FingerstyleLounge } from './components/FingerstyleLounge'
-import { SongLibraryModal } from './components/SongLibraryModal'
-import { ProfileEditorModal } from './components/ProfileEditorModal'
-import Studio from './components/Studio'
 import { SEED_SONGS, Song } from './utils/songLibrary'
-import { PRESET_GESTURE_PROFILES, GestureProfile } from './utils/GestureProfiles'
 
-export type AppMode =
-  | 'landing'
-  | 'song-search'
-  | 'song-setup'
-  | 'live'
-  | 'launcher'
-  | 'studio'
-  | 'practice'
-  | 'freeplay'
-  | 'fingerstyle'
-  | 'library'
-  | 'profiles'
+export type AppMode = 'landing' | 'song-search' | 'song-setup' | 'live'
 
 // ── Splash Screen ──────────────────────────────────────────────────
 function SplashScreen({ onDone }: { onDone: () => void }) {
@@ -53,22 +34,19 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true)
-  const [mode, setMode] = useState<AppMode>('landing')
-
+  const [mode, setMode]             = useState<AppMode>('landing')
   const [activeSong, setActiveSong] = useState<Song>(SEED_SONGS[0])
-  const [activeProfile, setActiveProfile] = useState<GestureProfile>(PRESET_GESTURE_PROFILES[0])
   const [sessionConfig, setSessionConfig] = useState<SessionConfig | null>(null)
 
-  // Keyboard: ESC to go back one step
+  // ESC to navigate back
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setMode(prev => {
-          if (prev === 'live') return 'song-setup'
-          if (prev === 'song-setup') return 'song-search'
+          if (prev === 'live')        return 'song-setup'
+          if (prev === 'song-setup')  return 'song-search'
           if (prev === 'song-search') return 'landing'
-          if (prev === 'launcher') return 'landing'
-          return 'song-search'
+          return 'landing'
         })
       }
     }
@@ -76,10 +54,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const renderActiveMode = () => {
+  const renderScreen = () => {
     switch (mode) {
-
-      // ── Primary 3-step workflow ─────────────────────────────────────
       case 'landing':
         return (
           <LandingPage
@@ -119,63 +95,6 @@ export default function App() {
           />
         ) : null
 
-      // ── Legacy advanced modes ───────────────────────────────────────
-      case 'launcher':
-        return (
-          <SessionLauncher
-            onSelectMode={(selected) => setMode(selected as AppMode)}
-            onSelectSong={(song) => setActiveSong(song)}
-            activeSong={activeSong}
-            activeSongTitle={`${activeSong.title} (${activeSong.artist})`}
-            activeProfileName={activeProfile.name}
-          />
-        )
-
-      case 'studio':
-        return (
-          <StudioPerformance
-            song={activeSong}
-            mapping={activeSong.fingerMapping || activeProfile.mapping}
-            onBack={() => setMode('launcher')}
-          />
-        )
-
-      case 'practice':
-        return (
-          <PracticeMode
-            song={activeSong}
-            mapping={activeSong.fingerMapping || activeProfile.mapping}
-            onBack={() => setMode('launcher')}
-          />
-        )
-
-      case 'freeplay':
-        return <Studio onBack={() => setMode('launcher')} />
-
-      case 'fingerstyle':
-        return <FingerstyleLounge onBack={() => setMode('launcher')} />
-
-      case 'library':
-        return (
-          <SongLibraryModal
-            activeSong={activeSong}
-            onSelectSong={(song) => setActiveSong(song)}
-            onBack={() => setMode('launcher')}
-          />
-        )
-
-      case 'profiles':
-        return (
-          <ProfileEditorModal
-            activeProfile={activeProfile}
-            onSelectProfile={(profile) => setActiveProfile(profile)}
-            onUpdateMapping={(mapping) =>
-              setActiveProfile(prev => ({ ...prev, mapping }))
-            }
-            onBack={() => setMode('launcher')}
-          />
-        )
-
       default:
         return null
     }
@@ -191,7 +110,7 @@ export default function App() {
 
       {!showSplash && (
         <main className="w-full h-full bg-[#06060a] text-white">
-          {renderActiveMode()}
+          {renderScreen()}
         </main>
       )}
     </>
