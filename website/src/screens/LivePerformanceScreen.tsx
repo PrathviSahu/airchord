@@ -139,7 +139,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       setActiveBeat(beatIndex)
       const stroke = patterns[beatIndex]
       if (stroke !== '.' && stroke !== 'X') {
-        triggerGuitarChord(detectedChordRef.current, 0.28)
+        triggerGuitarChord(detectedChordRef.current, 0.55)
       }
     }, beatMs)
 

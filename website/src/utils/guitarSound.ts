@@ -170,7 +170,7 @@ export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2
     const attackTime = type === 'nylon' ? 0.012 : 0.006
     const decayDuration = type === 'nylon' ? 1.4 : type === 'electric' ? 2.5 : type === '12string' ? 2.2 : 1.8
     oscGain.gain.setValueAtTime(0.0001, now)
-    oscGain.gain.linearRampToValueAtTime(volume * (type === '12string' ? 0.6 : 0.75), now + attackTime)
+    oscGain.gain.linearRampToValueAtTime(volume * (type === '12string' ? 0.85 : 1.05), now + attackTime)
     oscGain.gain.linearRampToValueAtTime(0.0001, now + decayDuration)
 
     // 3. Attack Transient Pluck Filter (Pick on steel vs Finger on nylon)
@@ -189,7 +189,7 @@ export function playPluckNote(note: string = 'E4', volume = 0.2, stringIndex = 2
     if (type !== 'nylon') pickFilter.Q.setValueAtTime(2.2, now)
 
     const pickGain = ctx.createGain()
-    pickGain.gain.setValueAtTime(volume * (type === 'nylon' ? 0.2 : 0.4), now)
+    pickGain.gain.setValueAtTime(volume * (type === 'nylon' ? 0.3 : 0.55), now)
     pickGain.gain.linearRampToValueAtTime(0.0001, now + 0.03)
 
     // 4. Acoustic Body / Pickup Resonator Filters
@@ -257,7 +257,7 @@ const CHORD_NOTES: Record<string, string[]> = {
   'F#7': ['F#2', 'A#2', 'E3', 'F#3', 'C#4'],
 }
 
-export function triggerGuitarChord(chordName: string = 'Em', volume = 0.2) {
+export function triggerGuitarChord(chordName: string = 'Em', volume = 0.55) {
   if (!isStrummingEnabled) return
   initAudioEngine()
   const notes = CHORD_NOTES[chordName] || CHORD_NOTES['Em']
@@ -271,14 +271,14 @@ export function playGuitarChord(chordName: string = 'Em', volume = 0.2) {
 /**
  * Standard guitar strum (Downstrum)
  */
-export function playStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.2) {
+export function playStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.55) {
   playDownStrum(notes, volume)
 }
 
 /**
  * Downstrum: Low strings → High strings
  */
-export function playDownStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.2) {
+export function playDownStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.55) {
   if (!isStrummingEnabled) return
   const type = currentGuitarType
   const rollDelay = type === 'nylon' ? 42 : type === '12string' ? 32 : 36
@@ -293,7 +293,7 @@ export function playDownStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', '
 /**
  * Upstrum: High strings → Low strings
  */
-export function playUpStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.18) {
+export function playUpStrum(notes: string[] = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'], volume = 0.50) {
   if (!isStrummingEnabled) return
   const type = currentGuitarType
   const rollDelay = type === 'nylon' ? 34 : 26
