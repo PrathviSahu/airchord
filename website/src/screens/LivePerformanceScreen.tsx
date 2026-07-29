@@ -206,34 +206,60 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const handlePause = useCallback(() => setIsPlaying(p => !p), [])
 
   // ── Recording Module Handlers ─────────────────────────────────────────
+  const [recordedBlob, setRecordedBlob]     = useState<Blob | null>(null)
+
   const handleStartRecording = useCallback(() => {
     try {
       recordedChunksRef.current = []
-      let stream: MediaStream | null = null
+      let recStream: MediaStream | null = null
 
-      if (canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
-        stream = (canvasRef.current as any).captureStream(30)
-      } else if (streamRef.current) {
-        stream = streamRef.current
+      if (streamRef.current) {
+        recStream = new MediaStream()
+        // Add webcam video track
+        streamRef.current.getVideoTracks().forEach(track => recStream?.addTrack(track))
+        // Add webcam audio track if available
+        streamRef.current.getAudioTracks().forEach(track => recStream?.addTrack(track))
+      } else if (canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
+        recStream = (canvasRef.current as any).captureStream(30)
       }
 
-      if (!stream) return
+      if (!recStream || recStream.getTracks().length === 0) return
 
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' })
+      // Find supported mimeType
+      const mimeTypes = [
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+        'video/mp4',
+        '',
+      ]
+      let selectedMime = ''
+      for (const m of mimeTypes) {
+        if (!m || (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m))) {
+          selectedMime = m
+          break
+        }
+      }
+
+      const options = selectedMime ? { mimeType: selectedMime } : undefined
+      const recorder = new MediaRecorder(recStream, options)
+
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
           recordedChunksRef.current.push(e.data)
         }
       }
+
       recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
+        const mime = selectedMime || 'video/webm'
+        const blob = new Blob(recordedChunksRef.current, { type: mime })
         const url  = URL.createObjectURL(blob)
+        setRecordedBlob(blob)
         setRecordedUrl(url)
         setIsRecording(false)
       }
 
       mediaRecorderRef.current = recorder
-      recorder.start(100)
+      recorder.start(200) // collect chunks every 200ms
       setIsRecording(true)
       setRecordingTime(0)
 
@@ -241,25 +267,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         setRecordingTime(t => t + 1)
       }, 1000)
     } catch {
-      // Fallback if mimeType is unsupported
-      try {
-        if (streamRef.current) {
-          const recorder = new MediaRecorder(streamRef.current)
-          recorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data)
-          }
-          recorder.onstop = () => {
-            const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
-            setRecordedUrl(URL.createObjectURL(blob))
-            setIsRecording(false)
-          }
-          mediaRecorderRef.current = recorder
-          recorder.start(100)
-          setIsRecording(true)
-          setRecordingTime(0)
-          recTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
-        }
-      } catch { /* ignore */ }
+      setIsRecording(false)
     }
   }, [])
 
@@ -269,6 +277,21 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       mediaRecorderRef.current.stop()
     }
   }, [])
+
+  const handleDownloadVideo = useCallback(() => {
+    if (!recordedUrl && !recordedBlob) return
+    const a = document.createElement('a')
+    a.style.display = 'none'
+    a.href = recordedUrl!
+    const ext = recordedBlob?.type.includes('mp4') ? 'mp4' : 'webm'
+    const safeTitle = song.title.toLowerCase().replace(/[^a-z0-9]/g, '_')
+    a.download = `airchord_${safeTitle}_performance.${ext}`
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => {
+      document.body.removeChild(a)
+    }, 100)
+  }, [recordedUrl, recordedBlob, song.title])
 
   const currentLyric   = allLyrics[currentLine]
   const nextLyric      = allLyrics[currentLine + 1]
@@ -687,14 +710,13 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
               {/* Actions */}
               <div className="flex items-center gap-3">
-                <a
-                  href={recordedUrl}
-                  download={`${song.title.toLowerCase().replace(/\s+/g, '_')}_performance.webm`}
+                <button
+                  onClick={handleDownloadVideo}
                   className="flex-1 py-3.5 rounded-xl font-black text-xs text-black shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
                   style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' }}
                 >
                   Download Performance Video 💾
-                </a>
+                </button>
                 <button
                   onClick={() => setRecordedUrl(null)}
                   className="py-3.5 px-5 rounded-xl text-xs font-mono text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
