@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Pause, Play, X, ChevronLeft, ChevronRight, Volume2, VolumeX } from 'lucide-react'
+import { Pause, Play, X, ChevronLeft, ChevronRight, Volume2, VolumeX, Youtube, Music2 } from 'lucide-react'
 import { SessionConfig } from './SongSetupScreen'
 import {
   initAudioEngine,
@@ -39,6 +39,8 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const [cameraReady, setCameraReady]       = useState(false)
   const [cameraError, setCameraError]       = useState<string | null>(null)
   const [countdown, setCountdown]           = useState<number | null>(null)
+  const [showYT, setShowYT]                 = useState(false)
+  const [ytMinimized, setYtMinimized]       = useState(false)
 
   // Refs
   const videoRef      = useRef<HTMLVideoElement>(null)
@@ -242,6 +244,20 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
         {/* Controls */}
         <div className="flex items-center gap-2">
+          {/* YouTube background player toggle */}
+          <button
+            onClick={() => { setShowYT(s => !s); setYtMinimized(false) }}
+            title="Play original song in background (for testing)"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl backdrop-blur-xl border transition-all text-xs font-bold ${
+              showYT
+                ? 'bg-red-600/40 border-red-400/50 text-red-200'
+                : 'bg-black/40 border-white/10 text-white/60 hover:text-white hover:bg-black/60'
+            }`}
+          >
+            <Youtube className="w-3.5 h-3.5" />
+            {showYT ? 'Hide BG Song' : 'Play BG Song 🎧'}
+          </button>
+
           <button
             onClick={() => setIsMuted(m => !m)}
             className="w-9 h-9 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/60 transition-all"
@@ -256,6 +272,66 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
           </button>
         </div>
       </div>
+
+      {/* ── Floating YouTube background player ── */}
+      <AnimatePresence>
+        {showYT && (
+          <motion.div
+            key="yt-player"
+            initial={{ opacity: 0, scale: 0.85, y: -20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.85, y: -20 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute top-20 right-6 z-30 rounded-2xl overflow-hidden border border-white/15 shadow-2xl shadow-black/60"
+            style={{ background: 'rgba(8,8,16,0.95)', backdropFilter: 'blur(20px)' }}
+          >
+            {/* Player header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/8">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-white/70 uppercase tracking-wider">BG Song — {song.title}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setYtMinimized(m => !m)}
+                  className="text-[10px] font-mono text-white/40 hover:text-white/70 px-2 py-0.5 rounded"
+                >
+                  {ytMinimized ? '▲ Expand' : '▼ Minimize'}
+                </button>
+                <button
+                  onClick={() => setShowYT(false)}
+                  className="text-white/30 hover:text-rose-400 p-1"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* YouTube iframe — search for song on YouTube */}
+            {!ytMinimized && (
+              <div className="relative">
+                <iframe
+                  width="340"
+                  height="192"
+                  src={`https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(song.title + ' ' + song.artist + ' original song')}&autoplay=1&rel=0&modestbranding=1`}
+                  title={`${song.title} - ${song.artist}`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="block"
+                  style={{ border: 'none' }}
+                />
+              </div>
+            )}
+
+            {/* Tip */}
+            <div className="px-3 py-2 bg-amber-500/8 border-t border-amber-500/15">
+              <p className="text-[9px] font-mono text-amber-300/60">
+                🎧 Testing mode — listen to the original while matching chord gestures
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Countdown overlay ── */}
       <AnimatePresence>
