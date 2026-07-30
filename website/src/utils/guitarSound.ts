@@ -311,14 +311,15 @@ class SynthGuitarEngine implements IGuitarEngine {
     if (!isStrummingEnabled) return
     const baseRoll = currentGuitarType === 'nylon' ? 40 : currentGuitarType === '12string' ? 28 : 32
     const roll = baseRoll * (0.88 + Math.random() * 0.24)
+    const stringOffset = Math.max(0, 6 - notes.length)
     notes.forEach((note, idx) => {
       const microJitter = (Math.random() - 0.5) * 8
       const nonLinearProgress = Math.pow(idx / (notes.length - 1 || 1), 0.92)
       const delay = Math.max(0, nonLinearProgress * (notes.length - 1) * roll + microJitter)
       setTimeout(() => {
-        const stringAccent = idx < 2 ? 1.15 : idx > 3 ? 0.88 : 1.0
+        const stringAccent = idx === 0 ? 1.15 : idx === notes.length - 1 ? 0.88 : 1.0
         const humanVol = volume * stringAccent * (0.90 + Math.random() * 0.20)
-        this.playPluckNote(note, humanVol, idx)
+        this.playPluckNote(note, humanVol, stringOffset + idx)
       }, delay)
     })
   }
@@ -328,14 +329,15 @@ class SynthGuitarEngine implements IGuitarEngine {
     const baseRoll = currentGuitarType === 'nylon' ? 30 : 22
     const roll = baseRoll * (0.86 + Math.random() * 0.28)
     const rev = [...notes].reverse()
+    const stringOffset = Math.max(0, 6 - notes.length)
     rev.forEach((note, idx) => {
       const microJitter = (Math.random() - 0.5) * 7
       const nonLinearProgress = Math.pow(idx / (rev.length - 1 || 1), 0.94)
       const delay = Math.max(0, nonLinearProgress * (rev.length - 1) * roll + microJitter)
       setTimeout(() => {
-        const stringAccent = idx < 3 ? 1.06 : 0.84
+        const stringAccent = idx < 2 ? 1.06 : 0.84
         const humanVol = volume * stringAccent * (0.88 + Math.random() * 0.24)
-        this.playPluckNote(note, humanVol, 5 - idx)
+        this.playPluckNote(note, humanVol, 5 - (stringOffset + idx))
       }, delay)
     })
   }
@@ -443,14 +445,15 @@ class SampledGuitarEngine implements IGuitarEngine {
     if (!isStrummingEnabled) return
     const baseRoll = 32
     const roll = baseRoll * (0.88 + Math.random() * 0.24)
+    const stringOffset = Math.max(0, 6 - notes.length)
     notes.forEach((note, idx) => {
       const microJitter = (Math.random() - 0.5) * 8
       const nonLinearProgress = Math.pow(idx / (notes.length - 1 || 1), 0.92)
       const delay = Math.max(0, nonLinearProgress * (notes.length - 1) * roll + microJitter)
       setTimeout(() => {
-        const stringAccent = idx < 2 ? 1.15 : idx > 3 ? 0.88 : 1.0
+        const stringAccent = idx === 0 ? 1.15 : idx === notes.length - 1 ? 0.88 : 1.0
         const humanVol = volume * stringAccent * (0.90 + Math.random() * 0.20)
-        this.playPluckNote(note, humanVol, idx)
+        this.playPluckNote(note, humanVol, stringOffset + idx)
       }, delay)
     })
   }
@@ -460,14 +463,15 @@ class SampledGuitarEngine implements IGuitarEngine {
     const baseRoll = 22
     const roll = baseRoll * (0.86 + Math.random() * 0.28)
     const rev = [...notes].reverse()
+    const stringOffset = Math.max(0, 6 - notes.length)
     rev.forEach((note, idx) => {
       const microJitter = (Math.random() - 0.5) * 7
       const nonLinearProgress = Math.pow(idx / (rev.length - 1 || 1), 0.94)
       const delay = Math.max(0, nonLinearProgress * (rev.length - 1) * roll + microJitter)
       setTimeout(() => {
-        const stringAccent = idx < 3 ? 1.06 : 0.84
+        const stringAccent = idx < 2 ? 1.06 : 0.84
         const humanVol = volume * stringAccent * (0.88 + Math.random() * 0.24)
-        this.playPluckNote(note, humanVol, 5 - idx)
+        this.playPluckNote(note, humanVol, 5 - (stringOffset + idx))
       }, delay)
     })
   }
