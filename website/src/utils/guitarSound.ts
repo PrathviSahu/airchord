@@ -228,9 +228,12 @@ class SynthGuitarEngine implements IGuitarEngine {
       const initialTensionSpike = targetFreq * (1.0 + 0.007 * (volume / 0.35))
       const humanVolume = volume * (0.86 + Math.random() * 0.28)
 
+      // Clamp stringIndex to valid range [0..5]
+      const safeStrIdx = Math.max(0, Math.min(5, stringIndex))
+
       const decay = (type === 'nylon' ? 1.5 : type === 'electric' ? 2.8 : 2.0)
                  * preset.decayMul
-                 * (1.0 - stringIndex * 0.055)
+                 * (1.0 - safeStrIdx * 0.055)
 
       const wave = buildGuitarWave(ctx, type)
       const osc1 = ctx.createOscillator()
@@ -278,8 +281,12 @@ class SynthGuitarEngine implements IGuitarEngine {
       pickEnv.gain.exponentialRampToValueAtTime(0.0001, now + 0.025)
       pickSrc.connect(pickBP); pickBP.connect(pickEnv)
 
+      // Body EQ: scale bass resonance DOWN for higher strings (D chord = strings 2-5 → less bass)
+      // String 0 (E2) = full bodyGain, String 5 (E4) = 10% of bodyGain
+      const bassScaleFactor = Math.max(0.1, 1.0 - safeStrIdx * 0.18)
+
       const bodyLo = ctx.createBiquadFilter()
-      bodyLo.type = 'peaking'; bodyLo.frequency.value = preset.bodyLow; bodyLo.Q.value = 1.4; bodyLo.gain.value = preset.bodyGain
+      bodyLo.type = 'peaking'; bodyLo.frequency.value = preset.bodyLow; bodyLo.Q.value = 1.4; bodyLo.gain.value = preset.bodyGain * bassScaleFactor
 
       const bodyHi = ctx.createBiquadFilter()
       bodyHi.type = 'peaking'; bodyHi.frequency.value = preset.bodyMid; bodyHi.Q.value = 1.0; bodyHi.gain.value = 2.5
@@ -288,7 +295,7 @@ class SynthGuitarEngine implements IGuitarEngine {
       shelf.type = 'highshelf'; shelf.frequency.value = 6000; shelf.gain.value = preset.shelfGain
 
       const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
-      pan?.pan.setValueAtTime(STRING_PANS[stringIndex % 6] ?? 0, now)
+      pan?.pan.setValueAtTime(STRING_PANS[safeStrIdx] ?? 0, now)
 
       envGain.connect(bodyLo)
       pickEnv.connect(bodyLo)
@@ -344,9 +351,10 @@ class SynthGuitarEngine implements IGuitarEngine {
 
   playMuteStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.12) {
     if (!isStrummingEnabled) return
+    const stringOffset = Math.max(0, 6 - notes.length)
     notes.slice(0, 4).forEach((note, idx) => {
       const delay = Math.max(0, idx * 10 + (Math.random() - 0.5) * 5)
-      setTimeout(() => this.playPluckNote(note, volume * (0.24 + Math.random() * 0.08), idx), delay)
+      setTimeout(() => this.playPluckNote(note, volume * (0.24 + Math.random() * 0.08), stringOffset + idx), delay)
     })
   }
 }
@@ -478,9 +486,10 @@ class SampledGuitarEngine implements IGuitarEngine {
 
   playMuteStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.12) {
     if (!isStrummingEnabled) return
+    const stringOffset = Math.max(0, 6 - notes.length)
     notes.slice(0, 4).forEach((note, idx) => {
       const delay = Math.max(0, idx * 10 + (Math.random() - 0.5) * 5)
-      setTimeout(() => this.playPluckNote(note, volume * (0.24 + Math.random() * 0.08), idx), delay)
+      setTimeout(() => this.playPluckNote(note, volume * (0.24 + Math.random() * 0.08), stringOffset + idx), delay)
     })
   }
 }
