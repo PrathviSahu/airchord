@@ -499,7 +499,7 @@ function getActiveEngine(): IGuitarEngine {
 }
 
 // ── Chord Voicing Map (Standard 6-String Guitar Voicings) ────────────────────
-const CHORD_NOTES: Record<string, string[]> = {
+export const CHORD_NOTES: Record<string, string[]> = {
   // Open / Primary Major Chords
   C:     ['C3','E3','G3','C4','E4'],
   D:     ['D3','A3','D4','F#4'],
