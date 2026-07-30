@@ -347,19 +347,91 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
               ))}
             </div>
 
-            {/* Custom pattern input */}
-            <div>
-              <p className="text-[10px] font-mono text-white/30 mb-1.5">Custom pattern (space-separated):</p>
+            {/* Custom pattern input with interactive quick buttons */}
+            <div className="pt-2 border-t border-white/5 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-mono text-white/40">Custom Strum Builder:</p>
+                {isCustom && (
+                  <span className="text-[9px] font-mono text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-500/30">
+                    Active
+                  </span>
+                )}
+              </div>
+
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={customPattern}
                   onChange={e => { setCustom(e.target.value); setIsCustom(true) }}
                   onFocus={() => setIsCustom(true)}
-                  placeholder="e.g.  ↓ ↑ ↓ ↓ ↑"
-                  className="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono text-white placeholder-white/20 outline-none focus:border-purple-500/40 transition-colors"
+                  placeholder="e.g. D D U U D U  or  ↓ ↓ ↑ ↑ ↓ ↑"
+                  className={`flex-1 px-3 py-2 rounded-xl bg-black/50 border text-xs font-mono outline-none transition-colors ${
+                    isCustom
+                      ? 'border-purple-400/60 text-amber-300 bg-purple-950/20'
+                      : 'border-white/10 text-white/80 placeholder-white/20 focus:border-purple-500/40'
+                  }`}
                 />
+                {customPattern && (
+                  <button
+                    onClick={() => { setCustom(''); setIsCustom(false) }}
+                    className="px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-mono text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                    title="Clear pattern"
+                  >
+                    Clear 🗑️
+                  </button>
+                )}
               </div>
+
+              {/* Quick-insert stroke buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustom(prev => (prev ? `${prev} ↓` : '↓'))
+                    setIsCustom(true)
+                  }}
+                  className="px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[11px] font-mono hover:bg-amber-500/20 transition-all"
+                >
+                  + ↓ Down (D)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustom(prev => (prev ? `${prev} ↑` : '↑'))
+                    setIsCustom(true)
+                  }}
+                  className="px-2 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 text-[11px] font-mono hover:bg-cyan-500/20 transition-all"
+                >
+                  + ↑ Up (U)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustom(prev => (prev ? `${prev} ✕` : '✕'))
+                    setIsCustom(true)
+                  }}
+                  className="px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-500/25 text-rose-300 text-[11px] font-mono hover:bg-rose-500/20 transition-all"
+                >
+                  + ✕ Mute (X)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustom(prev => (prev ? `${prev} •` : '•'))
+                    setIsCustom(true)
+                  }}
+                  className="px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/25 text-purple-300 text-[11px] font-mono hover:bg-purple-500/20 transition-all"
+                >
+                  + • Rest (.)
+                </button>
+              </div>
+
+              <p className="text-[9px] font-mono text-white/30 leading-tight">
+                💡 <b className="text-white/50">How to type:</b> Use <span className="text-amber-300">D</span> or <span className="text-amber-300">↓</span> for Down, <span className="text-cyan-300">U</span> or <span className="text-cyan-300">↑</span> for Up, <span className="text-rose-300">X</span> or <span className="text-rose-300">✕</span> for Mute, <span className="text-purple-300">.</span> or <span className="text-purple-300">•</span> for Rest.
+              </p>
             </div>
           </div>
 
