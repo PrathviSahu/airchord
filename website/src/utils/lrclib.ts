@@ -14,23 +14,30 @@ interface LrclibResponse {
   duration?:     number
 }
 
-// Parse "[mm:ss.xx] lyric text" → { time, text }[]
+// Parse "[mm:ss.xx]" or "[mm:ss:xx]" or "[mm:ss]" → { time, text }[]
 function parseLRC(lrc: string): SyncedLine[] {
   const lines: SyncedLine[] = []
   for (const raw of lrc.split('\n')) {
-    const match = raw.match(/^\[(\d{2}):(\d{2})\.(\d{1,3})\]\s*(.*)$/)
+    const match = raw.match(/^\[(\d{2}):(\d{2})[\.\:]?(\d{1,3})?\]\s*(.*)$/)
     if (!match) continue
     const min  = parseInt(match[1], 10)
     const sec  = parseInt(match[2], 10)
-    const ms   = parseInt(match[3].padEnd(3, '0'), 10)
+    const ms   = match[3] ? parseInt(match[3].padEnd(3, '0'), 10) : 0
     const text = match[4].trim()
     if (!text) continue
     lines.push({ time: min * 60 + sec + ms / 1000, text })
   }
+
+  // Shift timestamps if first line starts after a long intro so lyric 0 starts at t=0
+  if (lines.length > 0 && lines[0].time > 3) {
+    const offset = lines[0].time
+    lines.forEach(l => { l.time = Math.max(0, Number((l.time - offset).toFixed(2))) })
+  }
+
   return lines
 }
 
-async function fetchWithTimeout(url: string, ms = 6000): Promise<Response> {
+async function fetchWithTimeout(url: string, ms = 3000): Promise<Response> {
   const ctrl = new AbortController()
   const id   = setTimeout(() => ctrl.abort(), ms)
   try {

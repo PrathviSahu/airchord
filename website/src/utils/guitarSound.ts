@@ -53,8 +53,8 @@ function buildMaster(ctx: AudioContext) {
   }
   reverbConv = ctx.createConvolver()
   reverbConv.buffer = buf
-  dryBus = ctx.createGain(); dryBus.gain.value = 0.84
-  wetBus = ctx.createGain(); wetBus.gain.value = 0.15
+  dryBus = ctx.createGain(); dryBus.gain.value = 1.00
+  wetBus = ctx.createGain(); wetBus.gain.value = 0.18
   compressor = ctx.createDynamicsCompressor()
   compressor.threshold.value = -16
   compressor.knee.value      = 10
@@ -69,7 +69,7 @@ function buildMaster(ctx: AudioContext) {
   limiter.attack.value    = 0.001
   limiter.release.value   = 0.05
   masterOut = ctx.createGain()
-  masterOut.gain.value = 0.72
+  masterOut.gain.value = 1.35
   dryBus.connect(compressor)
   wetBus.connect(reverbConv!)
   reverbConv!.connect(compressor)
