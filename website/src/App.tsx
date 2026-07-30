@@ -95,13 +95,13 @@ export default function App() {
         )
 
       case 'practice':
-        return sessionConfig ? (
+        return (
           <PracticeRoomScreen
-            config={sessionConfig}
-            onBack={() => setMode('song-setup')}
+            config={sessionConfig ?? undefined}
+            onBack={() => setMode(sessionConfig ? 'song-setup' : 'landing')}
             onStartLive={() => setMode('live')}
           />
-        ) : null
+        )
 
       case 'live':
         return sessionConfig ? (
