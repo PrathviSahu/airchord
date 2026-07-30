@@ -249,7 +249,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
           break
         }
       }
-      setCurrentLine(matchIdx)
+      setCurrentLine(prev => Math.max(prev, matchIdx))
 
       // Stop performance 4 seconds after the last line ends
       const lastLineTime = allLyrics[allLyrics.length - 1]?.time ?? 0
@@ -296,9 +296,12 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
           .map((r: any) => r[0]?.transcript || '')
           .join(' ')
           .toLowerCase()
-          .replace(/[^\w\s]/g, '')
+          .replace(/[^\w\s]/g, ' ')
+          .trim()
 
-        const words = rawTranscript.split(/\s+/).filter(w => w.length >= 2)
+        if (!rawTranscript) return
+
+        const words = rawTranscript.split(/\s+/).filter(Boolean)
         if (words.length === 0) return
 
         const recentPhrase = words.slice(-3).join(' ')
@@ -307,28 +310,28 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         const curIdx = currentLineRef.current
         const lyrics = allLyricsRef.current
 
-        const currentLineText  = (lyrics[curIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, '')
-        const currentLineWords = currentLineText.split(/\s+/).filter(w => w.length >= 2)
+        const currentLineText  = (lyrics[curIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
+        const currentLineWords = currentLineText.split(/\s+/).filter(Boolean)
 
         if (currentLineWords.length > 0) {
           const lastWord       = currentLineWords[currentLineWords.length - 1]
           const secondLastWord = currentLineWords.length >= 2 ? currentLineWords[currentLineWords.length - 2] : ''
 
-          const nextLineText  = (lyrics[curIdx + 1]?.text || '').toLowerCase().replace(/[^\w\s]/g, '')
-          const nextLineWords = nextLineText.split(/\s+/).filter(w => w.length >= 2)
+          const nextLineText  = (lyrics[curIdx + 1]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
+          const nextLineWords = nextLineText.split(/\s+/).filter(Boolean)
           const nextFirstWord = nextLineWords[0] || ''
 
-          // Trigger advance if heard the last word (or 2nd-to-last word) of current line, or first word of next line
-          const heardCurrentEnd = words.some(w =>
-            (lastWord && (w === lastWord || (lastWord.length >= 4 && (w.includes(lastWord) || lastWord.includes(w))))) ||
-            (secondLastWord && secondLastWord.length >= 4 && (w === secondLastWord || w.includes(secondLastWord)))
-          )
+          // Check if spoken words include the last word (or end phrase) of current line
+          const heardCurrentEnd = (lastWord && words.includes(lastWord)) ||
+            (lastWord && rawTranscript.includes(lastWord))
 
-          const heardNextStart = words.some(w =>
-            nextFirstWord && (w === nextFirstWord || (nextFirstWord.length >= 4 && (w.includes(nextFirstWord) || nextFirstWord.includes(w))))
-          )
+          const heardSecondLast = secondLastWord.length >= 3 &&
+            (words.includes(secondLastWord) || rawTranscript.includes(secondLastWord))
 
-          if (heardCurrentEnd || heardNextStart) {
+          const heardNextStart = nextFirstWord.length >= 3 &&
+            (words.includes(nextFirstWord) || rawTranscript.includes(nextFirstWord))
+
+          if (heardCurrentEnd || heardSecondLast || heardNextStart) {
             setCurrentLine(l => Math.min(lyrics.length - 1, l + 1))
           }
         }
