@@ -181,6 +181,112 @@ function GLTFGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject
   )
 }
 
+// ── Procedural Acoustic Guitar (Zero-dependency fail-safe 3D Model) ───────────
+function ProceduralGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject<number> }) {
+  const groupRef = useRef<THREE.Group>(null)
+
+  useFrame(() => {
+    if (!groupRef.current) return
+    const scroll = scrollProgress.current
+    const targetRotY = scroll * Math.PI * 2.0
+    groupRef.current.rotation.y += (targetRotY - groupRef.current.rotation.y) * 0.08
+  })
+
+  return (
+    <group ref={groupRef} position={[0, 0, 0]} scale={[1.4, 1.4, 1.4]}>
+      {/* Guitar Lower Body */}
+      <mesh position={[0, -1.2, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[1.5, 1.7, 1.2, 32]} />
+        <meshStandardMaterial color="#3d1d0e" roughness={0.25} metalness={0.15} envMapIntensity={1.2} />
+      </mesh>
+
+      {/* Guitar Upper Body */}
+      <mesh position={[0, -0.1, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[1.2, 1.4, 1.1, 32]} />
+        <meshStandardMaterial color="#4a2412" roughness={0.25} metalness={0.15} envMapIntensity={1.2} />
+      </mesh>
+
+      {/* Soundhole Ring & Rosette */}
+      <mesh position={[0, -0.1, 0.56]} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.35, 0.48, 32]} />
+        <meshStandardMaterial color="#e6c687" roughness={0.3} metalness={0.8} />
+      </mesh>
+      <mesh position={[0, -0.1, 0.57]} rotation={[Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.34, 32]} />
+        <meshBasicMaterial color="#050508" />
+      </mesh>
+
+      {/* Pickguard */}
+      <mesh position={[0.35, -0.4, 0.57]} rotation={[0, 0, -0.3]}>
+        <planeGeometry args={[0.5, 0.8]} />
+        <meshStandardMaterial color="#1a0c06" roughness={0.2} metalness={0.1} />
+      </mesh>
+
+      {/* Neck */}
+      <mesh position={[0, 1.5, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.32, 2.4, 0.22]} />
+        <meshStandardMaterial color="#21120b" roughness={0.4} metalness={0.05} />
+      </mesh>
+
+      {/* Fretboard Surface */}
+      <mesh position={[0, 1.5, 0.12]}>
+        <boxGeometry args={[0.34, 2.4, 0.04]} />
+        <meshStandardMaterial color="#111113" roughness={0.5} metalness={0.2} />
+      </mesh>
+
+      {/* Headstock */}
+      <mesh position={[0, 3.0, 0.05]} rotation={[-0.15, 0, 0]} castShadow>
+        <boxGeometry args={[0.42, 0.7, 0.2]} />
+        <meshStandardMaterial color="#3d1d0e" roughness={0.3} metalness={0.1} />
+      </mesh>
+
+      {/* Tuning Pegs */}
+      {[-0.26, 0.26].map((x, xi) =>
+        [2.8, 3.0, 3.2].map((y, yi) => (
+          <mesh key={`${xi}-${yi}`} position={[x, y, 0.05]}>
+            <cylinderGeometry args={[0.04, 0.04, 0.2, 16]} rotation={[0, 0, Math.PI / 2]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.2} />
+          </mesh>
+        ))
+      )}
+
+      {/* Strings (Brass/Gold) */}
+      {[-0.1, -0.06, -0.02, 0.02, 0.06, 0.1].map((x, i) => (
+        <mesh key={i} position={[x, 0.8, 0.15]}>
+          <cylinderGeometry args={[0.006, 0.006, 4.8, 8]} />
+          <meshStandardMaterial color="#f0d58d" metalness={0.95} roughness={0.1} />
+        </mesh>
+      ))}
+
+      {/* Bridge */}
+      <mesh position={[0, -1.3, 0.58]}>
+        <boxGeometry args={[0.9, 0.2, 0.1]} />
+        <meshStandardMaterial color="#1a0c06" roughness={0.5} metalness={0.1} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Error Boundary for Model Load Failures ────────────────────────────────────
+import { Component, ReactNode } from 'react'
+
+class ModelErrorBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false }
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+  componentDidCatch(error: any) {
+    console.warn('3D model fetch failed or unsupported — falling back to procedural guitar:', error)
+  }
+  render() {
+    if (this.state.hasError) return this.props.fallback
+    return this.props.children
+  }
+}
+
 // ── Fallback while loading ────────────────────────────────────────────────────
 function LoadingPlaceholder() {
   const ref = useRef<THREE.Mesh>(null)
@@ -202,10 +308,12 @@ interface RealGuitarProps {
 
 export default function RealGuitar3D({ scrollProgress }: RealGuitarProps) {
   return (
-    <Suspense fallback={<LoadingPlaceholder />}>
-      {ext === 'fbx' && <FBXGuitar scrollProgress={scrollProgress} />}
-      {ext === 'obj' && <OBJGuitar scrollProgress={scrollProgress} />}
-      {(ext === 'glb' || ext === 'gltf') && <GLTFGuitar scrollProgress={scrollProgress} />}
-    </Suspense>
+    <ModelErrorBoundary fallback={<ProceduralGuitar scrollProgress={scrollProgress} />}>
+      <Suspense fallback={<ProceduralGuitar scrollProgress={scrollProgress} />}>
+        {ext === 'fbx' && <FBXGuitar scrollProgress={scrollProgress} />}
+        {ext === 'obj' && <OBJGuitar scrollProgress={scrollProgress} />}
+        {(ext === 'glb' || ext === 'gltf') && <GLTFGuitar scrollProgress={scrollProgress} />}
+      </Suspense>
+    </ModelErrorBoundary>
   )
 }
