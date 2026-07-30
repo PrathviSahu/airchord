@@ -153,6 +153,10 @@ function GLTFGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject
     if (!scene) return
     enhanceMaterials(scene)
 
+    // Align model so neck points UP (+Y) and front face points forward (+Z)
+    scene.rotation.set(0, Math.PI / 2, Math.PI / 2)
+    scene.updateMatrixWorld(true)
+
     const box = new THREE.Box3().setFromObject(scene)
     const size = new THREE.Vector3()
     box.getSize(size)
