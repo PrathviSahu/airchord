@@ -27,40 +27,8 @@ interface LivePerformanceScreenProps {
 export default function LivePerformanceScreen({ config, onEnd }: LivePerformanceScreenProps) {
   const { song, capo, bpm, strumPattern, displayPattern, fingerMapping } = config
 
-  // Local lyrics (chord structure from library)
-  const localLyrics = song.sections.flatMap(s => s.lyrics)
-
-  // lrclib: fetched synced lines (text + real timestamps)
-  const [lrcLines, setLrcLines]             = useState<SyncedLine[] | null>(null)
-  const [lrcStatus, setLrcStatus]           = useState<'loading' | 'ok' | 'fallback'>('loading')
-
-  // Merged lyrics: use lrc timestamps + text when available, else local data
-  const allLyrics = lrcLines
-    ? lrcLines.map((l, i) => ({
-        text:          l.text,
-        chord:         localLyrics[i]?.chord ?? localLyrics[localLyrics.length - 1]?.chord ?? 'G',
-        time:          l.time,
-        fingerGesture: localLyrics[i]?.fingerGesture ?? '',
-      }))
-    : localLyrics
-
-  // ── Fetch synced lyrics from lrclib.net on mount ──────────────────
-  useEffect(() => {
-    let cancelled = false
-    const [min, sec] = song.duration.split(':').map(Number)
-    const durSec = min * 60 + (sec || 0)
-
-    fetchSyncedLyrics(song.id, song.artist, song.title, durSec).then(lines => {
-      if (cancelled) return
-      if (lines && lines.length > 0) {
-        setLrcLines(lines)
-        setLrcStatus('ok')
-      } else {
-        setLrcStatus('fallback')
-      }
-    })
-    return () => { cancelled = true }
-  }, [song.id, song.artist, song.title, song.duration])
+  // Lyrics from library — 100% script & language consistent with Step 2 (Hinglish/English)
+  const allLyrics = useMemo(() => song.sections.flatMap(s => s.lyrics), [song])
 
   // State
   const [isPlaying, setIsPlaying]           = useState(false)
@@ -721,21 +689,9 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
                 )}
 
                 {/* Live sync pill */}
-                {lrcStatus === 'ok' && (
-                  <span className="ml-auto px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold tracking-wide">
-                    🎵 LIVE SYNC
-                  </span>
-                )}
-                {lrcStatus === 'fallback' && (
-                  <span className="ml-auto px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500/60 text-[9px] font-bold tracking-wide">
-                    📋 LOCAL
-                  </span>
-                )}
-                {lrcStatus === 'loading' && (
-                  <span className="ml-auto px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/30 text-[9px] font-bold tracking-wide">
-                    ⏳ SYNCING...
-                  </span>
-                )}
+                <span className="ml-auto px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold tracking-wide">
+                  ⚡ AUTO SYNC
+                </span>
               </div>
             </div>
 
