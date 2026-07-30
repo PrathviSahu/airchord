@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Play, Pause, Video, Download, RotateCcw, Volume2, VolumeX, Mic, Sliders, Music, Sparkles } from 'lucide-react'
 import { SessionConfig } from './SongSetupScreen'
-import { initAudioEngine, setCapoFret } from '../utils/guitarSound'
+import { initAudioEngine, triggerGuitarChord, setCapoFret } from '../utils/guitarSound'
 import { GuitaristEngine, PlayStyle } from '../utils/guitaristEngine'
 import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
@@ -24,10 +24,18 @@ interface PracticeRoomScreenProps {
   onStartLive?: () => void
 }
 
+const AVAILABLE_CHORDS = [
+  'Em', 'Am', 'C', 'D', 'G', 'F',
+  'Bm', 'B7', 'F#m', 'Cadd9', 'Dsus2', 'Dsus4',
+  'Am7', 'E', 'A', 'B', 'G7', 'E7', 'A7', 'D7', 'Dm'
+]
+
 export default function PracticeRoomScreen({ config, onBack, onStartLive }: PracticeRoomScreenProps) {
-  // Config defaults for Pro Jam Room
+  // Config defaults for Pro Jam Room & Editable Finger Mapping
   const defaultFingerMapping = ['Em', 'Am', 'C', 'D', 'G', 'F']
-  const fingerMapping = config?.fingerMapping ?? defaultFingerMapping
+  const [fingerMapping, setFingerMapping] = useState<string[]>(config?.fingerMapping ?? defaultFingerMapping)
+  const [editingFingerIdx, setEditingFingerIdx] = useState<number | null>(null)
+  const [customInput, setCustomInput] = useState('')
 
   // Capo & BPM Controls
   const [capo, setCapo] = useState<number>(config?.capo ?? 0)
@@ -413,21 +421,28 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
           </motion.div>
         </div>
 
-        {/* Bottom Finger Reference Bar */}
-        <div className="flex items-center justify-center gap-2 flex-wrap">
+        {/* Bottom Finger Reference Bar — Click any finger card to edit its mapped chord! */}
+        <div className="flex items-center justify-center gap-2 flex-wrap pointer-events-auto">
           {fingerMapping.map((chord, idx) => (
-            <div
+            <button
               key={idx}
-              className={`px-3.5 py-2 rounded-xl border font-mono text-xs flex items-center gap-2 transition-all ${
+              onClick={() => {
+                initAudioEngine()
+                setEditingFingerIdx(idx)
+                setCustomInput(chord)
+              }}
+              title="Click to edit chord for this finger count"
+              className={`px-3.5 py-2 rounded-xl border font-mono text-xs flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                 detectedFingers === idx
                   ? 'bg-amber-400 text-black border-amber-400 font-black scale-110 shadow-lg shadow-amber-400/30'
-                  : 'bg-black/60 text-white/60 border-white/10'
+                  : 'bg-black/70 text-white/80 border-white/15 hover:border-amber-400/40 hover:bg-black/90'
               }`}
             >
               <span>{FINGER_EMOJI[idx]}</span>
-              <span className="font-bold">{chord}</span>
+              <span className="font-bold text-amber-300">{chord}</span>
               <span className="text-[10px] opacity-60">({idx}f)</span>
-            </div>
+              <span className="text-[10px] text-amber-400/80 ml-1">✏️</span>
+            </button>
           ))}
         </div>
       </div>
@@ -508,6 +523,88 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
                 </a>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Chord Map Editor Modal ── */}
+      <AnimatePresence>
+        {editingFingerIdx !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 12 }}
+              className="bg-neutral-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-black text-white flex items-center gap-2">
+                    <span>{FINGER_EMOJI[editingFingerIdx]}</span> Edit Chord for {editingFingerIdx} Finger{editingFingerIdx !== 1 ? 's' : ''}
+                  </h2>
+                  <p className="text-xs font-mono text-white/50">Pick a chord from the preset list or type any custom chord</p>
+                </div>
+                <button
+                  onClick={() => setEditingFingerIdx(null)}
+                  className="text-white/40 hover:text-white text-sm font-mono px-2 py-1"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              {/* Custom Input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customInput}
+                  onChange={e => setCustomInput(e.target.value)}
+                  placeholder="e.g. Dsus2, F#m, Cadd9..."
+                  className="flex-1 bg-black/50 border border-white/15 rounded-xl px-4 py-2.5 text-sm font-mono text-white outline-none focus:border-amber-400"
+                />
+                <button
+                  onClick={() => {
+                    if (customInput.trim()) {
+                      const newMap = [...fingerMapping]
+                      newMap[editingFingerIdx] = customInput.trim()
+                      setFingerMapping(newMap)
+                      triggerGuitarChord(customInput.trim(), 0.35)
+                      setEditingFingerIdx(null)
+                    }
+                  }}
+                  className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-black font-mono text-xs font-bold rounded-xl shadow-lg shadow-amber-400/20 transition-all"
+                >
+                  Apply Chord
+                </button>
+              </div>
+
+              {/* Available Chords Grid */}
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-60 overflow-y-auto pr-1">
+                {AVAILABLE_CHORDS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => {
+                      const newMap = [...fingerMapping]
+                      newMap[editingFingerIdx] = c
+                      setFingerMapping(newMap)
+                      triggerGuitarChord(c, 0.35)
+                      setEditingFingerIdx(null)
+                    }}
+                    className={`py-2.5 px-3 rounded-xl border font-mono text-xs font-bold transition-all ${
+                      fingerMapping[editingFingerIdx] === c
+                        ? 'bg-amber-400 text-black border-amber-400 shadow-md shadow-amber-400/30 font-black scale-105'
+                        : 'bg-black/50 text-white/80 border-white/10 hover:border-amber-400/50 hover:bg-white/10'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

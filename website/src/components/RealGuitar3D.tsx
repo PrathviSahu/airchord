@@ -269,8 +269,8 @@ function ProceduralGuitar({ scrollProgress }: { scrollProgress: React.MutableRef
       {/* Gold Tuning Pegs */}
       {[-0.27, 0.27].map((x, xi) =>
         [2.78, 2.98, 3.18].map((y, yi) => (
-          <mesh key={`${xi}-${yi}`} position={[x, y, 0.05]}>
-            <cylinderGeometry args={[0.045, 0.045, 0.22, 16]} rotation={[0, 0, Math.PI / 2]} />
+          <mesh key={`${xi}-${yi}`} position={[x, y, 0.05]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.045, 0.045, 0.22, 16]} />
             <meshStandardMaterial color="#e5c158" metalness={0.95} roughness={0.15} />
           </mesh>
         ))
