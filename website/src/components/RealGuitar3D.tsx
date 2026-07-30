@@ -11,7 +11,7 @@ import * as THREE from 'three'
 //
 //     e.g.  'guitar.fbx'   or   'acoustic_guitar.obj'  or  'guitar.glb'
 // ─────────────────────────────────────────────────────────────────────────────
-const MODEL_FILE = 'guitar.obj'
+const MODEL_FILE = 'guitar.glb'
 
 const ext = MODEL_FILE.split('.').pop()?.toLowerCase() ?? ''
 
@@ -339,7 +339,11 @@ interface RealGuitarProps {
 export default function RealGuitar3D({ scrollProgress }: RealGuitarProps) {
   return (
     <ModelErrorBoundary fallback={<ProceduralGuitar scrollProgress={scrollProgress} />}>
-      <ProceduralGuitar scrollProgress={scrollProgress} />
+      <Suspense fallback={<ProceduralGuitar scrollProgress={scrollProgress} />}>
+        {(ext === 'glb' || ext === 'gltf') && <GLTFGuitar scrollProgress={scrollProgress} />}
+        {ext === 'obj' && <OBJGuitar scrollProgress={scrollProgress} />}
+        {ext === 'fbx' && <FBXGuitar scrollProgress={scrollProgress} />}
+      </Suspense>
     </ModelErrorBoundary>
   )
 }
