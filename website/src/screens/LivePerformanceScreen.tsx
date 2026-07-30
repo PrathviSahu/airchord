@@ -262,6 +262,16 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     return () => clearInterval(iv)
   }, [isPlaying, allLyrics])
 
+  // Refs for voice recognition closure safety
+  const isPlayingRef     = useRef(isPlaying)
+  isPlayingRef.current     = isPlaying
+  const voiceFollowerRef = useRef(voiceFollower)
+  voiceFollowerRef.current = voiceFollower
+  const currentLineRef   = useRef(currentLine)
+  currentLineRef.current   = currentLine
+  const allLyricsRef     = useRef(allLyrics)
+  allLyricsRef.current     = allLyrics
+
   // ── Web Speech API Voice Recognition (Singing Lyric Follower) ────────
   useEffect(() => {
     if (!voiceFollower || !isPlaying) return
@@ -270,30 +280,59 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     if (!SpeechRecognition) return
 
     let recognition: any = null
+    let active = true
+
     try {
       recognition = new SpeechRecognition()
-      recognition.continuous = true
-      recognition.interimResults = true
-      recognition.lang = song.collections.includes('Hindi') || song.collections.includes('Bollywood') ? 'hi-IN' : 'en-US'
+      recognition.continuous     = true
+      recognition.interimResults  = true
+      // Use en-US so recognized text is in Latin alphabet (matching Romanized Hindi & English lyrics)
+      recognition.lang            = 'en-US'
 
       recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((r: any) => r[0].transcript)
+        if (!active) return
+
+        const rawTranscript = Array.from(event.results)
+          .map((r: any) => r[0]?.transcript || '')
           .join(' ')
           .toLowerCase()
+          .replace(/[^\w\s]/g, '')
 
-        const words = transcript.split(' ').filter(Boolean)
-        const latest = words[words.length - 1] || ''
-        setLastSungWord(latest)
+        const words = rawTranscript.split(/\s+/).filter(w => w.length >= 2)
+        if (words.length === 0) return
 
-        // If sung word matches current or next lyric text, advance line!
-        if (latest && latest.length > 2) {
-          const currentText = allLyrics[currentLine]?.text.toLowerCase() || ''
-          const nextText    = allLyrics[currentLine + 1]?.text.toLowerCase() || ''
+        const recentPhrase = words.slice(-3).join(' ')
+        setLastSungWord(recentPhrase || words[words.length - 1])
 
-          if (nextText.includes(latest)) {
-            setCurrentLine(l => Math.min(allLyrics.length - 1, l + 1))
+        const curIdx = currentLineRef.current
+        const lyrics = allLyricsRef.current
+
+        // Check matching against next 2 upcoming lyric lines
+        for (let targetIdx = curIdx + 1; targetIdx <= Math.min(lyrics.length - 1, curIdx + 2); targetIdx++) {
+          const targetLineText = (lyrics[targetIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, '')
+          const targetWords    = targetLineText.split(/\s+/).filter(w => w.length >= 3)
+
+          if (targetWords.length === 0) continue
+
+          // Match if any recognized word (>=3 chars) is contained in or equals target line words
+          const isMatch = words.some(w => w.length >= 3 && targetWords.some(tw => tw.includes(w) || w.includes(tw)))
+          if (isMatch) {
+            setCurrentLine(targetIdx)
+            break
           }
+        }
+      }
+
+      recognition.onend = () => {
+        // Auto-restart recognition so mic never drops out mid-song
+        if (active && voiceFollowerRef.current && isPlayingRef.current) {
+          try { recognition.start() } catch {}
+        }
+      }
+
+      recognition.onerror = () => {
+        if (active && voiceFollowerRef.current && isPlayingRef.current) {
+          try { recognition.start() } catch {}
         }
       }
 
@@ -301,9 +340,10 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     } catch { /* ignore if mic permission blocked */ }
 
     return () => {
+      active = false
       try { recognition?.stop() } catch {}
     }
-  }, [voiceFollower, isPlaying, song, allLyrics, currentLine])
+  }, [voiceFollower, isPlaying])
 
   // ── Countdown then start ─────────────────────────────────────────────
   const handleStartWithCountdown = useCallback(() => {
