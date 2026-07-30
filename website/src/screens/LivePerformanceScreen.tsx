@@ -5,6 +5,8 @@ import { SessionConfig } from './SongSetupScreen'
 import {
   initAudioEngine,
   triggerGuitarChord,
+  playPatternBeat,
+  CHORD_NOTES,
   setCapoFret,
 } from '../utils/guitarSound'
 import { useHandTracking } from '../utils/useHandTracking'
@@ -14,7 +16,7 @@ import { drawHandSkeleton } from '../utils/handTracker'
 
 // Finger emoji set
 const FINGER_EMOJI = ['✊', '☝️', '✌️', '🤟', '🖐️', '✋']
-const STRUM_SYMBOL_MAP: Record<string, string> = { D: '↓', U: '↑', '.': '•', X: '✕' }
+const STRUM_SYMBOL_MAP: Record<string, string> = { D: '↓', U: '↑', '.': '•', X: '✕', '↓': '↓', '↑': '↑', '•': '•', '✕': '✕' }
 
 interface LivePerformanceScreenProps {
   config: SessionConfig
@@ -152,15 +154,15 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     }
     const beatMs = Math.round(60000 / (bpm || 60))
     const patterns = strumPattern
-    let beatIndex = 0
+    let beatIndex = -1
 
     const iv = setInterval(() => {
       beatIndex = (beatIndex + 1) % patterns.length
       setActiveBeat(beatIndex)
       const stroke = patterns[beatIndex]
-      if (stroke !== '.' && stroke !== 'X') {
-        triggerGuitarChord(detectedChordRef.current, 0.35)
-      }
+      const chordName = detectedChordRef.current || 'Em'
+      const notes = CHORD_NOTES[chordName] || ['E2','A2','D3','G3','B3','E4']
+      playPatternBeat(stroke, notes, 0.35)
     }, beatMs)
 
     return () => clearInterval(iv)
