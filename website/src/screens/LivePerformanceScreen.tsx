@@ -168,24 +168,40 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     return () => clearInterval(iv)
   }, [isPlaying, isMuted, bpm, strumPattern])
 
-  // ── Lyric auto-advance + stop at end ────────────────────────────────
+  // ── Lyric auto-advance using per-line time diffs from songLibrary ───
   useEffect(() => {
     if (!isPlaying) return
-    const secPerLine = (60 / bpm) * 4 // ~4 beats per lyric line
-    const iv = setInterval(() => {
-      setCurrentLine(prev => {
-        if (prev >= allLyrics.length - 1) {
-          // Last line reached — stop the performance
-          clearInterval(iv)
+
+    let lineIdx = 0
+    let timeoutId: ReturnType<typeof setTimeout>
+
+    const scheduleNext = (currentIdx: number) => {
+      if (currentIdx >= allLyrics.length - 1) {
+        // Reached last line — stop after a moment
+        timeoutId = setTimeout(() => {
           setIsPlaying(false)
           setActiveBeat(-1)
-          return prev
-        }
-        return prev + 1
-      })
-    }, secPerLine * 1000)
-    return () => clearInterval(iv)
-  }, [isPlaying, bpm, allLyrics.length])
+        }, 4000)
+        return
+      }
+
+      const currentTime = allLyrics[currentIdx]?.time ?? 0
+      const nextTime    = allLyrics[currentIdx + 1]?.time ?? 0
+      // Use actual time diff from song data; fallback to 4-beat estimate
+      const fallbackSec = (60 / bpm) * 4
+      const diffSec     = nextTime > currentTime ? (nextTime - currentTime) : fallbackSec
+
+      timeoutId = setTimeout(() => {
+        lineIdx = currentIdx + 1
+        setCurrentLine(lineIdx)
+        scheduleNext(lineIdx)
+      }, diffSec * 1000)
+    }
+
+    scheduleNext(0)
+
+    return () => clearTimeout(timeoutId)
+  }, [isPlaying, bpm, allLyrics])
 
   // ── Countdown then start ─────────────────────────────────────────────
   const handleStartWithCountdown = useCallback(() => {
