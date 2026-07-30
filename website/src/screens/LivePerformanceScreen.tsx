@@ -307,18 +307,29 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         const curIdx = currentLineRef.current
         const lyrics = allLyricsRef.current
 
-        // Check matching against next 2 upcoming lyric lines
-        for (let targetIdx = curIdx + 1; targetIdx <= Math.min(lyrics.length - 1, curIdx + 2); targetIdx++) {
-          const targetLineText = (lyrics[targetIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, '')
-          const targetWords    = targetLineText.split(/\s+/).filter(w => w.length >= 3)
+        const currentLineText  = (lyrics[curIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, '')
+        const currentLineWords = currentLineText.split(/\s+/).filter(w => w.length >= 2)
 
-          if (targetWords.length === 0) continue
+        if (currentLineWords.length > 0) {
+          const lastWord       = currentLineWords[currentLineWords.length - 1]
+          const secondLastWord = currentLineWords.length >= 2 ? currentLineWords[currentLineWords.length - 2] : ''
 
-          // Match if any recognized word (>=3 chars) is contained in or equals target line words
-          const isMatch = words.some(w => w.length >= 3 && targetWords.some(tw => tw.includes(w) || w.includes(tw)))
-          if (isMatch) {
-            setCurrentLine(targetIdx)
-            break
+          const nextLineText  = (lyrics[curIdx + 1]?.text || '').toLowerCase().replace(/[^\w\s]/g, '')
+          const nextLineWords = nextLineText.split(/\s+/).filter(w => w.length >= 2)
+          const nextFirstWord = nextLineWords[0] || ''
+
+          // Trigger advance if heard the last word (or 2nd-to-last word) of current line, or first word of next line
+          const heardCurrentEnd = words.some(w =>
+            (lastWord && (w === lastWord || (lastWord.length >= 4 && (w.includes(lastWord) || lastWord.includes(w))))) ||
+            (secondLastWord && secondLastWord.length >= 4 && (w === secondLastWord || w.includes(secondLastWord)))
+          )
+
+          const heardNextStart = words.some(w =>
+            nextFirstWord && (w === nextFirstWord || (nextFirstWord.length >= 4 && (w.includes(nextFirstWord) || nextFirstWord.includes(w))))
+          )
+
+          if (heardCurrentEnd || heardNextStart) {
+            setCurrentLine(l => Math.min(lyrics.length - 1, l + 1))
           }
         }
       }
