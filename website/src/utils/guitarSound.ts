@@ -1,67 +1,67 @@
-// ── AirChord Modular Audio Engine Architecture ────────────────────────────────
-// Supports pluggable engine drivers:
-// 1. Studio Acoustic Sampled Engine (High-realism sampled acoustic guitar with SoundFont/WAV buffers)
-// 2. Nylon Classical Engine (Mellow fingerstyle classical sound)
-// 3. Classic Synth Engine (3-oscillator humanized acoustic synthesis)
+// ── AirChord Audio Engine v3.0 ────────────────────────────────────────────────
+// Fixes applied:
+//  1. CHORD_NOTES are now 6-element arrays; null = muted string
+//  2. D voicing fixed: [null,null,"D3","A3","D4","F#4"]
+//  3. B7 voicing fixed: [null,"B2","D#3","A3","B3","F#4"]
+//  4. STRING_GAIN table replaces bad (0.6+idx*0.05) formula
+//  5. Real strumming: strings fire 12ms apart (down) / 10ms apart (up)
+//  6. Per-string brightness lowpass: bass=dark, treble=bright
+//  7. Wider stereo image: Low E=-0.40, High e=+0.45
+//  8. Per-string attack: bass=9ms snap, treble=2ms snap
 
-export type GuitarType = 'steel' | 'nylon' | 'electric' | '12string'
-export type EngineMode = 'sampled' | 'nylon' | 'synth'
+export type GuitarType = "steel" | "nylon" | "electric" | "12string"
+export type EngineMode = "sampled" | "nylon" | "synth"
 
-let currentEngineMode: EngineMode = 'sampled'
-let currentGuitarType: GuitarType = 'steel'
+// 6 elements: [E2, A2, D3, G3, B3, E4]. null = muted (do not play that string)
+export type GuitarVoicing = (string | null)[]
+
+let currentEngineMode: EngineMode = "sampled"
+let currentGuitarType: GuitarType = "steel"
 let currentCapoFret   = 0
 let audioCtx: AudioContext | null = null
-let lastPlayedChord   = ''
+let lastPlayedChord   = ""
 
-// ── Pluggable Engine Interface ───────────────────────────────────────────────
+// ── Engine Interface ─────────────────────────────────────────────────────────
 export interface IGuitarEngine {
   id: string
   name: string
-  playPluckNote(note: string, volume: number, stringIndex: number): void
-  playDownStrum(notes: string[], volume: number): void
-  playUpStrum(notes: string[], volume: number): void
-  playMuteStrum(notes: string[], volume: number): void
+  playPluckNote(note: string, volume: number, stringIndex: number, delaySec?: number): void
+  playDownStrum(voicing: GuitarVoicing, volume: number): void
+  playUpStrum(voicing: GuitarVoicing, volume: number): void
+  playMuteStrum(voicing: GuitarVoicing, volume: number): void
 }
 
-// ── Shared Master Output Chain (Reverb + Compression + Master Volume) ───────
-let masterBuilt       = false
-let masterOut:  GainNode            | null = null
+// ── Shared Master Bus ────────────────────────────────────────────────────────
+let masterBuilt = false
+let masterOut:  GainNode               | null = null
 let compressor: DynamicsCompressorNode | null = null
-let reverbConv: ConvolverNode       | null = null
-let dryBus:     GainNode            | null = null
-let wetBus:     GainNode            | null = null
+let reverbConv: ConvolverNode          | null = null
+let dryBus:     GainNode               | null = null
+let wetBus:     GainNode               | null = null
 
 function buildMaster(ctx: AudioContext) {
   if (masterBuilt) return
   masterBuilt = true
-
-  // Plate reverb impulse — short bright acoustic space (0.9s tail)
   const sr  = ctx.sampleRate
   const len = Math.floor(sr * 0.9)
   const buf = ctx.createBuffer(2, len, sr)
   for (let ch = 0; ch < 2; ch++) {
     const d = buf.getChannelData(ch)
-    for (let i = 0; i < len; i++) {
-      const t = i / len
-      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3.2)
-    }
+    for (let i = 0; i < len; i++)
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2)
   }
   reverbConv = ctx.createConvolver()
   reverbConv.buffer = buf
-
-  dryBus = ctx.createGain(); dryBus.gain.value = 0.82
-  wetBus = ctx.createGain(); wetBus.gain.value = 0.16
-
+  dryBus = ctx.createGain(); dryBus.gain.value = 0.84
+  wetBus = ctx.createGain(); wetBus.gain.value = 0.15
   compressor = ctx.createDynamicsCompressor()
   compressor.threshold.value = -16
   compressor.knee.value      = 10
   compressor.ratio.value     = 3.5
   compressor.attack.value    = 0.003
   compressor.release.value   = 0.20
-
   masterOut = ctx.createGain()
-  masterOut.gain.value = 0.68
-
+  masterOut.gain.value = 0.72
   dryBus.connect(compressor)
   wetBus.connect(reverbConv!)
   reverbConv!.connect(compressor)
@@ -69,12 +69,12 @@ function buildMaster(ctx: AudioContext) {
   masterOut.connect(ctx.destination)
 }
 
-// ── Audio Context Unlock & Core Handlers ─────────────────────────────────────
+// ── Audio Context ────────────────────────────────────────────────────────────
 let isStrummingEnabled = true
 
 export function setStrummingEnabled(e: boolean) { isStrummingEnabled = e; if (e) initAudioEngine() }
 export function isStrummingActive()              { return isStrummingEnabled }
-export function toggleStrumming()               {
+export function toggleStrumming() {
   isStrummingEnabled = !isStrummingEnabled
   if (isStrummingEnabled) initAudioEngine()
   return isStrummingEnabled
@@ -82,553 +82,429 @@ export function toggleStrumming()               {
 
 export function initAudioEngine(): AudioContext | null {
   const ctx = getAudioContext()
-  if (ctx?.state === 'suspended') ctx.resume().catch(() => {})
-  if (ctx) {
-    buildMaster(ctx)
-    preloadCommonSamples(ctx)
-  }
+  if (ctx?.state === "suspended") ctx.resume().catch(() => {})
+  if (ctx) { buildMaster(ctx); preloadCommonSamples(ctx) }
   return ctx
 }
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   const unlock = () => {
     initAudioEngine()
-    window.removeEventListener('click',      unlock)
-    window.removeEventListener('keydown',    unlock)
-    window.removeEventListener('touchstart', unlock)
+    window.removeEventListener("click",      unlock)
+    window.removeEventListener("keydown",    unlock)
+    window.removeEventListener("touchstart", unlock)
   }
-  window.addEventListener('click',      unlock)
-  window.addEventListener('keydown',    unlock)
-  window.addEventListener('touchstart', unlock)
+  window.addEventListener("click",      unlock)
+  window.addEventListener("keydown",    unlock)
+  window.addEventListener("touchstart", unlock)
 }
 
 function getAudioContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null
+  if (typeof window === "undefined") return null
   if (!audioCtx) {
     const AC = window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     if (AC) audioCtx = new AC()
   }
-  if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {})
+  if (audioCtx?.state === "suspended") audioCtx.resume().catch(() => {})
   return audioCtx
 }
 
-export function setCapoFret(fret: number)    { currentCapoFret = Math.max(0, Math.min(7, fret)) }
+export function setCapoFret(fret: number)    { currentCapoFret   = Math.max(0, Math.min(7, fret)) }
 export function getCapoFret()                { return currentCapoFret }
 export function setGuitarType(t: GuitarType) { currentGuitarType = t }
 export function getGuitarType()              { return currentGuitarType }
+export function setEngineMode(m: EngineMode) { currentEngineMode = m }
+export function getEngineMode(): EngineMode  { return currentEngineMode }
 
-export function setEngineMode(mode: EngineMode) { currentEngineMode = mode }
-export function getEngineMode(): EngineMode    { return currentEngineMode }
-
-// ── Note Frequency Map ────────────────────────────────────────────────────────
+// ── Note Frequencies ─────────────────────────────────────────────────────────
 const NOTE_FREQS: Record<string, number> = {
-  E2:82.41, F2:87.31, 'F#2':92.50, G2:98.00, 'G#2':103.83, 'A#2':116.54,
-  A2:110.0, B2:123.47, C3:130.81, 'C#3':138.59, D3:146.83, 'D#3':155.56,
-  E3:164.81, F3:174.61, 'F#3':185.00, G3:196.0, 'G#3':207.65, A3:220.0,
-  B3:246.94, C4:261.63, 'C#4':277.18, D4:293.66, E4:329.63,
-  F4:349.23, 'F#4':369.99, G4:392.0, A4:440.0, B4:493.88, C5:523.25,
+  E2:82.41, F2:87.31, "F#2":92.50, G2:98.00, "G#2":103.83,
+  A2:110.0, "A#2":116.54, B2:123.47,
+  C3:130.81, "C#3":138.59, D3:146.83, "D#3":155.56,
+  E3:164.81, F3:174.61, "F#3":185.00, G3:196.0, "G#3":207.65,
+  A3:220.0, "A#3":233.08, B3:246.94,
+  C4:261.63, "C#4":277.18, D4:293.66, "D#4":311.13, E4:329.63,
+  F4:349.23, "F#4":369.99, G4:392.0, "G#4":415.30,
+  A4:440.0, B4:493.88, C5:523.25,
 }
 
-const STRING_PANS = [-0.26, -0.14, -0.04, 0.04, 0.14, 0.26]
+// ── Per-String Physics (index 0=Low E ... 5=High e) ──────────────────────────
 
-// ── Fret Scratch Noise (Finger Slide Simulation) ──────────────────────────────
+// Bug Fix #4: real loudness curve — G string is most resonant on acoustic
+const STRING_GAIN = [
+  0.55,  // Low E  — solid, not too loud
+  0.62,  // A      — warm and full
+  0.78,  // D      — midrange punch
+  0.92,  // G      — most resonant on acoustic
+  0.86,  // B      — bright and singing
+  0.80,  // High e — clear, slightly quieter than G
+]
+
+// Bug Fix #6: per-string tone brightness lowpass cutoff (Hz)
+const STRING_BRIGHTNESS = [
+  700,   // Low E  — very dark/warm
+  1100,  // A
+  1800,  // D
+  3200,  // G
+  5000,  // B
+  8000,  // High e — full brightness
+]
+
+// Bug Fix #8: per-string attack time (ms) — bass strings have heavier pick attack
+const STRING_ATTACK = [
+  0.009, // Low E
+  0.007, // A
+  0.005, // D
+  0.004, // G
+  0.003, // B
+  0.002, // High e
+]
+
+// Decay per string: bass strings ring longer
+const STRING_DECAY_MUL = [1.45, 1.25, 1.00, 0.88, 0.78, 0.68]
+
+// Bug Fix #7: wider stereo — bass hard-left, treble hard-right
+const STRING_PANS = [-0.40, -0.22, 0.00, 0.20, 0.35, 0.45]
+
+// ── Strum Engine ─────────────────────────────────────────────────────────────
+// Bug Fix #5: 12ms between strings on downstroke, 10ms on upstroke
+// Uses AudioContext scheduling (not setTimeout) for sample-accurate timing
+const DOWN_DELAY_MS = 12
+const UP_DELAY_MS   = 10
+
+function scheduleStrum(
+  voicing: GuitarVoicing,
+  volume: number,
+  downstroke: boolean,
+  playFn: (note: string, vol: number, strIdx: number, delaySec: number) => void
+) {
+  const order   = downstroke ? [0,1,2,3,4,5] : [5,4,3,2,1,0]
+  const delayMs = downstroke ? DOWN_DELAY_MS : UP_DELAY_MS
+  let hit = 0
+  order.forEach(si => {
+    const note = voicing[si]
+    if (note === null) return
+    const humanGain   = STRING_GAIN[si] * volume * (0.88 + Math.random() * 0.24)
+    const jitterMs    = Math.random() * 2.5
+    const delaySec    = (hit * delayMs + jitterMs) / 1000
+    const strokeScale = downstroke ? 1.0 : 0.82
+    hit++
+    playFn(note, humanGain * strokeScale, si, delaySec)
+  })
+}
+
+// ── Fret Scratch Noise ────────────────────────────────────────────────────────
 function playFretScratchNoise(ctx: AudioContext) {
   try {
     const now = ctx.currentTime
     const len = Math.round(ctx.sampleRate * 0.035)
     const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-    const data = buf.getChannelData(0)
-    for (let i = 0; i < len; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.sin((Math.PI * i) / len)
-    }
-
-    const src = ctx.createBufferSource()
-    src.buffer = buf
-
-    const filter = ctx.createBiquadFilter()
-    filter.type = 'highpass'
-    filter.frequency.value = 4500
-
+    const d   = buf.getChannelData(0)
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.sin((Math.PI * i) / len)
+    const src  = ctx.createBufferSource(); src.buffer = buf
+    const filt = ctx.createBiquadFilter(); filt.type = "highpass"; filt.frequency.value = 4500
     const gain = ctx.createGain()
     gain.gain.setValueAtTime(0.04, now)
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03)
-
-    src.connect(filter)
-    filter.connect(gain)
-    gain.connect(dryBus!)
-
+    src.connect(filt); filt.connect(gain); gain.connect(dryBus!)
     src.start(now)
   } catch { /* ignore */ }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DRIVER 1: Synth Guitar Engine (3-oscillator + body EQ + humanized touch)
+// DRIVER 1 — SynthGuitarEngine
 // ─────────────────────────────────────────────────────────────────────────────
-interface GuitarPreset {
-  chorus: number
-  decayMul: number
-  pickHz: number
-  bodyLow: number
-  bodyMid: number
-  bodyGain: number
-  shelfGain: number
-}
+interface GuitarPreset { chorus: number; decayBase: number; bodyLow: number; bodyMid: number; bodyGain: number; shelfGain: number }
 
 const PRESETS: Record<GuitarType, GuitarPreset> = {
-  steel:    { chorus: 3,  decayMul: 1.0, pickHz: 2200, bodyLow: 120,  bodyMid: 1800, bodyGain: 5.5, shelfGain: 1.5 },
-  nylon:    { chorus: 2,  decayMul: 0.9, pickHz: 900,  bodyLow: 90,   bodyMid: 900,  bodyGain: 4.5, shelfGain: -1.5 },
-  electric: { chorus: 4,  decayMul: 1.6, pickHz: 3800, bodyLow: 600,  bodyMid: 3200, bodyGain: 3.0, shelfGain: 2.5 },
-  '12string':{ chorus: 6, decayMul: 1.3, pickHz: 2600, bodyLow: 130,  bodyMid: 2000, bodyGain: 5.0, shelfGain: 2.0 },
+  steel:      { chorus: 3,  decayBase: 2.0, bodyLow: 120,  bodyMid: 1800, bodyGain: 5.5, shelfGain: 1.5 },
+  nylon:      { chorus: 2,  decayBase: 1.5, bodyLow: 90,   bodyMid: 900,  bodyGain: 4.5, shelfGain: -1.5 },
+  electric:   { chorus: 4,  decayBase: 2.8, bodyLow: 600,  bodyMid: 3200, bodyGain: 3.0, shelfGain: 2.5 },
+  "12string": { chorus: 6,  decayBase: 2.3, bodyLow: 130,  bodyMid: 2000, bodyGain: 5.0, shelfGain: 2.0 },
 }
 
 const waveCache: Partial<Record<GuitarType, PeriodicWave>> = {}
-
 function buildGuitarWave(ctx: AudioContext, type: GuitarType): PeriodicWave {
   if (waveCache[type]) return waveCache[type]!
-  let real: number[], imag: number[]
-  if (type === 'nylon') {
-    real = [0, 1.0, 0.50, 0.20, 0.08, 0.03, 0.01]
-    imag = [0, 0.0, 0.04, 0.03, 0.02, 0.01, 0.00]
-  } else if (type === 'electric') {
-    real = [0, 1.0, 0.82, 0.65, 0.46, 0.30, 0.18, 0.10, 0.05, 0.02]
-    imag = [0, 0.0, 0.10, 0.08, 0.06, 0.04, 0.02, 0.01, 0.01, 0.00]
-  } else if (type === '12string') {
-    real = [0, 1.0, 0.76, 0.50, 0.30, 0.18, 0.10, 0.05, 0.02]
-    imag = [0, 0.0, 0.08, 0.06, 0.04, 0.02, 0.01, 0.01, 0.00]
-  } else {
-    real = [0, 1.0, 0.70, 0.42, 0.26, 0.15, 0.09, 0.05, 0.03, 0.01]
-    imag = [0, 0.0, 0.07, 0.05, 0.03, 0.02, 0.01, 0.00, 0.00, 0.00]
+  const C: Record<GuitarType, { r: number[]; i: number[] }> = {
+    nylon:      { r:[0,1.0,0.50,0.20,0.08,0.03,0.01], i:[0,0,0.04,0.03,0.02,0.01,0] },
+    electric:   { r:[0,1.0,0.82,0.65,0.46,0.30,0.18,0.10,0.05,0.02], i:[0,0,0.10,0.08,0.06,0.04,0.02,0.01,0.01,0] },
+    "12string": { r:[0,1.0,0.76,0.50,0.30,0.18,0.10,0.05,0.02], i:[0,0,0.08,0.06,0.04,0.02,0.01,0.01,0] },
+    steel:      { r:[0,1.0,0.70,0.42,0.26,0.15,0.09,0.05,0.03,0.01], i:[0,0,0.07,0.05,0.03,0.02,0.01,0,0,0] },
   }
-  const wave = ctx.createPeriodicWave(new Float32Array(real), new Float32Array(imag), { disableNormalization: false })
+  const { r, i } = C[type]
+  const wave = ctx.createPeriodicWave(new Float32Array(r), new Float32Array(i), { disableNormalization: false })
   waveCache[type] = wave
   return wave
 }
 
 class SynthGuitarEngine implements IGuitarEngine {
-  id   = 'synth'
-  name = 'Classic Synth Guitar'
+  id   = "synth"
+  name = "Classic Synth Guitar"
 
-  playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
+  playPluckNote(note = "E4", volume = 0.22, stringIndex = 2, delaySec = 0) {
     if (!isStrummingEnabled) return
     try {
-      const ctx = getAudioContext()
-      if (!ctx) return
+      const ctx = getAudioContext(); if (!ctx) return
       buildMaster(ctx)
-
       const type   = currentGuitarType
       const preset = PRESETS[type]
       const baseHz = NOTE_FREQS[note] ?? 329.63
       const freq   = baseHz * Math.pow(2, currentCapoFret / 12)
-      const now    = ctx.currentTime
-
-      const pitchJitterCents = (Math.random() - 0.5) * 7.0
-      const pitchJitterFactor = Math.pow(2, pitchJitterCents / 1200)
-      const targetFreq = freq * pitchJitterFactor
-      const initialTensionSpike = targetFreq * (1.0 + 0.007 * (volume / 0.35))
-      const humanVolume = volume * (0.86 + Math.random() * 0.28)
-
-      // Clamp stringIndex to valid range [0..5]
-      const safeStrIdx = Math.max(0, Math.min(5, stringIndex))
-
-      const decay = (type === 'nylon' ? 1.5 : type === 'electric' ? 2.8 : 2.0)
-                 * preset.decayMul
-                 * (1.0 - safeStrIdx * 0.055)
-
+      const now    = ctx.currentTime + delaySec
+      const si     = Math.max(0, Math.min(5, stringIndex))
+      const jitter = Math.pow(2, ((Math.random() - 0.5) * 6) / 1200)
+      const target = freq * jitter
+      const spike  = target * (1 + 0.006 * (volume / 0.35))
+      const decay  = preset.decayBase * STRING_DECAY_MUL[si]
+      const attack = STRING_ATTACK[si]
       const wave = buildGuitarWave(ctx, type)
-      const osc1 = ctx.createOscillator()
-      const osc2 = ctx.createOscillator()
-      const osc3 = ctx.createOscillator()
-      osc1.setPeriodicWave(wave); osc2.setPeriodicWave(wave); osc3.setPeriodicWave(wave)
-
-      const centRatio = Math.pow(2, preset.chorus / 1200)
-      osc1.frequency.setValueAtTime(initialTensionSpike, now)
-      osc1.frequency.exponentialRampToValueAtTime(targetFreq, now + 0.035)
-      osc2.frequency.setValueAtTime(initialTensionSpike * centRatio, now)
-      osc2.frequency.exponentialRampToValueAtTime(targetFreq * centRatio, now + 0.035)
-      osc3.frequency.setValueAtTime(initialTensionSpike / centRatio, now)
-      osc3.frequency.exponentialRampToValueAtTime(targetFreq / centRatio, now + 0.035)
-
-      const envGain = ctx.createGain()
-      const peak    = humanVolume * 0.78
-      envGain.gain.setValueAtTime(0.0001, now)
-      envGain.gain.linearRampToValueAtTime(peak, now + 0.004)
-      envGain.gain.setValueAtTime(peak, now + 0.004)
-      envGain.gain.exponentialRampToValueAtTime(0.0001, now + decay)
-
-      const mix1 = ctx.createGain(); mix1.gain.value = 0.65
-      const mix2 = ctx.createGain(); mix2.gain.value = 0.20
-      const mix3 = ctx.createGain(); mix3.gain.value = 0.15
-      osc1.connect(mix1); mix1.connect(envGain)
-      osc2.connect(mix2); mix2.connect(envGain)
-      osc3.connect(mix3); mix3.connect(envGain)
-
-      const noiseLen = Math.round(ctx.sampleRate * 0.028)
-      const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate)
-      const nd       = noiseBuf.getChannelData(0)
-      for (let i = 0; i < noiseLen; i++) {
-        nd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (noiseLen * 0.25))
-      }
-      const pickSrc = ctx.createBufferSource()
-      pickSrc.buffer = noiseBuf
-      const pickBP = ctx.createBiquadFilter()
-      pickBP.type = 'bandpass'
-      pickBP.frequency.value = preset.pickHz * (0.88 + Math.random() * 0.24)
-      pickBP.Q.value         = 1.8 * (0.9 + Math.random() * 0.2)
-
-      const pickEnv = ctx.createGain()
-      pickEnv.gain.setValueAtTime(humanVolume * (0.24 + Math.random() * 0.12), now)
-      pickEnv.gain.exponentialRampToValueAtTime(0.0001, now + 0.025)
-      pickSrc.connect(pickBP); pickBP.connect(pickEnv)
-
-      // Body EQ: scale bass resonance DOWN for higher strings (D chord = strings 2-5 → less bass)
-      // String 0 (E2) = full bodyGain, String 5 (E4) = 10% of bodyGain
-      const bassScaleFactor = Math.max(0.1, 1.0 - safeStrIdx * 0.18)
-
+      const cr   = Math.pow(2, preset.chorus / 1200)
+      const oscs = [ctx.createOscillator(), ctx.createOscillator(), ctx.createOscillator()]
+      oscs.forEach(o => o.setPeriodicWave(wave))
+      oscs[0].frequency.setValueAtTime(spike,      now); oscs[0].frequency.exponentialRampToValueAtTime(target,      now + 0.035)
+      oscs[1].frequency.setValueAtTime(spike * cr, now); oscs[1].frequency.exponentialRampToValueAtTime(target * cr, now + 0.035)
+      oscs[2].frequency.setValueAtTime(spike / cr, now); oscs[2].frequency.exponentialRampToValueAtTime(target / cr, now + 0.035)
+      const mixes = [0.52, 0.24, 0.24].map(v => { const g = ctx.createGain(); g.gain.value = v; return g })
+      oscs.forEach((o, k) => o.connect(mixes[k]))
+      const toneLP = ctx.createBiquadFilter()
+      toneLP.type = "lowpass"; toneLP.frequency.value = STRING_BRIGHTNESS[si]; toneLP.Q.value = 0.5
       const bodyLo = ctx.createBiquadFilter()
-      bodyLo.type = 'peaking'; bodyLo.frequency.value = preset.bodyLow; bodyLo.Q.value = 1.4; bodyLo.gain.value = preset.bodyGain * bassScaleFactor
-
+      bodyLo.type = "peaking"; bodyLo.frequency.value = preset.bodyLow; bodyLo.Q.value = 1.6
+      bodyLo.gain.value = preset.bodyGain * (si <= 1 ? 1.0 : si === 2 ? 0.35 : 0.05)
       const bodyHi = ctx.createBiquadFilter()
-      bodyHi.type = 'peaking'; bodyHi.frequency.value = preset.bodyMid; bodyHi.Q.value = 1.0; bodyHi.gain.value = 2.5
-
+      bodyHi.type = "peaking"; bodyHi.frequency.value = preset.bodyMid; bodyHi.Q.value = 1.0; bodyHi.gain.value = 2.5
       const shelf = ctx.createBiquadFilter()
-      shelf.type = 'highshelf'; shelf.frequency.value = 6000; shelf.gain.value = preset.shelfGain
-
+      shelf.type = "highshelf"; shelf.frequency.value = 3500; shelf.gain.value = preset.shelfGain
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0.0001, now)
+      env.gain.linearRampToValueAtTime(volume, now + attack)
+      env.gain.exponentialRampToValueAtTime(volume * 0.42, now + 0.08)
+      env.gain.exponentialRampToValueAtTime(0.0001, now + decay)
       const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
-      pan?.pan.setValueAtTime(STRING_PANS[safeStrIdx] ?? 0, now)
-
-      envGain.connect(bodyLo)
-      pickEnv.connect(bodyLo)
-      bodyLo.connect(bodyHi)
-      bodyHi.connect(shelf)
-
-      const toOut: AudioNode = pan ? (shelf.connect(pan), pan) : shelf
-      toOut.connect(dryBus!)
-      toOut.connect(wetBus!)
-
-      osc1.start(now); osc2.start(now); osc3.start(now)
-      pickSrc.start(now)
-      const stopAt = now + decay + 0.1
-      osc1.stop(stopAt); osc2.stop(stopAt); osc3.stop(stopAt)
-      pickSrc.stop(now + 0.035)
+      pan?.pan.setValueAtTime(STRING_PANS[si], now)
+      mixes.forEach(m => m.connect(toneLP))
+      toneLP.connect(bodyLo); bodyLo.connect(bodyHi); bodyHi.connect(shelf); shelf.connect(env)
+      const out: AudioNode = pan ? (env.connect(pan), pan) : env
+      out.connect(dryBus!); out.connect(wetBus!)
+      const stopAt = now + decay + 0.05
+      oscs.forEach(o => { o.start(now); o.stop(stopAt) })
     } catch { /* ignore */ }
   }
 
-  playDownStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.32) {
+  playDownStrum(voicing: GuitarVoicing, volume: number) {
     if (!isStrummingEnabled) return
-    const baseRoll = currentGuitarType === 'nylon' ? 40 : currentGuitarType === '12string' ? 28 : 32
-    const roll = baseRoll * (0.88 + Math.random() * 0.24)
-    const stringOffset = Math.max(0, 6 - notes.length)
-    // For short chords (D, Dm, D7 etc): treble strings should be brighter than bass root
-    // For full 6-string chords (Em, G): bass root gets the natural accent
-    const isShortChord = stringOffset > 0
-    notes.forEach((note, idx) => {
-      const microJitter = (Math.random() - 0.5) * 8
-      const nonLinearProgress = Math.pow(idx / (notes.length - 1 || 1), 0.92)
-      const delay = Math.max(0, nonLinearProgress * (notes.length - 1) * roll + microJitter)
-      setTimeout(() => {
-        let stringAccent: number
-        if (isShortChord) {
-          // D chord: D3=soft root (0.78), A3=mid (0.95), D4=bright (1.08), F#4=brightest (1.12)
-          stringAccent = idx === 0 ? 0.78 : idx === notes.length - 1 ? 1.12 : (0.90 + idx * 0.06)
-        } else {
-          // Full chord: bass string gets slight accent, treble fades naturally
-          stringAccent = idx === 0 ? 1.15 : idx === notes.length - 1 ? 0.88 : 1.0
-        }
-        const humanVol = volume * stringAccent * (0.90 + Math.random() * 0.20)
-        this.playPluckNote(note, humanVol, stringOffset + idx)
-      }, delay)
-    })
+    scheduleStrum(voicing, volume, true, (n, v, si, d) => this.playPluckNote(n, v, si, d))
   }
-
-  playUpStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.28) {
+  playUpStrum(voicing: GuitarVoicing, volume: number) {
     if (!isStrummingEnabled) return
-    const baseRoll = currentGuitarType === 'nylon' ? 30 : 22
-    const roll = baseRoll * (0.86 + Math.random() * 0.28)
-    const rev = [...notes].reverse()
-    const stringOffset = Math.max(0, 6 - notes.length)
-    rev.forEach((note, idx) => {
-      const microJitter = (Math.random() - 0.5) * 7
-      const nonLinearProgress = Math.pow(idx / (rev.length - 1 || 1), 0.94)
-      const delay = Math.max(0, nonLinearProgress * (rev.length - 1) * roll + microJitter)
-      setTimeout(() => {
-        const stringAccent = idx < 2 ? 1.06 : 0.84
-        const humanVol = volume * stringAccent * (0.88 + Math.random() * 0.24)
-        this.playPluckNote(note, humanVol, 5 - (stringOffset + idx))
-      }, delay)
-    })
+    scheduleStrum(voicing, volume, false, (n, v, si, d) => this.playPluckNote(n, v, si, d))
   }
-
-  playMuteStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.12) {
+  playMuteStrum(voicing: GuitarVoicing, volume: number) {
     if (!isStrummingEnabled) return
-    const stringOffset = Math.max(0, 6 - notes.length)
-    notes.slice(0, 4).forEach((note, idx) => {
-      const delay = Math.max(0, idx * 10 + (Math.random() - 0.5) * 5)
-      setTimeout(() => this.playPluckNote(note, volume * (0.24 + Math.random() * 0.08), stringOffset + idx), delay)
+    let hit = 0
+    voicing.forEach((note, si) => {
+      if (note === null || hit >= 4) return
+      const d = (hit * 10 + Math.random() * 2) / 1000
+      this.playPluckNote(note, volume * STRING_GAIN[si] * 0.20, si, d)
+      hit++
     })
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DRIVER 2: Sampled Guitar Engine (Acoustic SoundFont Multi-Sample Player)
-// High-realism sampled acoustic guitar with SoundFont audio buffer caching
+// DRIVER 2 — SampledGuitarEngine
 // ─────────────────────────────────────────────────────────────────────────────
 const sampleCache: Record<string, AudioBuffer> = {}
-const COMMON_NOTES = ['E2','A2','D3','G3','B3','E4','C3','F2','G2','C4','D4','F4','F#4','A3','E3']
+
+// All notes used in chord voicings (D#3 for B7 is now included)
+const COMMON_NOTES = [
+  "E2","F2","F#2","G2","G#2","A2","A#2","B2",
+  "C3","C#3","D3","D#3","E3","F3","F#3","G3","G#3","A3","A#3","B3",
+  "C4","C#4","D4","D#4","E4","F4","F#4","G4","A4","B4",
+]
 
 async function preloadCommonSamples(ctx: AudioContext) {
   for (const n of COMMON_NOTES) {
-    if (!sampleCache[n]) {
-      try {
-        const noteName = n.replace('#', 's')
-        const url = `https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/${noteName}.mp3`
-        const resp = await fetch(url, { mode: 'cors' }).catch(() => null)
-        if (resp && resp.ok) {
-          const ab = await resp.arrayBuffer().catch(() => null)
-          if (ab) {
-            const decoded = await ctx.decodeAudioData(ab).catch(() => null)
-            if (decoded) sampleCache[n] = decoded
-          }
-        }
-      } catch { /* silent fallback */ }
-    }
+    if (sampleCache[n]) continue
+    try {
+      const url  = "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/" + n.replace("#","s") + ".mp3"
+      const resp = await fetch(url, { mode: "cors" }).catch(() => null)
+      if (!resp?.ok) continue
+      const ab  = await resp.arrayBuffer().catch(() => null)
+      if (!ab)  continue
+      const dec = await ctx.decodeAudioData(ab).catch(() => null)
+      if (dec)  sampleCache[n] = dec
+    } catch { /* silent */ }
   }
 }
 
 class SampledGuitarEngine implements IGuitarEngine {
-  id   = 'sampled'
-  name = 'Studio Acoustic (Sampled)'
-  private fallbackSynth = new SynthGuitarEngine()
+  id   = "sampled"
+  name = "Studio Acoustic (Sampled)"
+  private synth = new SynthGuitarEngine()
 
-  /** Preload SoundFont sample for high acoustic fidelity */
-  private async loadSampleForNote(ctx: AudioContext, note: string): Promise<AudioBuffer | null> {
+  private async loadNote(ctx: AudioContext, note: string): Promise<AudioBuffer | null> {
     if (sampleCache[note]) return sampleCache[note]
     try {
-      const noteName = note.replace('#', 's')
-      const url = `https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/${noteName}.mp3`
-      const resp = await fetch(url, { mode: 'cors' }).catch(() => null)
-      if (!resp || !resp.ok) return null
-      const arrayBuf = await resp.arrayBuffer().catch(() => null)
-      if (!arrayBuf) return null
-      const audioBuf = await ctx.decodeAudioData(arrayBuf).catch(() => null)
-      if (audioBuf) sampleCache[note] = audioBuf
-      return audioBuf
-    } catch {
-      return null
-    }
+      const url  = "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/" + note.replace("#","s") + ".mp3"
+      const resp = await fetch(url, { mode: "cors" }).catch(() => null)
+      if (!resp?.ok) return null
+      const ab   = await resp.arrayBuffer().catch(() => null)
+      if (!ab)   return null
+      const dec  = await ctx.decodeAudioData(ab).catch(() => null)
+      if (dec)   sampleCache[note] = dec
+      return dec
+    } catch { return null }
   }
 
-  playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
+  playPluckNote(note = "E4", volume = 0.22, stringIndex = 2, delaySec = 0) {
     if (!isStrummingEnabled) return
-    const ctx = getAudioContext()
-    if (!ctx) return
+    const ctx = getAudioContext(); if (!ctx) return
     buildMaster(ctx)
-
-    const baseHz = NOTE_FREQS[note] ?? 329.63
-    const capoFreq = baseHz * Math.pow(2, currentCapoFret / 12)
-    const playbackRate = capoFreq / baseHz
-
-    const humanVolume = volume * (0.88 + Math.random() * 0.24)
-    const now = ctx.currentTime
-    const safeStrIdx = Math.max(0, Math.min(5, stringIndex))
-
+    const si  = Math.max(0, Math.min(5, stringIndex))
+    const now = ctx.currentTime + delaySec
     const buf = sampleCache[note]
     if (buf) {
       try {
         const src = ctx.createBufferSource()
         src.buffer = buf
-        src.playbackRate.value = playbackRate
-
-        const gainNode = ctx.createGain()
-        gainNode.gain.setValueAtTime(humanVolume * 1.1, now)
-
-        // High-pass filter: cut sub-bass for higher strings (D chord strings idx 2+)
-        // String 0 (E2): no HP filter. String 2+ (D3/A3/D4/F#4): HP at 95Hz to kill boom
-        const hp = ctx.createBiquadFilter()
-        hp.type = 'highpass'
-        hp.frequency.value = safeStrIdx >= 2 ? 95 : 40
-        hp.Q.value = 0.7
-
-        // Presence boost: give mid/treble strings (idx 3+) a 2kHz brightness lift
-        const presence = ctx.createBiquadFilter()
-        presence.type = 'peaking'
-        presence.frequency.value = 2200
-        presence.Q.value = 1.2
-        presence.gain.value = safeStrIdx >= 3 ? 3.5 : safeStrIdx === 2 ? 1.5 : 0
-
+        src.playbackRate.value = Math.pow(2, currentCapoFret / 12)
+        const lp = ctx.createBiquadFilter()
+        lp.type = "lowpass"; lp.frequency.value = STRING_BRIGHTNESS[si]; lp.Q.value = 0.5
+        const gn = ctx.createGain(); gn.gain.setValueAtTime(volume, now)
         const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
-        pan?.pan.setValueAtTime(STRING_PANS[safeStrIdx] ?? 0, now)
-
-        src.connect(gainNode)
-        gainNode.connect(hp)
-        hp.connect(presence)
-        const toOut: AudioNode = pan ? (presence.connect(pan), pan) : presence
-        toOut.connect(dryBus!)
-        toOut.connect(wetBus!)
-
+        pan?.pan.setValueAtTime(STRING_PANS[si], now)
+        src.connect(lp); lp.connect(gn)
+        const out: AudioNode = pan ? (gn.connect(pan), pan) : gn
+        out.connect(dryBus!); out.connect(wetBus!)
         src.start(now)
       } catch {
-        this.fallbackSynth.playPluckNote(note, volume, stringIndex)
+        this.synth.playPluckNote(note, volume, stringIndex, delaySec)
       }
     } else {
-      this.loadSampleForNote(ctx, note).catch(() => {})
-      this.fallbackSynth.playPluckNote(note, volume, stringIndex)
+      this.loadNote(ctx, note).catch(() => {})
+      this.synth.playPluckNote(note, volume, stringIndex, delaySec)
     }
   }
 
-  playDownStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.32) {
+  playDownStrum(voicing: GuitarVoicing, volume: number) {
     if (!isStrummingEnabled) return
-    const baseRoll = 32
-    const roll = baseRoll * (0.88 + Math.random() * 0.24)
-    const stringOffset = Math.max(0, 6 - notes.length)
-    // Short chords (D, Dm, etc.): treble strings louder than bass root for bright D character
-    const isShortChord = stringOffset > 0
-    notes.forEach((note, idx) => {
-      const microJitter = (Math.random() - 0.5) * 8
-      const nonLinearProgress = Math.pow(idx / (notes.length - 1 || 1), 0.92)
-      const delay = Math.max(0, nonLinearProgress * (notes.length - 1) * roll + microJitter)
-      setTimeout(() => {
-        // Full rich acoustic volume for all chords: root note gets 1.10x boost, all notes full resonance
-        const stringAccent = idx === 0 ? 1.10 : 1.0
-        const humanVol = volume * stringAccent * (0.92 + Math.random() * 0.16)
-        this.playPluckNote(note, humanVol, stringOffset + idx)
-      }, delay)
-    })
+    scheduleStrum(voicing, volume, true, (n, v, si, d) => this.playPluckNote(n, v, si, d))
   }
-
-  playUpStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.28) {
+  playUpStrum(voicing: GuitarVoicing, volume: number) {
     if (!isStrummingEnabled) return
-    const baseRoll = 22
-    const roll = baseRoll * (0.86 + Math.random() * 0.28)
-    const rev = [...notes].reverse()
-    const stringOffset = Math.max(0, 6 - notes.length)
-    rev.forEach((note, idx) => {
-      const microJitter = (Math.random() - 0.5) * 7
-      const nonLinearProgress = Math.pow(idx / (rev.length - 1 || 1), 0.94)
-      const delay = Math.max(0, nonLinearProgress * (rev.length - 1) * roll + microJitter)
-      setTimeout(() => {
-        const stringAccent = idx < 2 ? 1.06 : 0.84
-        const humanVol = volume * stringAccent * (0.88 + Math.random() * 0.24)
-        this.playPluckNote(note, humanVol, 5 - (stringOffset + idx))
-      }, delay)
-    })
+    scheduleStrum(voicing, volume, false, (n, v, si, d) => this.playPluckNote(n, v, si, d))
   }
-
-  playMuteStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.12) {
+  playMuteStrum(voicing: GuitarVoicing, volume: number) {
     if (!isStrummingEnabled) return
-    const stringOffset = Math.max(0, 6 - notes.length)
-    notes.slice(0, 4).forEach((note, idx) => {
-      const delay = Math.max(0, idx * 10 + (Math.random() - 0.5) * 5)
-      setTimeout(() => this.playPluckNote(note, volume * (0.24 + Math.random() * 0.08), stringOffset + idx), delay)
+    let hit = 0
+    voicing.forEach((note, si) => {
+      if (note === null || hit >= 4) return
+      const d = (hit * 10 + Math.random() * 2) / 1000
+      this.playPluckNote(note, volume * STRING_GAIN[si] * 0.20, si, d)
+      hit++
     })
   }
 }
 
-// ── Audio Engine Registry ───────────────────────────────────────────────────
-const synthEngine = new SynthGuitarEngine()
+// ── Engine Registry ──────────────────────────────────────────────────────────
+const synthEngine   = new SynthGuitarEngine()
 const sampledEngine = new SampledGuitarEngine()
 
 function getActiveEngine(): IGuitarEngine {
-  if (currentEngineMode === 'nylon') {
-    setGuitarType('nylon')
-    return synthEngine
-  }
-  if (currentEngineMode === 'sampled') {
-    setGuitarType('steel')
-    return sampledEngine
-  }
-  setGuitarType('steel')
-  return synthEngine
+  if (currentEngineMode === "nylon")   { setGuitarType("nylon");  return synthEngine }
+  if (currentEngineMode === "sampled") { setGuitarType("steel");  return sampledEngine }
+  setGuitarType("steel"); return synthEngine
 }
 
-// ── Chord Voicing Map (Standard 6-String Guitar Voicings) ────────────────────
-export const CHORD_NOTES: Record<string, string[]> = {
-  // Open / Primary Major Chords
-  C:     ['C3','E3','G3','C4','E4'],
-  D:     ['D3','A3','D4','F#4'],
-  E:     ['E2','B2','E3','G#3','B3','E4'],
-  F:     ['F2','C3','F3','A3','C4','F4'],
-  G:     ['G2','B2','D3','G3','B3','G4'],
-  A:     ['A2','E3','A3','C#4','E4'],
-  B:     ['B2','F#3','B3','D#4','F#4'],
-
-  // Open / Primary Minor Chords
-  Cm:    ['C3','G3','C4','D#4','G4'],
-  Dm:    ['D3','A3','D4','F4'],
-  Em:    ['E2','B2','E3','G3','B3','E4'],
-  Fm:    ['F2','C3','F3','G#3','C4','F4'],
-  Gm:    ['G2','D3','G3','A#3','D4','G4'],
-  Am:    ['A2','E3','A3','C4','E4'],
-  Bm:    ['B2','F#3','B3','D4','F#4'],
-
-  // Dominant 7th Chords
-  C7:    ['C3','E3','A#3','C4','E4'],
-  D7:    ['D3','A3','C4','F#4'],
-  E7:    ['E2','B2','D3','G#3','B3','E4'],
-  F7:    ['F2','C3','D#3','A3','C4','F4'],
-  G7:    ['G2','B2','D3','G3','B3','F4'],
-  A7:    ['A2','E3','G3','C#4','E4'],
-  B7:    ['B2','D#3','A3','B3','F#4'],
-
+// ── Chord Voicing Table ───────────────────────────────────────────────────────
+// 6 elements always. null = muted. Order: [E2, A2, D3, G3, B3, E4]
+export const CHORD_NOTES: Record<string, GuitarVoicing> = {
+  // Open Major
+  C:       [null,  "C3",  "E3",  "G3",  "C4",  "E4"],
+  D:       [null,  null,  "D3",  "A3",  "D4",  "F#4"],
+  E:       ["E2",  "B2",  "E3",  "G#3", "B3",  "E4"],
+  F:       ["F2",  "C3",  "F3",  "A3",  "C4",  "F4"],
+  G:       ["G2",  "B2",  "D3",  "G3",  "B3",  "G4"],
+  A:       [null,  "A2",  "E3",  "A3",  "C#4", "E4"],
+  B:       [null,  "B2",  "F#3", "B3",  "D#4", "F#4"],
+  // Open Minor
+  Cm:      [null,  "C3",  "G3",  "C4",  "D#4", "G4"],
+  Dm:      [null,  null,  "D3",  "A3",  "D4",  "F4"],
+  Em:      ["E2",  "B2",  "E3",  "G3",  "B3",  "E4"],
+  Fm:      ["F2",  "C3",  "F3",  "G#3", "C4",  "F4"],
+  Gm:      ["G2",  "D3",  "G3",  "A#3", "D4",  "G4"],
+  Am:      [null,  "A2",  "E3",  "A3",  "C4",  "E4"],
+  Bm:      [null,  "B2",  "F#3", "B3",  "D4",  "F#4"],
+  // Dominant 7th
+  C7:      [null,  "C3",  "E3",  "A#3", "C4",  "E4"],
+  D7:      [null,  null,  "D3",  "A3",  "C4",  "F#4"],
+  E7:      ["E2",  "B2",  "D3",  "G#3", "B3",  "E4"],
+  F7:      ["F2",  "C3",  "D#3", "A3",  "C4",  "F4"],
+  G7:      ["G2",  "B2",  "D3",  "G3",  "B3",  "F4"],
+  A7:      [null,  "A2",  "E3",  "G3",  "C#4", "E4"],
+  B7:      [null,  "B2",  "D#3", "A3",  "B3",  "F#4"],
   // Sharps & Flats
-  'F#':  ['F#2','C#3','F#3','A#3','C#4','F#4'],
-  'F#m': ['F#2','C#3','F#3','A3','C#4','F#4'],
-  'F#7': ['F#2','C#3','E3','A#3','C#4','F#4'],
-  Bb:    ['A#2','F3','A#3','D4','F4'],
-  Eb:    ['D#3','A#3','D#4','G4'],
-  Ab:    ['G#2','D#3','G#3','C4','D#4','G#4'],
-
-  // Extended & Suspended Chords
-  Am7:   ['A2','E3','G3','C4','E4'],
-  Cadd9: ['C3','E3','G3','D4','E4'],
-  Gsus4: ['G2','C3','D3','G3','C4','G4'],
-  Dsus2: ['D3','A3','D4','E4'],
-  Dsus4: ['D3','A3','D4','G4'],
+  "F#":    ["F#2", "C#3", "F#3", "A#3", "C#4", "F#4"],
+  "F#m":   ["F#2", "C#3", "F#3", "A3",  "C#4", "F#4"],
+  "F#7":   ["F#2", "C#3", "E3",  "A#3", "C#4", "F#4"],
+  Bb:      [null,  "A#2", "F3",  "A#3", "D4",  "F4"],
+  Eb:      [null,  null,  "D#3", "A#3", "D#4", "G4"],
+  Ab:      ["G#2", "D#3", "G#3", "C4",  "D#4", "G#4"],
+  // Extended & Suspended
+  Am7:     [null,  "A2",  "E3",  "G3",  "C4",  "E4"],
+  Cadd9:   [null,  "C3",  "E3",  "G3",  "D4",  "E4"],
+  Gsus4:   ["G2",  "B2",  "D3",  "G3",  "C4",  "G4"],
+  Dsus2:   [null,  null,  "D3",  "A3",  "D4",  "E4"],
+  Dsus4:   [null,  null,  "D3",  "A3",  "D4",  "G4"],
 }
 
-// ── Public Unified API ───────────────────────────────────────────────────────
-export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
+const DEFAULT_VOICING: GuitarVoicing = ["E2", "B2", "E3", "G3", "B3", "E4"]
+
+// ── Public API ───────────────────────────────────────────────────────────────
+export function playPluckNote(note = "E4", volume = 0.22, stringIndex = 2) {
   initAudioEngine()
-  getActiveEngine().playPluckNote(note, volume, stringIndex)
+  getActiveEngine().playPluckNote(note, volume, stringIndex, 0)
 }
 
-export function triggerGuitarChord(chordName = 'Em', volume = 0.32) {
+export function triggerGuitarChord(chordName = "Em", volume = 0.32) {
   if (!isStrummingEnabled) return
   const ctx = getAudioContext()
-  if (ctx && lastPlayedChord !== '' && lastPlayedChord !== chordName) {
+  if (ctx && lastPlayedChord !== "" && lastPlayedChord !== chordName) {
     playFretScratchNoise(ctx)
   }
   lastPlayedChord = chordName
-
   initAudioEngine()
-  const notes = CHORD_NOTES[chordName] || CHORD_NOTES['Em']
-  getActiveEngine().playDownStrum(notes, volume)
+  const voicing = CHORD_NOTES[chordName] ?? DEFAULT_VOICING
+  getActiveEngine().playDownStrum(voicing, volume)
 }
 
-export function playGuitarChord(chordName = 'Em', volume = 0.32) {
+export function playGuitarChord(chordName = "Em", volume = 0.32) {
   triggerGuitarChord(chordName, volume)
 }
 
-export function playStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.32) {
-  getActiveEngine().playDownStrum(notes, volume)
+export function playStrum(voicing: GuitarVoicing, volume = 0.32) {
+  getActiveEngine().playDownStrum(voicing, volume)
 }
 
-export function playDownStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.32) {
-  getActiveEngine().playDownStrum(notes, volume)
+export function playDownStrum(voicing: GuitarVoicing, volume = 0.32) {
+  getActiveEngine().playDownStrum(voicing, volume)
 }
 
-export function playUpStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.28) {
-  getActiveEngine().playUpStrum(notes, volume)
+export function playUpStrum(voicing: GuitarVoicing, volume = 0.28) {
+  getActiveEngine().playUpStrum(voicing, volume)
 }
 
-export function playMuteStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.12) {
-  getActiveEngine().playMuteStrum(notes, volume)
+export function playMuteStrum(voicing: GuitarVoicing, volume = 0.12) {
+  getActiveEngine().playMuteStrum(voicing, volume)
 }
 
-export function playPatternBeat(stroke: string, notes: string[], volume = 0.32) {
+export function playPatternBeat(stroke: string, voicing: GuitarVoicing, volume = 0.32) {
   if (!isStrummingEnabled) return
   const s = stroke.toUpperCase()
-  if      (s === 'D' || s === '↓') playDownStrum(notes, volume)
-  else if (s === 'U' || s === '↑') playUpStrum(notes, volume)
-  else if (s === 'X' || s === '✕') playMuteStrum(notes, volume)
+  if      (s === "D" || s === "↓") playDownStrum(voicing, volume)
+  else if (s === "U" || s === "↑") playUpStrum(voicing, volume)
+  else if (s === "X" || s === "✕") playMuteStrum(voicing, volume)
 }
