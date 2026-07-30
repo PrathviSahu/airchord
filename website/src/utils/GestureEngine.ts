@@ -20,8 +20,8 @@ interface SmoothingState {
   holdCount: number
 }
 
-const HOLD_FRAMES = 3
-const DEBOUNCE_MS = 150
+const HOLD_FRAMES = 6    // ~200ms at 30fps — eliminates mid-transition flicker
+const DEBOUNCE_MS = 100   // shorter debounce so intentional fast changes still work
 
 const FINGER_GESTURE_NAMES: Record<number, string> = {
   0: 'Fist (0 fingers)',

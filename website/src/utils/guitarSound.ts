@@ -35,6 +35,7 @@ export interface IGuitarEngine {
 let masterBuilt = false
 let masterOut:  GainNode               | null = null
 let compressor: DynamicsCompressorNode | null = null
+let limiter:    DynamicsCompressorNode | null = null   // hard limiter
 let reverbConv: ConvolverNode          | null = null
 let dryBus:     GainNode               | null = null
 let wetBus:     GainNode               | null = null
@@ -60,12 +61,20 @@ function buildMaster(ctx: AudioContext) {
   compressor.ratio.value     = 3.5
   compressor.attack.value    = 0.003
   compressor.release.value   = 0.20
+  // Hard limiter: catches any chorus-volume peaks before they reach speakers
+  limiter = ctx.createDynamicsCompressor()
+  limiter.threshold.value = -3
+  limiter.knee.value      = 0
+  limiter.ratio.value     = 20
+  limiter.attack.value    = 0.001
+  limiter.release.value   = 0.05
   masterOut = ctx.createGain()
   masterOut.gain.value = 0.72
   dryBus.connect(compressor)
   wetBus.connect(reverbConv!)
   reverbConv!.connect(compressor)
-  compressor.connect(masterOut)
+  compressor.connect(limiter!)       // compressor → limiter
+  limiter!.connect(masterOut)        // limiter → master
   masterOut.connect(ctx.destination)
 }
 

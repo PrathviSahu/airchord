@@ -5,10 +5,9 @@ import { SessionConfig } from './SongSetupScreen'
 import {
   initAudioEngine,
   triggerGuitarChord,
-  playPatternBeat,
-  CHORD_NOTES,
   setCapoFret,
 } from '../utils/guitarSound'
+import { GuitaristEngine } from '../utils/guitaristEngine'
 import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
@@ -88,9 +87,16 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const videoRef      = useRef<HTMLVideoElement>(null)
   const canvasRef     = useRef<HTMLCanvasElement>(null)
   const streamRef     = useRef<MediaStream | null>(null)
-  const gestureRef    = useRef(new GestureEngine(getProfileById('classic')))
+  const gestureRef      = useRef(new GestureEngine(getProfileById('classic')))
   const detectedChordRef = useRef(detectedChord)
   detectedChordRef.current = detectedChord
+
+  // ── Guitarist Engine — lives for the lifetime of the performance session
+  const guitaristRef    = useRef(new GuitaristEngine(
+    GuitaristEngine.styleFromCollections(song.collections)
+  ))
+  // Current section name (Verse/Chorus/Bridge/Outro) — updated by lyric clock
+  const currentSectionRef = useRef<string>('Verse')
 
   const { initialize, processFrame, setOnResults } = useHandTracking()
 
@@ -179,23 +185,40 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   // ── Apply capo ───────────────────────────────────────────────────────
   useEffect(() => { setCapoFret(capo) }, [capo])
 
-  // ── Auto-strum beat engine ───────────────────────────────────────────
+  // ── Section tracker: keep currentSectionRef up-to-date ─────────────────
+  useEffect(() => {
+    let lineCount = 0
+    for (const section of song.sections) {
+      if (currentLine < lineCount + section.lyrics.length) {
+        currentSectionRef.current = section.name
+        break
+      }
+      lineCount += section.lyrics.length
+    }
+  }, [currentLine, song.sections])
+
+  // ── Auto-strum beat engine (now routed through GuitaristEngine) ──────────
   useEffect(() => {
     if (!isPlaying || isMuted) {
       setActiveBeat(-1)
       return
     }
-    const beatMs = Math.round(60000 / (bpm || 60))
+    const beatMs  = Math.round(60000 / (bpm || 60))
     const patterns = strumPattern
-    let beatIndex = -1
+    let beatIndex  = -1
 
     const iv = setInterval(() => {
       beatIndex = (beatIndex + 1) % patterns.length
       setActiveBeat(beatIndex)
-      const stroke = patterns[beatIndex]
+      const stroke    = patterns[beatIndex]
       const chordName = detectedChordRef.current || 'Em'
-      const voicing = CHORD_NOTES[chordName] ?? CHORD_NOTES['Em']!
-      playPatternBeat(stroke, voicing, 0.35)
+      guitaristRef.current.playBeat(
+        stroke,
+        chordName,
+        beatIndex,
+        currentSectionRef.current,
+        0.35
+      )
     }, beatMs)
 
     return () => clearInterval(iv)
@@ -285,6 +308,8 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   // ── Countdown then start ─────────────────────────────────────────────
   const handleStartWithCountdown = useCallback(() => {
     initAudioEngine()
+    guitaristRef.current.reset()        // clear any stale chord-ringing state
+    currentSectionRef.current = 'Verse' // reset section to start
     setCountdown(3)
     let count = 3
     const iv = setInterval(() => {
