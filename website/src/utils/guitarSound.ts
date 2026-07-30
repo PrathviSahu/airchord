@@ -49,8 +49,8 @@ function buildMaster(ctx: AudioContext) {
   reverbConv = ctx.createConvolver()
   reverbConv.buffer = buf
 
-  dryBus = ctx.createGain(); dryBus.gain.value = 0.82
-  wetBus = ctx.createGain(); wetBus.gain.value = 0.16
+  dryBus = ctx.createGain(); dryBus.gain.value = 0.84
+  wetBus = ctx.createGain(); wetBus.gain.value = 0.15
 
   compressor = ctx.createDynamicsCompressor()
   compressor.threshold.value = -16
@@ -60,7 +60,7 @@ function buildMaster(ctx: AudioContext) {
   compressor.release.value   = 0.20
 
   masterOut = ctx.createGain()
-  masterOut.gain.value = 0.68
+  masterOut.gain.value = 0.72
 
   dryBus.connect(compressor)
   wetBus.connect(reverbConv!)
@@ -123,10 +123,10 @@ export function getEngineMode(): EngineMode    { return currentEngineMode }
 
 // ── Note Frequency Map ────────────────────────────────────────────────────────
 const NOTE_FREQS: Record<string, number> = {
-  E2:82.41, F2:87.31, 'F#2':92.50, G2:98.00, 'G#2':103.83, 'A#2':116.54,
-  A2:110.0, B2:123.47, C3:130.81, 'C#3':138.59, D3:146.83, 'D#3':155.56,
-  E3:164.81, F3:174.61, 'F#3':185.00, G3:196.0, 'G#3':207.65, A3:220.0,
-  B3:246.94, C4:261.63, 'C#4':277.18, D4:293.66, E4:329.63,
+  E2:82.41, F2:87.31, 'F#2':92.50, G2:98.00, 'G#2':103.83, A2:110.0, 'A#2':116.54,
+  B2:123.47, C3:130.81, 'C#3':138.59, D3:146.83, 'D#3':155.56,
+  E3:164.81, F3:174.61, 'F#3':185.00, G3:196.0, 'G#3':207.65, A3:220.0, 'A#3':233.08,
+  B3:246.94, C4:261.63, 'C#4':277.18, D4:293.66, 'D#4':311.13, E4:329.63,
   F4:349.23, 'F#4':369.99, G4:392.0, A4:440.0, B4:493.88, C5:523.25,
 }
 
@@ -222,18 +222,17 @@ class SynthGuitarEngine implements IGuitarEngine {
       const freq   = baseHz * Math.pow(2, currentCapoFret / 12)
       const now    = ctx.currentTime
 
-      const pitchJitterCents = (Math.random() - 0.5) * 7.0
+      const pitchJitterCents = (Math.random() - 0.5) * 6.0
       const pitchJitterFactor = Math.pow(2, pitchJitterCents / 1200)
       const targetFreq = freq * pitchJitterFactor
-      const initialTensionSpike = targetFreq * (1.0 + 0.007 * (volume / 0.35))
-      const humanVolume = volume * (0.86 + Math.random() * 0.28)
+      const initialTensionSpike = targetFreq * (1.0 + 0.006 * (volume / 0.35))
+      const humanVolume = volume * (0.88 + Math.random() * 0.24)
 
-      // Clamp stringIndex to valid range [0..5]
       const safeStrIdx = Math.max(0, Math.min(5, stringIndex))
 
       const decay = (type === 'nylon' ? 1.5 : type === 'electric' ? 2.8 : 2.0)
                  * preset.decayMul
-                 * (1.0 - safeStrIdx * 0.055)
+                 * (1.0 - safeStrIdx * 0.05)
 
       const wave = buildGuitarWave(ctx, type)
       const osc1 = ctx.createOscillator()
@@ -249,68 +248,60 @@ class SynthGuitarEngine implements IGuitarEngine {
       osc3.frequency.setValueAtTime(initialTensionSpike / centRatio, now)
       osc3.frequency.exponentialRampToValueAtTime(targetFreq / centRatio, now + 0.035)
 
-      const envGain = ctx.createGain()
-      const peak    = humanVolume * 0.78
-      envGain.gain.setValueAtTime(0.0001, now)
-      envGain.gain.linearRampToValueAtTime(peak, now + 0.004)
-      envGain.gain.setValueAtTime(peak, now + 0.004)
-      envGain.gain.exponentialRampToValueAtTime(0.0001, now + decay)
+      const osc1Gain = ctx.createGain(); osc1Gain.gain.value = 0.52
+      const osc2Gain = ctx.createGain(); osc2Gain.gain.value = 0.24
+      const osc3Gain = ctx.createGain(); osc3Gain.gain.value = 0.24
+      osc1.connect(osc1Gain); osc2.connect(osc2Gain); osc3.connect(osc3Gain)
 
-      const mix1 = ctx.createGain(); mix1.gain.value = 0.65
-      const mix2 = ctx.createGain(); mix2.gain.value = 0.20
-      const mix3 = ctx.createGain(); mix3.gain.value = 0.15
-      osc1.connect(mix1); mix1.connect(envGain)
-      osc2.connect(mix2); mix2.connect(envGain)
-      osc3.connect(mix3); mix3.connect(envGain)
+      const pickFilter = ctx.createBiquadFilter()
+      pickFilter.type = 'lowpass'
+      pickFilter.frequency.setValueAtTime(preset.pickHz * (0.8 + volume * 0.4), now)
+      pickFilter.frequency.exponentialRampToValueAtTime(Math.max(250, targetFreq * 1.8), now + Math.min(0.25, decay * 0.2))
 
-      const noiseLen = Math.round(ctx.sampleRate * 0.028)
-      const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate)
-      const nd       = noiseBuf.getChannelData(0)
-      for (let i = 0; i < noiseLen; i++) {
-        nd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (noiseLen * 0.25))
-      }
-      const pickSrc = ctx.createBufferSource()
-      pickSrc.buffer = noiseBuf
-      const pickBP = ctx.createBiquadFilter()
-      pickBP.type = 'bandpass'
-      pickBP.frequency.value = preset.pickHz * (0.88 + Math.random() * 0.24)
-      pickBP.Q.value         = 1.8 * (0.9 + Math.random() * 0.2)
-
-      const pickEnv = ctx.createGain()
-      pickEnv.gain.setValueAtTime(humanVolume * (0.24 + Math.random() * 0.12), now)
-      pickEnv.gain.exponentialRampToValueAtTime(0.0001, now + 0.025)
-      pickSrc.connect(pickBP); pickBP.connect(pickEnv)
-
-      // Body EQ: scale bass resonance DOWN for higher strings (D chord = strings 2-5 → less bass)
-      // String 0 (E2) = full bodyGain, String 5 (E4) = 10% of bodyGain
-      const bassScaleFactor = Math.max(0.1, 1.0 - safeStrIdx * 0.18)
+      osc1Gain.connect(pickFilter)
+      osc2Gain.connect(pickFilter)
+      osc3Gain.connect(pickFilter)
 
       const bodyLo = ctx.createBiquadFilter()
-      bodyLo.type = 'peaking'; bodyLo.frequency.value = preset.bodyLow; bodyLo.Q.value = 1.4; bodyLo.gain.value = preset.bodyGain * bassScaleFactor
+      bodyLo.type = 'peaking'
+      bodyLo.frequency.value = preset.bodyLow
+      bodyLo.Q.value = 1.6
+      const bassScaleFactor = safeStrIdx <= 1 ? 1.0 : safeStrIdx === 2 ? 0.4 : 0.1
+      bodyLo.gain.value = preset.bodyGain * bassScaleFactor
 
       const bodyHi = ctx.createBiquadFilter()
-      bodyHi.type = 'peaking'; bodyHi.frequency.value = preset.bodyMid; bodyHi.Q.value = 1.0; bodyHi.gain.value = 2.5
+      bodyHi.type = 'peaking'
+      bodyHi.frequency.value = preset.bodyMid
+      bodyHi.Q.value = 1.0
+      bodyHi.gain.value = 2.5
 
       const shelf = ctx.createBiquadFilter()
-      shelf.type = 'highshelf'; shelf.frequency.value = 6000; shelf.gain.value = preset.shelfGain
+      shelf.type = 'highshelf'
+      shelf.frequency.value = 3500
+      shelf.gain.value = preset.shelfGain
+
+      const stringEnv = ctx.createGain()
+      stringEnv.gain.setValueAtTime(0.0001, now)
+      stringEnv.gain.linearRampToValueAtTime(humanVolume, now + 0.004)
+      stringEnv.gain.exponentialRampToValueAtTime(humanVolume * 0.45, now + 0.08)
+      stringEnv.gain.exponentialRampToValueAtTime(0.0001, now + decay)
 
       const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
       pan?.pan.setValueAtTime(STRING_PANS[safeStrIdx] ?? 0, now)
 
-      envGain.connect(bodyLo)
-      pickEnv.connect(bodyLo)
+      pickFilter.connect(bodyLo)
       bodyLo.connect(bodyHi)
       bodyHi.connect(shelf)
+      shelf.connect(stringEnv)
 
-      const toOut: AudioNode = pan ? (shelf.connect(pan), pan) : shelf
+      const toOut: AudioNode = pan ? (stringEnv.connect(pan), pan) : stringEnv
       toOut.connect(dryBus!)
       toOut.connect(wetBus!)
 
       osc1.start(now); osc2.start(now); osc3.start(now)
-      pickSrc.start(now)
-      const stopAt = now + decay + 0.1
-      osc1.stop(stopAt); osc2.stop(stopAt); osc3.stop(stopAt)
-      pickSrc.stop(now + 0.035)
+      osc1.stop(now + decay + 0.05)
+      osc2.stop(now + decay + 0.05)
+      osc3.stop(now + decay + 0.05)
     } catch { /* ignore */ }
   }
 
@@ -319,42 +310,37 @@ class SynthGuitarEngine implements IGuitarEngine {
     const baseRoll = currentGuitarType === 'nylon' ? 40 : currentGuitarType === '12string' ? 28 : 32
     const roll = baseRoll * (0.88 + Math.random() * 0.24)
     const stringOffset = Math.max(0, 6 - notes.length)
-    // For short chords (D, Dm, D7 etc): treble strings should be brighter than bass root
-    // For full 6-string chords (Em, G): bass root gets the natural accent
-    const isShortChord = stringOffset > 0
     notes.forEach((note, idx) => {
+      const stringIndex = stringOffset + idx
       const microJitter = (Math.random() - 0.5) * 8
       const nonLinearProgress = Math.pow(idx / (notes.length - 1 || 1), 0.92)
       const delay = Math.max(0, nonLinearProgress * (notes.length - 1) * roll + microJitter)
       setTimeout(() => {
-        let stringAccent: number
-        if (isShortChord) {
-          // D chord: D3=soft root (0.78), A3=mid (0.95), D4=bright (1.08), F#4=brightest (1.12)
-          stringAccent = idx === 0 ? 0.78 : idx === notes.length - 1 ? 1.12 : (0.90 + idx * 0.06)
-        } else {
-          // Full chord: bass string gets slight accent, treble fades naturally
-          stringAccent = idx === 0 ? 1.15 : idx === notes.length - 1 ? 0.88 : 1.0
-        }
+        // Root note accent (idx===0):
+        // String 0 or 1 (Low E or A string): 1.12x strong root (E, G, A, Am, B, B7, C)
+        // String 2 (D string, e.g. D chord): 1.02x balanced root
+        const stringAccent = idx === 0 ? (stringIndex <= 1 ? 1.12 : 1.02) : idx === notes.length - 1 ? 1.06 : 0.96
         const humanVol = volume * stringAccent * (0.90 + Math.random() * 0.20)
-        this.playPluckNote(note, humanVol, stringOffset + idx)
+        this.playPluckNote(note, humanVol, stringIndex)
       }, delay)
     })
   }
 
   playUpStrum(notes = ['E2','A2','D3','G3','B3','E4'], volume = 0.28) {
     if (!isStrummingEnabled) return
-    const baseRoll = currentGuitarType === 'nylon' ? 30 : 22
+    const baseRoll = 22
     const roll = baseRoll * (0.86 + Math.random() * 0.28)
     const rev = [...notes].reverse()
     const stringOffset = Math.max(0, 6 - notes.length)
     rev.forEach((note, idx) => {
+      const stringIndex = 5 - (stringOffset + idx)
       const microJitter = (Math.random() - 0.5) * 7
       const nonLinearProgress = Math.pow(idx / (rev.length - 1 || 1), 0.94)
       const delay = Math.max(0, nonLinearProgress * (rev.length - 1) * roll + microJitter)
       setTimeout(() => {
-        const stringAccent = idx < 2 ? 1.06 : 0.84
+        const stringAccent = idx < 2 ? 1.06 : 0.86
         const humanVol = volume * stringAccent * (0.88 + Math.random() * 0.24)
-        this.playPluckNote(note, humanVol, 5 - (stringOffset + idx))
+        this.playPluckNote(note, humanVol, stringIndex)
       }, delay)
     })
   }
@@ -374,7 +360,13 @@ class SynthGuitarEngine implements IGuitarEngine {
 // High-realism sampled acoustic guitar with SoundFont audio buffer caching
 // ─────────────────────────────────────────────────────────────────────────────
 const sampleCache: Record<string, AudioBuffer> = {}
-const COMMON_NOTES = ['E2','A2','D3','G3','B3','E4','C3','F2','G2','C4','D4','F4','F#4','A3','E3']
+
+// All chord notes used across the database pre-cached for instant response
+const COMMON_NOTES = [
+  'E2','F2','F#2','G2','G#2','A2','A#2','B2',
+  'C3','C#3','D3','D#3','E3','F3','F#3','G3','G#3','A3','A#3','B3',
+  'C4','C#4','D4','D#4','E4','F4','F#4','G4','A4','B4'
+]
 
 async function preloadCommonSamples(ctx: AudioContext) {
   for (const n of COMMON_NOTES) {
@@ -440,21 +432,23 @@ class SampledGuitarEngine implements IGuitarEngine {
         src.playbackRate.value = playbackRate
 
         const gainNode = ctx.createGain()
-        gainNode.gain.setValueAtTime(humanVolume * 1.1, now)
+        gainNode.gain.setValueAtTime(humanVolume * 1.15, now)
 
-        // High-pass filter: cut sub-bass for higher strings (D chord strings idx 2+)
-        // String 0 (E2): no HP filter. String 2+ (D3/A3/D4/F#4): HP at 95Hz to kill boom
+        // Clean high-pass filter:
+        // String 0 (Low E): 35 Hz
+        // String 1 (A string, B2 for B7 / A2 for Am): 55 Hz (preserves full warm bass)
+        // String 2+ (D, G, B, High E): 85 Hz (kills sub-bass boom, preserves brightness)
         const hp = ctx.createBiquadFilter()
         hp.type = 'highpass'
-        hp.frequency.value = safeStrIdx >= 2 ? 95 : 40
+        hp.frequency.value = safeStrIdx === 0 ? 35 : safeStrIdx === 1 ? 55 : 85
         hp.Q.value = 0.7
 
-        // Presence boost: give mid/treble strings (idx 3+) a 2kHz brightness lift
+        // Acoustic presence boost for treble strings
         const presence = ctx.createBiquadFilter()
         presence.type = 'peaking'
         presence.frequency.value = 2200
         presence.Q.value = 1.2
-        presence.gain.value = safeStrIdx >= 3 ? 3.5 : safeStrIdx === 2 ? 1.5 : 0
+        presence.gain.value = safeStrIdx >= 3 ? 3.0 : safeStrIdx === 2 ? 1.2 : 0
 
         const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
         pan?.pan.setValueAtTime(STRING_PANS[safeStrIdx] ?? 0, now)
@@ -481,21 +475,18 @@ class SampledGuitarEngine implements IGuitarEngine {
     const baseRoll = 32
     const roll = baseRoll * (0.88 + Math.random() * 0.24)
     const stringOffset = Math.max(0, 6 - notes.length)
-    // Short chords (D, Dm, etc.): treble strings louder than bass root for bright D character
-    const isShortChord = stringOffset > 0
     notes.forEach((note, idx) => {
+      const stringIndex = stringOffset + idx
       const microJitter = (Math.random() - 0.5) * 8
       const nonLinearProgress = Math.pow(idx / (notes.length - 1 || 1), 0.92)
       const delay = Math.max(0, nonLinearProgress * (notes.length - 1) * roll + microJitter)
       setTimeout(() => {
-        let stringAccent: number
-        if (isShortChord) {
-          stringAccent = idx === 0 ? 0.78 : idx === notes.length - 1 ? 1.12 : (0.90 + idx * 0.06)
-        } else {
-          stringAccent = idx === 0 ? 1.15 : idx === notes.length - 1 ? 0.88 : 1.0
-        }
+        // Root note accent (idx===0):
+        // String 0 or 1 (Low E or A string): 1.12x strong root (E, G, A, Am, B, B7, C)
+        // String 2 (D string, e.g. D chord): 1.02x balanced root
+        const stringAccent = idx === 0 ? (stringIndex <= 1 ? 1.12 : 1.02) : idx === notes.length - 1 ? 1.06 : 0.96
         const humanVol = volume * stringAccent * (0.90 + Math.random() * 0.20)
-        this.playPluckNote(note, humanVol, stringOffset + idx)
+        this.playPluckNote(note, humanVol, stringIndex)
       }, delay)
     })
   }
@@ -507,13 +498,14 @@ class SampledGuitarEngine implements IGuitarEngine {
     const rev = [...notes].reverse()
     const stringOffset = Math.max(0, 6 - notes.length)
     rev.forEach((note, idx) => {
+      const stringIndex = 5 - (stringOffset + idx)
       const microJitter = (Math.random() - 0.5) * 7
       const nonLinearProgress = Math.pow(idx / (rev.length - 1 || 1), 0.94)
       const delay = Math.max(0, nonLinearProgress * (rev.length - 1) * roll + microJitter)
       setTimeout(() => {
-        const stringAccent = idx < 2 ? 1.06 : 0.84
+        const stringAccent = idx < 2 ? 1.06 : 0.86
         const humanVol = volume * stringAccent * (0.88 + Math.random() * 0.24)
-        this.playPluckNote(note, humanVol, 5 - (stringOffset + idx))
+        this.playPluckNote(note, humanVol, stringIndex)
       }, delay)
     })
   }

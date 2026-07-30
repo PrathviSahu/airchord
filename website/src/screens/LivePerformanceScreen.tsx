@@ -201,40 +201,86 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     return () => clearInterval(iv)
   }, [isPlaying, isMuted, bpm, strumPattern])
 
-  // ── Lyric auto-advance using per-line time diffs from songLibrary ───
+  // ── Real-Time Elapsed Seconds Clock & Precise Lyric Sync ──────────────
+  const [elapsedSec, setElapsedSec]         = useState(0)
+  const [voiceFollower, setVoiceFollower]   = useState(false)
+  const [lastSungWord, setLastSungWord]     = useState('')
+
   useEffect(() => {
-    if (!isPlaying) return
-
-    let lineIdx = 0
-    let timeoutId: ReturnType<typeof setTimeout>
-
-    const scheduleNext = (currentIdx: number) => {
-      if (currentIdx >= allLyrics.length - 1) {
-        // Reached last line — stop after a moment
-        timeoutId = setTimeout(() => {
-          setIsPlaying(false)
-          setActiveBeat(-1)
-        }, 4000)
-        return
-      }
-
-      const currentTime = allLyrics[currentIdx]?.time ?? 0
-      const nextTime    = allLyrics[currentIdx + 1]?.time ?? 0
-      // Use actual time diff from song data; fallback to 4-beat estimate
-      const fallbackSec = (60 / bpm) * 4
-      const diffSec     = nextTime > currentTime ? (nextTime - currentTime) : fallbackSec
-
-      timeoutId = setTimeout(() => {
-        lineIdx = currentIdx + 1
-        setCurrentLine(lineIdx)
-        scheduleNext(lineIdx)
-      }, diffSec * 1000)
+    if (!isPlaying) {
+      setElapsedSec(0)
+      return
     }
 
-    scheduleNext(0)
+    const startTime = Date.now()
+    const iv = setInterval(() => {
+      const currentSec = (Date.now() - startTime) / 1000
+      setElapsedSec(currentSec)
 
-    return () => clearTimeout(timeoutId)
-  }, [isPlaying, bpm, allLyrics])
+      // Find the active lyric line index based on elapsed song time vs line timestamps
+      let matchIdx = 0
+      for (let i = 0; i < allLyrics.length; i++) {
+        if (allLyrics[i].time <= currentSec) {
+          matchIdx = i
+        } else {
+          break
+        }
+      }
+      setCurrentLine(matchIdx)
+
+      // Stop performance 4 seconds after the last line ends
+      const lastLineTime = allLyrics[allLyrics.length - 1]?.time ?? 0
+      if (allLyrics.length > 0 && currentSec >= lastLineTime + 8) {
+        setIsPlaying(false)
+        setActiveBeat(-1)
+      }
+    }, 100)
+
+    return () => clearInterval(iv)
+  }, [isPlaying, allLyrics])
+
+  // ── Web Speech API Voice Recognition (Singing Lyric Follower) ────────
+  useEffect(() => {
+    if (!voiceFollower || !isPlaying) return
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) return
+
+    let recognition: any = null
+    try {
+      recognition = new SpeechRecognition()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = song.collections.includes('Hindi') || song.collections.includes('Bollywood') ? 'hi-IN' : 'en-US'
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((r: any) => r[0].transcript)
+          .join(' ')
+          .toLowerCase()
+
+        const words = transcript.split(' ').filter(Boolean)
+        const latest = words[words.length - 1] || ''
+        setLastSungWord(latest)
+
+        // If sung word matches current or next lyric text, advance line!
+        if (latest && latest.length > 2) {
+          const currentText = allLyrics[currentLine]?.text.toLowerCase() || ''
+          const nextText    = allLyrics[currentLine + 1]?.text.toLowerCase() || ''
+
+          if (nextText.includes(latest)) {
+            setCurrentLine(l => Math.min(allLyrics.length - 1, l + 1))
+          }
+        }
+      }
+
+      recognition.start()
+    } catch { /* ignore if mic permission blocked */ }
+
+    return () => {
+      try { recognition?.stop() } catch {}
+    }
+  }, [voiceFollower, isPlaying, song, allLyrics, currentLine])
 
   // ── Countdown then start ─────────────────────────────────────────────
   const handleStartWithCountdown = useCallback(() => {
@@ -426,6 +472,27 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
               <span>Stop ({Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')})</span>
             </button>
           )}
+
+          {/* Elapsed song timer badge */}
+          {isPlaying && (
+            <div className="px-3 py-1.5 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 text-xs font-mono text-white/70">
+              ⏱️ {Math.floor(elapsedSec / 60)}:{String(Math.floor(elapsedSec % 60)).padStart(2, '0')}
+            </div>
+          )}
+
+          {/* Voice Singing Recognition Toggle Button */}
+          <button
+            onClick={() => setVoiceFollower(v => !v)}
+            title="Listen to your singing and auto-sync lyrics (Web Speech API)"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl backdrop-blur-xl border transition-all text-xs font-bold ${
+              voiceFollower
+                ? 'bg-emerald-500/30 border-emerald-400/50 text-emerald-200 animate-pulse'
+                : 'bg-black/40 border-white/10 text-white/60 hover:text-white hover:bg-black/60'
+            }`}
+          >
+            <span>🎤</span>
+            <span>{voiceFollower ? 'Sing-Sync ON' : 'Sing-Sync OFF'}</span>
+          </button>
 
           {/* YouTube background player toggle */}
           <button
