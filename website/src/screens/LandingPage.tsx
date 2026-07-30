@@ -3,7 +3,7 @@ import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'fra
 import { ArrowRight } from 'lucide-react'
 import StageScene from '../components/StageScene'
 import GuitarLoadingScreen from '../components/GuitarLoadingScreen'
-import { playPluckNote, playStrum } from '../utils/guitarSound'
+import { playPluckNote, playStrum, initAudioEngine } from '../utils/guitarSound'
 
 const FADE_UP = {
   hidden: { opacity: 0, y: 40 },
@@ -172,6 +172,45 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
   const { scrollYProgress } = useScroll()
   const [isLoaded, setIsLoaded] = useState(false)
   const handleLoaded = useCallback(() => setIsLoaded(true), [])
+
+  // ── Acoustic string pluck effect when scrolling page ──
+  const lastPluckTimeRef = useRef(0)
+  const lastScrollPosRef = useRef(0)
+
+  useEffect(() => {
+    const unlockAudio = () => {
+      initAudioEngine()
+    }
+
+    const handleScrollSound = () => {
+      initAudioEngine()
+      const now = performance.now()
+      const currentPos = window.scrollY
+      const delta = Math.abs(currentPos - lastScrollPosRef.current)
+
+      if (delta > 25 && now - lastPluckTimeRef.current > 140) {
+        lastPluckTimeRef.current = now
+        lastScrollPosRef.current = currentPos
+
+        const stringNotes = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4', 'G4', 'B4']
+        const noteIdx = Math.floor((currentPos / 220) % stringNotes.length)
+        const note = stringNotes[noteIdx]
+        playPluckNote(note, 0.28, noteIdx % 6)
+      }
+    }
+
+    window.addEventListener('scroll', handleScrollSound, { passive: true })
+    window.addEventListener('wheel', unlockAudio, { passive: true })
+    window.addEventListener('touchstart', unlockAudio, { passive: true })
+    window.addEventListener('click', unlockAudio, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollSound)
+      window.removeEventListener('wheel', unlockAudio)
+      window.removeEventListener('touchstart', unlockAudio)
+      window.removeEventListener('click', unlockAudio)
+    }
+  }, [])
 
   // Keep scrollProgress ref in sync with framer's scroll value
   useEffect(() => {

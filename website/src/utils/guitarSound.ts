@@ -543,6 +543,7 @@ export const CHORD_NOTES: Record<string, string[]> = {
 
 // ── Public Unified API ───────────────────────────────────────────────────────
 export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2) {
+  initAudioEngine()
   getActiveEngine().playPluckNote(note, volume, stringIndex)
 }
 
