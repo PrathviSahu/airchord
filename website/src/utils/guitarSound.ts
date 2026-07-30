@@ -319,12 +319,22 @@ class SynthGuitarEngine implements IGuitarEngine {
     const baseRoll = currentGuitarType === 'nylon' ? 40 : currentGuitarType === '12string' ? 28 : 32
     const roll = baseRoll * (0.88 + Math.random() * 0.24)
     const stringOffset = Math.max(0, 6 - notes.length)
+    // For short chords (D, Dm, D7 etc): treble strings should be brighter than bass root
+    // For full 6-string chords (Em, G): bass root gets the natural accent
+    const isShortChord = stringOffset > 0
     notes.forEach((note, idx) => {
       const microJitter = (Math.random() - 0.5) * 8
       const nonLinearProgress = Math.pow(idx / (notes.length - 1 || 1), 0.92)
       const delay = Math.max(0, nonLinearProgress * (notes.length - 1) * roll + microJitter)
       setTimeout(() => {
-        const stringAccent = idx === 0 ? 1.15 : idx === notes.length - 1 ? 0.88 : 1.0
+        let stringAccent: number
+        if (isShortChord) {
+          // D chord: D3=soft root (0.78), A3=mid (0.95), D4=bright (1.08), F#4=brightest (1.12)
+          stringAccent = idx === 0 ? 0.78 : idx === notes.length - 1 ? 1.12 : (0.90 + idx * 0.06)
+        } else {
+          // Full chord: bass string gets slight accent, treble fades naturally
+          stringAccent = idx === 0 ? 1.15 : idx === notes.length - 1 ? 0.88 : 1.0
+        }
         const humanVol = volume * stringAccent * (0.90 + Math.random() * 0.20)
         this.playPluckNote(note, humanVol, stringOffset + idx)
       }, delay)
@@ -420,6 +430,7 @@ class SampledGuitarEngine implements IGuitarEngine {
 
     const humanVolume = volume * (0.88 + Math.random() * 0.24)
     const now = ctx.currentTime
+    const safeStrIdx = Math.max(0, Math.min(5, stringIndex))
 
     const buf = sampleCache[note]
     if (buf) {
@@ -431,11 +442,27 @@ class SampledGuitarEngine implements IGuitarEngine {
         const gainNode = ctx.createGain()
         gainNode.gain.setValueAtTime(humanVolume * 1.1, now)
 
+        // High-pass filter: cut sub-bass for higher strings (D chord strings idx 2+)
+        // String 0 (E2): no HP filter. String 2+ (D3/A3/D4/F#4): HP at 95Hz to kill boom
+        const hp = ctx.createBiquadFilter()
+        hp.type = 'highpass'
+        hp.frequency.value = safeStrIdx >= 2 ? 95 : 40
+        hp.Q.value = 0.7
+
+        // Presence boost: give mid/treble strings (idx 3+) a 2kHz brightness lift
+        const presence = ctx.createBiquadFilter()
+        presence.type = 'peaking'
+        presence.frequency.value = 2200
+        presence.Q.value = 1.2
+        presence.gain.value = safeStrIdx >= 3 ? 3.5 : safeStrIdx === 2 ? 1.5 : 0
+
         const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
-        pan?.pan.setValueAtTime(STRING_PANS[stringIndex % 6] ?? 0, now)
+        pan?.pan.setValueAtTime(STRING_PANS[safeStrIdx] ?? 0, now)
 
         src.connect(gainNode)
-        const toOut: AudioNode = pan ? (gainNode.connect(pan), pan) : gainNode
+        gainNode.connect(hp)
+        hp.connect(presence)
+        const toOut: AudioNode = pan ? (presence.connect(pan), pan) : presence
         toOut.connect(dryBus!)
         toOut.connect(wetBus!)
 
@@ -454,12 +481,19 @@ class SampledGuitarEngine implements IGuitarEngine {
     const baseRoll = 32
     const roll = baseRoll * (0.88 + Math.random() * 0.24)
     const stringOffset = Math.max(0, 6 - notes.length)
+    // Short chords (D, Dm, etc.): treble strings louder than bass root for bright D character
+    const isShortChord = stringOffset > 0
     notes.forEach((note, idx) => {
       const microJitter = (Math.random() - 0.5) * 8
       const nonLinearProgress = Math.pow(idx / (notes.length - 1 || 1), 0.92)
       const delay = Math.max(0, nonLinearProgress * (notes.length - 1) * roll + microJitter)
       setTimeout(() => {
-        const stringAccent = idx === 0 ? 1.15 : idx === notes.length - 1 ? 0.88 : 1.0
+        let stringAccent: number
+        if (isShortChord) {
+          stringAccent = idx === 0 ? 0.78 : idx === notes.length - 1 ? 1.12 : (0.90 + idx * 0.06)
+        } else {
+          stringAccent = idx === 0 ? 1.15 : idx === notes.length - 1 ? 0.88 : 1.0
+        }
         const humanVol = volume * stringAccent * (0.90 + Math.random() * 0.20)
         this.playPluckNote(note, humanVol, stringOffset + idx)
       }, delay)
