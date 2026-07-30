@@ -73,6 +73,7 @@ export default function App() {
               setActiveSong(song)
               setMode('song-setup')
             }}
+            onOpenPractice={() => setMode('practice')}
             onBack={() => setMode('landing')}
           />
         )

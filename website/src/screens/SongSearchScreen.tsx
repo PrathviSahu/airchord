@@ -127,9 +127,10 @@ function SongCard({ song, onSelect, index }: { song: Song; onSelect: (s: Song) =
 interface SongSearchScreenProps {
   onSelectSong: (song: Song) => void
   onBack: () => void
+  onOpenPractice?: () => void
 }
 
-export default function SongSearchScreen({ onSelectSong, onBack }: SongSearchScreenProps) {
+export default function SongSearchScreen({ onSelectSong, onBack, onOpenPractice }: SongSearchScreenProps) {
   const [query, setQuery] = useState('')
   const [activeCollection, setActiveCollection] = useState('All')
 
@@ -161,6 +162,14 @@ export default function SongSearchScreen({ onSelectSong, onBack }: SongSearchScr
             ← Back
           </button>
           <div className="flex items-center gap-2">
+            {onOpenPractice && (
+              <button
+                onClick={onOpenPractice}
+                className="px-3.5 py-1.5 rounded-xl bg-purple-600/90 hover:bg-purple-500 text-white font-mono text-xs font-bold flex items-center gap-2 shadow-lg shadow-purple-600/30 transition-all mr-2"
+              >
+                <span>🎤 Pro Practice Room</span>
+              </button>
+            )}
             <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
             <span className="text-[11px] font-mono text-white/40 uppercase tracking-widest">AirChord</span>
           </div>
@@ -171,10 +180,12 @@ export default function SongSearchScreen({ onSelectSong, onBack }: SongSearchScr
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-5"
+          className="mb-5 flex items-end justify-between gap-4"
         >
-          <h1 className="text-3xl font-black text-white mb-1">Choose a Song</h1>
-          <p className="text-sm text-white/40">Search by title, artist, or chord. We'll set up everything for you.</p>
+          <div>
+            <h1 className="text-3xl font-black text-white mb-1">Choose a Song</h1>
+            <p className="text-sm text-white/40">Search by title, artist, or chord. Or enter Pro Practice Room to freestyle & record.</p>
+          </div>
         </motion.div>
 
         {/* Search bar */}

@@ -1,51 +1,89 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Play, CheckCircle2, RotateCcw, Volume2, Sparkles, Award, Music, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Video, Download, RotateCcw, Volume2, VolumeX, Mic, Sliders, Music, Sparkles } from 'lucide-react'
 import { SessionConfig } from './SongSetupScreen'
-import { initAudioEngine, triggerGuitarChord, setCapoFret } from '../utils/guitarSound'
+import { initAudioEngine, setCapoFret } from '../utils/guitarSound'
+import { GuitaristEngine, PlayStyle } from '../utils/guitaristEngine'
 import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
+import { getProfileById } from '../utils/GestureProfiles'
 import { drawHandSkeleton } from '../utils/handTracker'
 
+const FINGER_EMOJI = ['✊', '☝️', '✌️', '🤟', '🖐️', '✋']
+
+const STRUM_PRESETS: { name: string; pattern: string[]; display: string; style: PlayStyle }[] = [
+  { name: '8-Stroke Ballad', pattern: ['D', '.', 'D', 'U', '.', 'U', 'D', 'U'], display: '↓ • ↓ ↑ • ↑ ↓ ↑', style: 'ballad' },
+  { name: 'Pop Strum',       pattern: ['D', 'D', 'U', 'U', 'D', 'U'],            display: '↓ ↓ ↑ ↑ ↓ ↑',     style: 'pop' },
+  { name: 'Campfire Folk',   pattern: ['D', '.', 'D', 'U', 'D', 'U'],            display: '↓ • ↓ ↑ ↓ ↑',     style: 'campfire' },
+  { name: 'Driving Rock',    pattern: ['D', 'D', 'D', 'D', 'D', 'D', 'D', 'D'],   display: '↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓', style: 'pop' },
+]
+
 interface PracticeRoomScreenProps {
-  config: SessionConfig
+  config?: SessionConfig
   onBack: () => void
-  onStartLive: () => void
+  onStartLive?: () => void
 }
 
 export default function PracticeRoomScreen({ config, onBack, onStartLive }: PracticeRoomScreenProps) {
-  const { song, capo, fingerMapping } = config
+  // Config defaults for Pro Jam Room
+  const defaultFingerMapping = ['Em', 'Am', 'C', 'D', 'G', 'F']
+  const fingerMapping = config?.fingerMapping ?? defaultFingerMapping
 
-  const videoRef  = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  // Capo & BPM Controls
+  const [capo, setCapo] = useState<number>(config?.capo ?? 0)
+  const [bpm, setBpm]   = useState<number>(config?.bpm ?? 90)
+  const [selectedPresetIdx, setSelectedPresetIdx] = useState(0)
 
+  const activePreset = STRUM_PRESETS[selectedPresetIdx]
+  const strumPattern = activePreset.pattern
+
+  // Audio & Playback state
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted]     = useState(false)
+  const [activeBeat, setActiveBeat] = useState(-1)
+
+  // Camera & Tracking State
+  const videoRef      = useRef<HTMLVideoElement>(null)
+  const canvasRef     = useRef<HTMLCanvasElement>(null)
+  const streamRef     = useRef<MediaStream | null>(null)
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
+
+  // Gesture & Detection State
   const [detectedFingers, setDetectedFingers] = useState<number>(0)
-  const [detectedChord, setDetectedChord]     = useState<string>('Em')
+  const [detectedChord, setDetectedChord]     = useState<string>(fingerMapping[0] || 'Em')
+  const detectedChordRef                      = useRef(detectedChord)
+  detectedChordRef.current                    = detectedChord
 
-  // Practice state
-  const practiceChords = song.chords.length > 0 ? song.chords : ['G', 'Em', 'C', 'D']
-  const [targetIndex, setTargetIndex]       = useState(0)
-  const [matchedCount, setMatchedCount]     = useState(0)
-  const [practiceDone, setPracticeDone]     = useState(false)
-  const [feedbackEffect, setFeedbackEffect] = useState<string | null>(null)
-
-  const currentTargetChord = practiceChords[targetIndex] || practiceChords[0]
-  const targetFingerIdx    = fingerMapping.indexOf(currentTargetChord)
-  const requiredFingers    = targetFingerIdx >= 0 ? targetFingerIdx : 0
-  const gestureEmojis       = ['✊','☝️','✌️','🤟','🖐️','✋']
-
-  const gestureRef = useRef(new GestureEngine())
+  const gestureRef  = useRef(new GestureEngine(getProfileById('classic')))
+  const guitaristRef = useRef(new GuitaristEngine(activePreset.style))
   const { initialize, processFrame, setOnResults } = useHandTracking()
 
-  // ── Camera setup ──────────────────────────────────────────────────────────
+  // ── Recording State ──────────────────────────────────────────────────
+  const [isRecording, setIsRecording]       = useState(false)
+  const [recordingTime, setRecordingTime]   = useState(0)
+  const [recordedUrl, setRecordedUrl]       = useState<string | null>(null)
+  const mediaRecorderRef                     = useRef<MediaRecorder | null>(null)
+  const recordedChunksRef                    = useRef<Blob[]>([])
+  const recTimerRef                          = useRef<any>(null)
+
+  // ── Apply Capo ───────────────────────────────────────────────────────
+  useEffect(() => {
+    setCapoFret(capo)
+  }, [capo])
+
+  // Update Guitarist style when preset changes
+  useEffect(() => {
+    guitaristRef.current.setStyle(activePreset.style)
+  }, [activePreset])
+
+  // ── Boot Camera ──────────────────────────────────────────────────────
   useEffect(() => {
     async function startCam() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: true, // Request mic audio for recording & vocal input
         })
         streamRef.current = stream
         if (videoRef.current) {
@@ -56,7 +94,7 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
           }
         }
       } catch {
-        setCameraError('Camera blocked. Please allow camera access.')
+        setCameraError('Camera / Microphone permission blocked. Please allow media access.')
       }
     }
     startCam()
@@ -65,17 +103,15 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
     }
   }, [])
 
-  // MediaPipe initialization
+  // ── Hand Tracking MediaPipe ──────────────────────────────────────────
   useEffect(() => { initialize() }, [initialize])
-  useEffect(() => { setCapoFret(capo) }, [capo])
 
-  // Hand tracking frame processing
   useEffect(() => {
     setOnResults((result) => {
       if (!canvasRef.current || !videoRef.current) return
       const canvas = canvasRef.current
       const ctx    = canvas.getContext('2d')
-      canvas.width  = videoRef.current.videoWidth || 1280
+      canvas.width  = videoRef.current.videoWidth  || 1280
       canvas.height = videoRef.current.videoHeight || 720
       if (!ctx) return
 
@@ -105,210 +141,377 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
     return () => cancelAnimationFrame(animId)
   }, [cameraReady, processFrame])
 
-  // ── Match logic ──────────────────────────────────────────────────────────
+  // ── Auto-strum Engine ────────────────────────────────────────────────
   useEffect(() => {
-    if (practiceDone) return
-    if (detectedFingers === requiredFingers) {
-      initAudioEngine()
-      triggerGuitarChord(currentTargetChord, 0.40)
-      setFeedbackEffect(`MATCHED ${currentTargetChord}!`)
-
-      const timer = setTimeout(() => {
-        setFeedbackEffect(null)
-        if (targetIndex + 1 >= practiceChords.length) {
-          setPracticeDone(true)
-        } else {
-          setTargetIndex(prev => prev + 1)
-          setMatchedCount(prev => prev + 1)
-        }
-      }, 900)
-
-      return () => clearTimeout(timer)
+    if (!isPlaying || isMuted) {
+      setActiveBeat(-1)
+      return
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detectedFingers, targetIndex, practiceDone])
+    const beatMs   = Math.round(60000 / (bpm || 90))
+    const patterns = strumPattern
+    let beatIndex  = -1
 
-  const handleResetPractice = () => {
-    setTargetIndex(0)
-    setMatchedCount(0)
-    setPracticeDone(false)
+    const iv = setInterval(() => {
+      beatIndex = (beatIndex + 1) % patterns.length
+      setActiveBeat(beatIndex)
+      const stroke    = patterns[beatIndex]
+      const chordName = detectedChordRef.current || 'Em'
+      guitaristRef.current.playBeat(
+        stroke,
+        chordName,
+        beatIndex,
+        'Chorus', // Full dynamics for free jam
+        0.38
+      )
+    }, beatMs)
+
+    return () => clearInterval(iv)
+  }, [isPlaying, isMuted, bpm, strumPattern])
+
+  // ── Recording Module Handlers ────────────────────────────────────────
+  const handleStartRecording = useCallback(() => {
+    try {
+      recordedChunksRef.current = []
+      let recStream: MediaStream | null = null
+
+      if (streamRef.current) {
+        recStream = streamRef.current
+      } else if (canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
+        recStream = (canvasRef.current as any).captureStream(30)
+      }
+
+      if (!recStream || recStream.getTracks().length === 0) return
+
+      const mimeTypes = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4', '']
+      let selectedMime = ''
+      for (const m of mimeTypes) {
+        if (!m || (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m))) {
+          selectedMime = m
+          break
+        }
+      }
+
+      const options  = selectedMime ? { mimeType: selectedMime } : undefined
+      const recorder = new MediaRecorder(recStream, options)
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunksRef.current.push(e.data)
+        }
+      }
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: selectedMime || 'video/webm' })
+        const url  = URL.createObjectURL(blob)
+        setRecordedUrl(url)
+      }
+
+      recorder.start(1000)
+      mediaRecorderRef.current = recorder
+      setIsRecording(true)
+      setRecordingTime(0)
+
+      recTimerRef.current = setInterval(() => {
+        setRecordingTime(t => t + 1)
+      }, 1000)
+    } catch {
+      alert('Recording failed to initialize. Please check permissions.')
+    }
+  }, [])
+
+  const handleStopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    if (recTimerRef.current) {
+      clearInterval(recTimerRef.current)
+    }
+    setIsRecording(false)
+  }, [])
+
+  const formatRecTime = (sec: number) => {
+    const m = Math.floor(sec / 60)
+    const s = sec % 60
+    return `${m}:${s < 10 ? '0' : ''}${s}`
   }
 
   return (
-    <div className="fixed inset-0 bg-[#050508] text-white flex flex-col font-sans select-none overflow-hidden">
-      {/* ── Top Header ── */}
-      <div className="shrink-0 flex items-center justify-between px-8 py-4 bg-black/60 border-b border-white/8 backdrop-blur-md z-30">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-xs font-mono text-white/40 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Setup
-        </button>
+    <div className="relative w-full h-screen bg-[#050508] overflow-hidden select-none font-sans text-white">
 
-        <div className="text-center">
-          <span className="text-[10px] font-mono text-amber-300 uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-            🎯 Interactive Practice Room
-          </span>
-          <h2 className="text-sm font-black text-white mt-1">{song.title} ({song.artist})</h2>
-        </div>
+      {/* ── Background Video / Canvas Feed ── */}
+      <video
+        ref={videoRef}
+        playsInline
+        muted
+        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-75"
+      />
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] pointer-events-none z-10"
+      />
 
-        <button
-          onClick={onStartLive}
-          className="flex items-center gap-2 px-5 py-2 rounded-xl font-black text-xs text-black shadow-lg shadow-purple-600/30 transition-all hover:scale-105 active:scale-95"
-          style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' }}
-        >
-          <Play className="w-3.5 h-3.5 fill-current" />
-          Start Live Stage 🚀
-        </button>
-      </div>
+      {/* Subtle vignette gradient */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 pointer-events-none z-10" />
 
-      {/* ── Main Workspace ── */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Left: Camera Feed */}
-        <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
-          />
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full object-cover scale-x-[-1] pointer-events-none"
-          />
+      {/* ── Top Header Controls Bar ── */}
+      <div className="absolute top-0 left-0 right-0 z-20 p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap">
 
-          {!cameraReady && !cameraError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-20">
-              <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-3" />
-              <p className="text-xs font-mono text-white/60">Booting Camera & Hand Tracking...</p>
-            </div>
-          )}
-
-          {/* Feedback Splash overlay */}
-          <AnimatePresence>
-            {feedbackEffect && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.7 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.2 }}
-                className="absolute z-30 px-8 py-4 rounded-2xl bg-emerald-500/90 text-black font-black text-2xl shadow-2xl backdrop-blur-md flex items-center gap-3"
-              >
-                <Sparkles className="w-8 h-8 fill-current" />
-                {feedbackEffect}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Camera bottom status pill */}
-          <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3 px-4 py-2 rounded-xl bg-black/60 border border-white/10 backdrop-blur-md">
-            <span className="text-xl">{gestureEmojis[detectedFingers] || '✊'}</span>
-            <div>
-              <p className="text-[10px] font-mono text-white/40">Hand Status</p>
-              <p className="text-xs font-black text-amber-300">{detectedFingers} Fingers → {detectedChord}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Interactive Chord Trainer Panel */}
-        <div className="w-[380px] shrink-0 bg-[#080812] border-l border-white/8 p-6 flex flex-col justify-between overflow-y-auto z-20">
+        {/* Back Button & Title */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="w-10 h-10 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/80 transition-all"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <div>
-            <div className="flex items-center justify-between mb-6">
-              <span className="text-xs font-mono text-white/40 uppercase tracking-wider">Step-by-Step Trainer</span>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-500/30 text-purple-300 font-mono text-[10px] font-bold uppercase tracking-wider">
+                PRO PRACTICE ROOM
+              </span>
+              <span className="text-xs font-mono text-emerald-400 flex items-center gap-1">
+                <Mic className="w-3 h-3" /> Live Mic On
+              </span>
+            </div>
+            <h1 className="text-lg font-black tracking-tight text-white mt-0.5">Freestyle Jam & Record</h1>
+          </div>
+        </div>
+
+        {/* Pro Controls: Capo + BPM + Strum Pattern */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+
+          {/* Capo Selector */}
+          <div className="flex items-center gap-1 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-3 py-1.5">
+            <span className="text-[10px] font-mono text-white/40 uppercase mr-1">Capo</span>
+            {[0, 1, 2, 3, 4, 5, 6, 7].map(fret => (
               <button
-                onClick={handleResetPractice}
-                className="text-[10px] font-mono text-white/40 hover:text-white flex items-center gap-1 transition-colors"
+                key={fret}
+                onClick={() => {
+                  initAudioEngine()
+                  setCapo(fret)
+                }}
+                className={`w-6 h-6 rounded-lg font-mono text-xs font-bold transition-all ${
+                  capo === fret
+                    ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20 scale-105'
+                    : 'text-white/40 hover:text-white hover:bg-white/10'
+                }`}
               >
-                <RotateCcw className="w-3 h-3" /> Reset
+                {fret}
               </button>
-            </div>
-
-            {/* Target Chord Card */}
-            {!practiceDone ? (
-              <div className="p-6 rounded-3xl bg-gradient-to-b from-purple-900/30 to-black/60 border border-purple-500/30 text-center space-y-4 shadow-xl">
-                <p className="text-xs font-mono text-purple-300 uppercase tracking-widest">Target Chord #{targetIndex + 1}</p>
-                <div className="text-6xl font-black text-white tracking-tight drop-shadow-md">{currentTargetChord}</div>
-
-                <div className="p-4 rounded-2xl bg-white/5 border border-white/8 space-y-2">
-                  <p className="text-xs font-bold text-white">Required Hand Gesture</p>
-                  <div className="text-4xl">{gestureEmojis[requiredFingers]}</div>
-                  <p className="text-xs font-mono text-amber-300 font-bold">
-                    Show {requiredFingers} Finger{requiredFingers !== 1 ? 's' : ''} on Camera
-                  </p>
-                </div>
-
-                <div className="pt-2">
-                  {detectedFingers === requiredFingers ? (
-                    <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/40 animate-pulse">
-                      <CheckCircle2 className="w-4 h-4" /> PERFECT MATCH!
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/5 text-white/40 text-xs font-mono border border-white/10">
-                      Show gesture on camera...
-                    </span>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="p-6 rounded-3xl bg-gradient-to-b from-emerald-900/30 to-black/60 border border-emerald-500/40 text-center space-y-4 shadow-xl">
-                <Award className="w-16 h-16 text-emerald-400 mx-auto animate-bounce" />
-                <h3 className="text-xl font-black text-white">Practice Complete! 🎉</h3>
-                <p className="text-xs text-white/60 font-mono leading-relaxed">
-                  You successfully matched all {practiceChords.length} chords for {song.title}! You are ready to rock the live performance.
-                </p>
-                <button
-                  onClick={onStartLive}
-                  className="w-full py-3.5 rounded-2xl font-black text-sm text-black shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 transition-all hover:scale-105"
-                  style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  Jump to Live Stage Now
-                </button>
-              </div>
-            )}
-
-            {/* Song Chords List */}
-            <div className="mt-6 space-y-2">
-              <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest">Song Chord Progression</p>
-              <div className="grid grid-cols-2 gap-2">
-                {practiceChords.map((chord, idx) => {
-                  const fIdx = fingerMapping.indexOf(chord)
-                  const isCurrent = idx === targetIndex && !practiceDone
-                  const isDone    = idx < targetIndex || practiceDone
-                  return (
-                    <div
-                      key={idx}
-                      className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
-                        isCurrent
-                          ? 'bg-purple-600/30 border-purple-500/60 shadow-md shadow-purple-500/20'
-                          : isDone
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                          : 'bg-white/3 border-white/8 opacity-50'
-                      }`}
-                    >
-                      <div>
-                        <p className="text-xs font-black font-mono">{chord}</p>
-                        <p className="text-[10px] font-mono text-white/40">{gestureEmojis[fIdx >= 0 ? fIdx : 0]} {fIdx} finger</p>
-                      </div>
-                      {isDone && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* Bottom Action */}
-          <div className="pt-4 border-t border-white/8">
+          {/* BPM Controls */}
+          <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-3 py-1.5">
+            <span className="text-[10px] font-mono text-white/40 uppercase">BPM</span>
             <button
-              onClick={onStartLive}
-              className="w-full py-3.5 rounded-xl font-black text-xs text-white bg-white/10 hover:bg-white/15 border border-white/15 transition-all flex items-center justify-center gap-2"
+              onClick={() => setBpm(b => Math.max(40, b - 5))}
+              className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/70 font-mono text-xs"
             >
-              Skip Practice & Start Live 🚀
+              -
+            </button>
+            <span className="font-mono text-sm font-black text-amber-300 min-w-[32px] text-center">
+              {bpm}
+            </span>
+            <button
+              onClick={() => setBpm(b => Math.min(200, b + 5))}
+              className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/70 font-mono text-xs"
+            >
+              +
             </button>
           </div>
+
+          {/* Strum Pattern Selector */}
+          <select
+            value={selectedPresetIdx}
+            onChange={e => setSelectedPresetIdx(Number(e.target.value))}
+            className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-3 py-2 text-xs font-mono text-white/80 outline-none cursor-pointer hover:border-white/20 transition-all"
+          >
+            {STRUM_PRESETS.map((p, idx) => (
+              <option key={idx} value={idx} className="bg-neutral-900 text-white">
+                {p.name} ({p.display})
+              </option>
+            ))}
+          </select>
+
+          {/* Recording Button */}
+          {!isRecording ? (
+            <button
+              onClick={handleStartRecording}
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-600/90 hover:bg-red-500 text-white font-mono text-xs font-bold shadow-lg shadow-red-600/30 transition-all active:scale-95"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+              Record Performance
+            </button>
+          ) : (
+            <button
+              onClick={handleStopRecording}
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-600 text-white font-mono text-xs font-bold border border-white/30 animate-pulse shadow-lg shadow-red-600/40 transition-all"
+            >
+              <span className="w-2.5 h-2.5 rounded-sm bg-white" />
+              Recording {formatRecTime(recordingTime)} (Stop)
+            </button>
+          )}
+
+          {/* Play / Pause Metronome Strum Toggle */}
+          <button
+            onClick={() => {
+              initAudioEngine()
+              setIsPlaying(p => !p)
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-mono text-xs font-bold transition-all shadow-lg ${
+              isPlaying
+                ? 'bg-amber-400 text-black shadow-amber-400/20 hover:bg-amber-300'
+                : 'bg-purple-600 text-white shadow-purple-600/30 hover:bg-purple-500'
+            }`}
+          >
+            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
+            {isPlaying ? 'Pause Metronome' : 'Start Strumming'}
+          </button>
         </div>
       </div>
+
+      {/* ── Main Pro HUD Display ── */}
+      <div className="absolute inset-0 z-10 flex flex-col justify-between p-6 pointer-events-none pt-24 pb-28">
+
+        {/* Top Floating Key / Chord Status */}
+        <div className="flex justify-between items-start">
+          <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-5 py-3">
+            <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Active Tuning</p>
+            <p className="text-sm font-bold text-amber-300 font-mono mt-0.5">
+              Standard E {capo > 0 ? `(Capo ${capo})` : '(No Capo)'}
+            </p>
+          </div>
+
+          <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-5 py-3 text-right">
+            <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Selected Groove</p>
+            <p className="text-sm font-mono font-bold text-white mt-0.5">{activePreset.name}</p>
+            <p className="text-xs font-mono text-amber-400 tracking-wider mt-0.5">{activePreset.display}</p>
+          </div>
+        </div>
+
+        {/* Center Detected Chord Badge */}
+        <div className="flex flex-col items-center justify-center text-center">
+          <motion.div
+            key={detectedChord}
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="relative"
+          >
+            <div className="text-7xl mb-2">
+              {FINGER_EMOJI[detectedFingers] || '🎸'}
+            </div>
+            <div
+              className="font-black text-amber-300 tracking-tight leading-none drop-shadow-[0_0_40px_rgba(251,191,36,0.5)]"
+              style={{ fontSize: 110 }}
+            >
+              {detectedChord}
+            </div>
+            <p className="text-xs font-mono text-white/50 uppercase tracking-widest mt-2">
+              Detected ({detectedFingers} finger{detectedFingers !== 1 ? 's' : ''})
+            </p>
+          </motion.div>
+        </div>
+
+        {/* Bottom Finger Reference Bar */}
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          {fingerMapping.map((chord, idx) => (
+            <div
+              key={idx}
+              className={`px-3.5 py-2 rounded-xl border font-mono text-xs flex items-center gap-2 transition-all ${
+                detectedFingers === idx
+                  ? 'bg-amber-400 text-black border-amber-400 font-black scale-110 shadow-lg shadow-amber-400/30'
+                  : 'bg-black/60 text-white/60 border-white/10'
+              }`}
+            >
+              <span>{FINGER_EMOJI[idx]}</span>
+              <span className="font-bold">{chord}</span>
+              <span className="text-[10px] opacity-60">({idx}f)</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Bottom Strumming Beat Visualizer ── */}
+      {isPlaying && (
+        <div className="absolute bottom-4 left-6 right-6 z-20 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-6 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            <span className="text-xs font-mono text-white/60">Metronome: {bpm} BPM</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-1 justify-center max-w-xl">
+            {strumPattern.map((stroke, i) => (
+              <motion.div
+                key={i}
+                animate={{
+                  scale: activeBeat === i ? 1.25 : 1,
+                  backgroundColor: activeBeat === i ? '#fbbf24' : 'rgba(255,255,255,0.08)',
+                  borderColor: activeBeat === i ? '#f59e0b' : 'rgba(255,255,255,0.1)',
+                }}
+                className={`flex-1 h-9 rounded-xl border flex items-center justify-center font-mono font-black text-sm transition-all ${
+                  activeBeat === i ? 'text-black shadow-lg shadow-amber-400/30' : 'text-white/40'
+                }`}
+              >
+                {stroke === 'D' ? '↓' : stroke === 'U' ? '↑' : stroke === 'X' ? '✕' : '•'}
+              </motion.div>
+            ))}
+          </div>
+
+          <div className="text-xs font-mono text-white/40">
+            Beat {activeBeat >= 0 ? activeBeat + 1 : '-'}/{strumPattern.length}
+          </div>
+        </div>
+      )}
+
+      {/* ── Recording Preview Modal ── */}
+      <AnimatePresence>
+        {recordedUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-6"
+          >
+            <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 max-w-2xl w-full shadow-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-black text-white">Performance Recorded! 🎬</h2>
+                  <p className="text-xs font-mono text-white/50">Preview your jam recording below</p>
+                </div>
+                <button
+                  onClick={() => setRecordedUrl(null)}
+                  className="text-white/40 hover:text-white text-sm font-mono"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              <div className="relative aspect-video rounded-2xl overflow-hidden bg-black border border-white/10">
+                <video src={recordedUrl} controls autoPlay className="w-full h-full object-cover" />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <button
+                  onClick={() => setRecordedUrl(null)}
+                  className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-mono text-xs flex items-center gap-2 transition-all"
+                >
+                  <RotateCcw className="w-4 h-4" /> Re-record
+                </button>
+
+                <a
+                  href={recordedUrl}
+                  download="airchord-jam-session.webm"
+                  className="px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-mono text-xs font-bold flex items-center gap-2 shadow-lg shadow-amber-400/20 transition-all"
+                >
+                  <Download className="w-4 h-4" /> Download Video
+                </a>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   )
 }
