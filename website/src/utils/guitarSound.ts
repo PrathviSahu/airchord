@@ -539,6 +539,8 @@ export const CHORD_NOTES: Record<string, string[]> = {
   Am7:   ['A2','E3','G3','C4','E4'],
   Cadd9: ['C3','E3','G3','D4','E4'],
   Gsus4: ['G2','C3','D3','G3','C4','G4'],
+  Dsus2: ['D3','A3','D4','E4'],
+  Dsus4: ['D3','A3','D4','G4'],
 }
 
 // ── Public Unified API ───────────────────────────────────────────────────────
