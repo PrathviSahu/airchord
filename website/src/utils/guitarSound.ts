@@ -150,14 +150,14 @@ const STRING_GAIN = [
   0.80,  // High e — clear, slightly quieter than G
 ]
 
-// Bug Fix #6: per-string tone brightness lowpass cutoff (Hz)
+// Per-string tone brightness lowpass cutoff (Hz) — brightened so D3 and G3 strings have crisp acoustic clarity
 const STRING_BRIGHTNESS = [
-  700,   // Low E  — very dark/warm
-  1100,  // A
-  1800,  // D
-  3200,  // G
-  5000,  // B
-  8000,  // High e — full brightness
+  1200,  // Low E  — warm bass
+  2200,  // A      — clear mid-bass
+  5000,  // D      — bright, zero mud
+  8000,  // G      — crisp and singing
+  12000, // B      — shimmering high
+  16000, // High e — full brilliance
 ]
 
 // Bug Fix #8: per-string attack time (ms) — bass strings have heavier pick attack
@@ -280,9 +280,11 @@ class SynthGuitarEngine implements IGuitarEngine {
       oscs.forEach((o, k) => o.connect(mixes[k]))
       const toneLP = ctx.createBiquadFilter()
       toneLP.type = "lowpass"; toneLP.frequency.value = STRING_BRIGHTNESS[si]; toneLP.Q.value = 0.5
+      const toneHP = ctx.createBiquadFilter()
+      toneHP.type = "highpass"; toneHP.frequency.value = si >= 2 ? 130 : 40; toneHP.Q.value = 0.7
       const bodyLo = ctx.createBiquadFilter()
       bodyLo.type = "peaking"; bodyLo.frequency.value = preset.bodyLow; bodyLo.Q.value = 1.6
-      bodyLo.gain.value = preset.bodyGain * (si <= 1 ? 1.0 : si === 2 ? 0.35 : 0.05)
+      bodyLo.gain.value = si <= 1 ? preset.bodyGain : 0.0
       const bodyHi = ctx.createBiquadFilter()
       bodyHi.type = "peaking"; bodyHi.frequency.value = preset.bodyMid; bodyHi.Q.value = 1.0; bodyHi.gain.value = 2.5
       const shelf = ctx.createBiquadFilter()
@@ -295,7 +297,7 @@ class SynthGuitarEngine implements IGuitarEngine {
       const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
       pan?.pan.setValueAtTime(STRING_PANS[si], now)
       mixes.forEach(m => m.connect(toneLP))
-      toneLP.connect(bodyLo); bodyLo.connect(bodyHi); bodyHi.connect(shelf); shelf.connect(env)
+      toneLP.connect(toneHP); toneHP.connect(bodyLo); bodyLo.connect(bodyHi); bodyHi.connect(shelf); shelf.connect(env)
       const out: AudioNode = pan ? (env.connect(pan), pan) : env
       out.connect(dryBus!); out.connect(wetBus!)
       const stopAt = now + decay + 0.05
@@ -383,10 +385,16 @@ class SampledGuitarEngine implements IGuitarEngine {
         src.playbackRate.value = Math.pow(2, currentCapoFret / 12)
         const lp = ctx.createBiquadFilter()
         lp.type = "lowpass"; lp.frequency.value = STRING_BRIGHTNESS[si]; lp.Q.value = 0.5
+
+        // Highpass filter for D, G, B, e strings (si >= 2): cuts sub-130Hz bass boom completely
+        const hp = ctx.createBiquadFilter()
+        hp.type = "highpass"; hp.frequency.value = si >= 2 ? 130 : 40; hp.Q.value = 0.7
+
         const gn = ctx.createGain(); gn.gain.setValueAtTime(volume, now)
         const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
         pan?.pan.setValueAtTime(STRING_PANS[si], now)
-        src.connect(lp); lp.connect(gn)
+
+        src.connect(lp); lp.connect(hp); hp.connect(gn)
         const out: AudioNode = pan ? (gn.connect(pan), pan) : gn
         out.connect(dryBus!); out.connect(wetBus!)
         src.start(now)
