@@ -203,7 +203,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
   // ── Real-Time Elapsed Seconds Clock & Precise Lyric Sync ──────────────
   const [elapsedSec, setElapsedSec]         = useState(0)
-  const [voiceFollower, setVoiceFollower]   = useState(false)
+  const [voiceFollower, setVoiceFollower]   = useState(true)
   const [lastSungWord, setLastSungWord]     = useState('')
 
   useEffect(() => {
@@ -712,6 +712,14 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
                     </span>
                   ) : null
                 })()}
+
+                {/* Live voice feedback */}
+                {voiceFollower && lastSungWord && (
+                  <span className="text-[10px] font-mono text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                    🎙️ Heard: "{lastSungWord}"
+                  </span>
+                )}
+
                 {/* Live sync pill */}
                 {lrcStatus === 'ok' && (
                   <span className="ml-auto px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold tracking-wide">
