@@ -188,12 +188,13 @@ function scheduleStrum(
   downstroke: boolean,
   playFn: (note: string, vol: number, strIdx: number, delaySec: number) => void
 ) {
+  if (!voicing || voicing.length === 0) return  // guard against undefined/empty voicing
   const order   = downstroke ? [0,1,2,3,4,5] : [5,4,3,2,1,0]
   const delayMs = downstroke ? DOWN_DELAY_MS : UP_DELAY_MS
   let hit = 0
   order.forEach(si => {
     const note = voicing[si]
-    if (note === null) return
+    if (note === null || note === undefined) return   // muted or out-of-range string
     const humanGain   = STRING_GAIN[si] * volume * (0.88 + Math.random() * 0.24)
     const jitterMs    = Math.random() * 2.5
     const delaySec    = (hit * delayMs + jitterMs) / 1000
@@ -494,19 +495,22 @@ export function playGuitarChord(chordName = "Em", volume = 0.32) {
   triggerGuitarChord(chordName, volume)
 }
 
-export function playStrum(voicing: GuitarVoicing, volume = 0.32) {
+// Default Em open voicing — used when callers pass no arguments
+const _EM: GuitarVoicing = ['E2', 'B2', 'E3', 'G3', 'B3', 'E4']
+
+export function playStrum(voicing: GuitarVoicing = _EM, volume = 0.32) {
   getActiveEngine().playDownStrum(voicing, volume)
 }
 
-export function playDownStrum(voicing: GuitarVoicing, volume = 0.32) {
+export function playDownStrum(voicing: GuitarVoicing = _EM, volume = 0.32) {
   getActiveEngine().playDownStrum(voicing, volume)
 }
 
-export function playUpStrum(voicing: GuitarVoicing, volume = 0.28) {
+export function playUpStrum(voicing: GuitarVoicing = _EM, volume = 0.28) {
   getActiveEngine().playUpStrum(voicing, volume)
 }
 
-export function playMuteStrum(voicing: GuitarVoicing, volume = 0.12) {
+export function playMuteStrum(voicing: GuitarVoicing = _EM, volume = 0.12) {
   getActiveEngine().playMuteStrum(voicing, volume)
 }
 
