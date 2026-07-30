@@ -88,9 +88,6 @@ function SingleChordBadge({ chord, index, scrollProgress }: { chord: ChordData; 
       <Html center distanceFactor={12} zIndexRange={[100, 0]}>
         <div
           ref={badgeRef}
-          onMouseEnter={() => {
-            playPluckNote(chord.notes[0], 0.15)
-          }}
           onClick={() => {
             playStrum(chord.notes, 0.14)
           }}

@@ -173,8 +173,9 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
   const [isLoaded, setIsLoaded] = useState(false)
   const handleLoaded = useCallback(() => setIsLoaded(true), [])
 
-  // ── Delicate B & High-E string plucks (only 5 subtle notes in whole scroll) ──
-  const lastZoneRef = useRef(-1)
+  // ── Acoustic string pluck effect when scrolling page ──
+  const lastPluckTimeRef = useRef(0)
+  const lastScrollPosRef = useRef(0)
 
   useEffect(() => {
     const unlockAudio = () => {
@@ -183,30 +184,18 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
 
     const handleScrollSound = () => {
       initAudioEngine()
-      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight)
-      const scrollRatio = Math.min(1, Math.max(0, window.scrollY / maxScroll))
+      const now = performance.now()
+      const currentPos = window.scrollY
+      const delta = Math.abs(currentPos - lastScrollPosRef.current)
 
-      // 5 discrete scroll thresholds across the page [15%, 35%, 55%, 75%, 90%]
-      const thresholds = [0.15, 0.35, 0.55, 0.75, 0.90]
-      const highBEPicks = [
-        { note: 'B3', vol: 0.12, strIdx: 4 }, // B string (5th string / B)
-        { note: 'E4', vol: 0.14, strIdx: 5 }, // High E string (6th string / E)
-        { note: 'B4', vol: 0.11, strIdx: 4 }, // High B
-        { note: 'E4', vol: 0.13, strIdx: 5 }, // High E
-        { note: 'B3', vol: 0.10, strIdx: 4 }, // B string
-      ]
+      if (delta > 25 && now - lastPluckTimeRef.current > 140) {
+        lastPluckTimeRef.current = now
+        lastScrollPosRef.current = currentPos
 
-      let currentZone = -1
-      for (let i = 0; i < thresholds.length; i++) {
-        if (scrollRatio >= thresholds[i]) {
-          currentZone = i
-        }
-      }
-
-      if (currentZone !== lastZoneRef.current && currentZone >= 0) {
-        lastZoneRef.current = currentZone
-        const pick = highBEPicks[currentZone]
-        playPluckNote(pick.note, pick.vol, pick.strIdx)
+        const stringNotes = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4', 'G4', 'B4']
+        const noteIdx = Math.floor((currentPos / 220) % stringNotes.length)
+        const note = stringNotes[noteIdx]
+        playPluckNote(note, 0.28, noteIdx % 6)
       }
     }
 
@@ -259,7 +248,6 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
           <span
             className="t-label"
             style={{ cursor: 'pointer', transition: 'color 0.2s' }}
-            onMouseEnter={() => playPluckNote('E4', 0.1)}
             onClick={() => { playStrum(); onEnter(); }}
           >
             Open App
@@ -267,7 +255,6 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
           <button
             className="btn btn-light"
             style={{ padding: '10px 20px', fontSize: 12 }}
-            onMouseEnter={() => playPluckNote('B4', 0.12)}
             onClick={() => { playStrum(); onEnter(); }}
           >
             Try Free
@@ -335,7 +322,6 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
             >
               <button
                 className="btn btn-light"
-                onMouseEnter={() => playPluckNote('E4', 0.15)}
                 onClick={() => { playStrum(); if (onOpenStudio) onOpenStudio(); else onEnter(); }}
                 style={{ gap: 10 }}
               >
@@ -343,7 +329,6 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
               </button>
               <button
                 className="btn btn-outline"
-                onMouseEnter={() => playPluckNote('G4', 0.12)}
                 onClick={() => {
                   playPluckNote('C5', 0.18)
                   document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })
@@ -420,7 +405,6 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
               ].map((s, i) => (
                 <RevealFade key={i} delay={i * 0.15}>
                   <div
-                    onMouseEnter={() => playPluckNote(s.note, 0.14)}
                     style={{
                       padding: '48px 36px',
                       background: '#080808',
