@@ -13,7 +13,6 @@ import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
 import { drawHandSkeleton } from '../utils/handTracker'
-import { fetchSyncedLyrics, SyncedLine } from '../utils/lrclib'
 
 // Finger emoji set
 const FINGER_EMOJI = ['✊', '☝️', '✌️', '🤟', '🖐️', '✋']
