@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Play, Pause, Video, Download, RotateCcw, Volume2, VolumeX, Mic, Sliders, Music, Sparkles } from 'lucide-react'
 import { SessionConfig } from './SongSetupScreen'
-import { initAudioEngine, triggerGuitarChord, setCapoFret } from '../utils/guitarSound'
+import { initAudioEngine, triggerGuitarChord, playDownStrum, playUpStrum, playMuteStrum, CHORD_NOTES, setCapoFret } from '../utils/guitarSound'
 import { GuitaristEngine, PlayStyle } from '../utils/guitaristEngine'
 import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
@@ -41,9 +41,31 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
   const [capo, setCapo] = useState<number>(config?.capo ?? 0)
   const [bpm, setBpm]   = useState<number>(config?.bpm ?? 90)
   const [selectedPresetIdx, setSelectedPresetIdx] = useState(0)
+  const [customPattern, setCustomPattern]       = useState<string[] | null>(null)
+  const [showPatternModal, setShowPatternModal] = useState(false)
 
   const activePreset = STRUM_PRESETS[selectedPresetIdx]
-  const strumPattern = activePreset.pattern
+  const strumPattern = customPattern ?? activePreset.pattern
+
+  const NEXT_STROKE: Record<string, string> = {
+    'D': 'U', 'U': 'X', 'X': '.', '.': 'D',
+    '↓': '↑', '↑': '✕', '✕': '•', '•': '↓',
+  }
+
+  const toggleBeat = (idx: number) => {
+    initAudioEngine()
+    const newPattern = [...strumPattern]
+    const cur = newPattern[idx] || 'D'
+    const next = NEXT_STROKE[cur] || 'D'
+    newPattern[idx] = next
+    setCustomPattern(newPattern)
+
+    // Audio preview
+    const voicing = CHORD_NOTES[detectedChord] ?? CHORD_NOTES['Em']!
+    if (next === 'D' || next === '↓') playDownStrum(voicing, 0.35)
+    else if (next === 'U' || next === '↑') playUpStrum(voicing, 0.30)
+    else if (next === 'X' || next === '✕') playMuteStrum(voicing, 0.15)
+  }
 
   // Audio & Playback state
   const [isPlaying, setIsPlaying] = useState(false)
@@ -330,17 +352,28 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
           </div>
 
           {/* Strum Pattern Selector */}
-          <select
-            value={selectedPresetIdx}
-            onChange={e => setSelectedPresetIdx(Number(e.target.value))}
-            className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-3 py-2 text-xs font-mono text-white/80 outline-none cursor-pointer hover:border-white/20 transition-all"
-          >
-            {STRUM_PRESETS.map((p, idx) => (
-              <option key={idx} value={idx} className="bg-neutral-900 text-white">
-                {p.name} ({p.display})
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedPresetIdx}
+              onChange={e => {
+                setSelectedPresetIdx(Number(e.target.value))
+                setCustomPattern(null)
+              }}
+              className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-3 py-2 text-xs font-mono text-white/80 outline-none cursor-pointer hover:border-white/20 transition-all"
+            >
+              {STRUM_PRESETS.map((p, idx) => (
+                <option key={idx} value={idx} className="bg-neutral-900 text-white">
+                  {p.name} ({p.display})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowPatternModal(true)}
+              className="px-3 py-2 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 hover:border-amber-400/40 text-amber-300 font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer hover:bg-black/80"
+            >
+              <span>✏️ Edit Pattern</span>
+            </button>
+          </div>
 
           {/* Recording Button */}
           {!isRecording ? (
@@ -455,21 +488,23 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
             <span className="text-xs font-mono text-white/60">Metronome: {bpm} BPM</span>
           </div>
 
-          <div className="flex items-center gap-2 flex-1 justify-center max-w-xl">
+          <div className="flex items-center gap-2 flex-1 justify-center max-w-xl pointer-events-auto">
             {strumPattern.map((stroke, i) => (
-              <motion.div
+              <motion.button
                 key={i}
+                onClick={() => toggleBeat(i)}
+                title="Click to toggle beat stroke (↓ / ↑ / ✕ / •)"
                 animate={{
                   scale: activeBeat === i ? 1.25 : 1,
                   backgroundColor: activeBeat === i ? '#fbbf24' : 'rgba(255,255,255,0.08)',
                   borderColor: activeBeat === i ? '#f59e0b' : 'rgba(255,255,255,0.1)',
                 }}
-                className={`flex-1 h-9 rounded-xl border flex items-center justify-center font-mono font-black text-sm transition-all ${
-                  activeBeat === i ? 'text-black shadow-lg shadow-amber-400/30' : 'text-white/40'
+                className={`flex-1 h-9 rounded-xl border flex items-center justify-center font-mono font-black text-sm transition-all cursor-pointer hover:scale-110 active:scale-95 ${
+                  activeBeat === i ? 'text-black shadow-lg shadow-amber-400/30' : 'text-white/70 hover:text-white hover:border-amber-400/50'
                 }`}
               >
-                {stroke === 'D' ? '↓' : stroke === 'U' ? '↑' : stroke === 'X' ? '✕' : '•'}
-              </motion.div>
+                {stroke === 'D' || stroke === '↓' ? '↓' : stroke === 'U' || stroke === '↑' ? '↑' : stroke === 'X' || stroke === '✕' ? '✕' : '•'}
+              </motion.button>
             ))}
           </div>
 
@@ -603,6 +638,87 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
                     {c}
                   </button>
                 ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Pattern Editor Modal ── */}
+      <AnimatePresence>
+        {showPatternModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 12 }}
+              className="bg-neutral-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-black text-white flex items-center gap-2">
+                    <span>🥁</span> Edit Strumming Pattern
+                  </h2>
+                  <p className="text-xs font-mono text-white/50">Click any beat block to cycle stroke (Down ↓ / Up ↑ / Mute ✕ / Rest •)</p>
+                </div>
+                <button
+                  onClick={() => setShowPatternModal(false)}
+                  className="text-white/40 hover:text-white text-sm font-mono px-2 py-1"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              {/* Beat Blocks Editor Grid */}
+              <div className="flex items-center justify-center gap-2 flex-wrap bg-black/50 p-4 rounded-2xl border border-white/10">
+                {strumPattern.map((stroke, i) => (
+                  <button
+                    key={i}
+                    onClick={() => toggleBeat(i)}
+                    className="w-12 h-14 rounded-xl bg-amber-400/10 border border-amber-400/30 hover:border-amber-400 hover:bg-amber-400/20 text-amber-300 font-mono font-black text-lg flex flex-col items-center justify-center transition-all scale-100 hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <span>{stroke === 'D' || stroke === '↓' ? '↓' : stroke === 'U' || stroke === '↑' ? '↑' : stroke === 'X' || stroke === '✕' ? '✕' : '•'}</span>
+                    <span className="text-[9px] text-white/40 font-normal">B{i + 1}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Pattern Controls: Add / Remove / Reset */}
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (strumPattern.length > 2) {
+                        setCustomPattern(strumPattern.slice(0, -1))
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-mono text-xs border border-white/10"
+                  >
+                    − Beat
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (strumPattern.length < 16) {
+                        setCustomPattern([...strumPattern, 'D'])
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-mono text-xs border border-white/10"
+                  >
+                    + Beat
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setCustomPattern(null)}
+                  className="px-4 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-mono text-xs font-bold border border-purple-500/30"
+                >
+                  Reset Preset
+                </button>
               </div>
             </motion.div>
           </motion.div>
