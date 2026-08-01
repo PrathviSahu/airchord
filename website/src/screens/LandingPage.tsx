@@ -188,14 +188,14 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
       const currentPos = window.scrollY
       const delta = Math.abs(currentPos - lastScrollPosRef.current)
 
-      if (delta > 25 && now - lastPluckTimeRef.current > 140) {
+      if (delta > 160 && now - lastPluckTimeRef.current > 500) {
         lastPluckTimeRef.current = now
         lastScrollPosRef.current = currentPos
 
         const stringNotes = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4', 'G4', 'B4']
-        const noteIdx = Math.floor((currentPos / 220) % stringNotes.length)
+        const noteIdx = Math.floor((currentPos / 280) % stringNotes.length)
         const note = stringNotes[noteIdx]
-        playPluckNote(note, 0.28, noteIdx % 6)
+        playPluckNote(note, 0.04, noteIdx % 6)
       }
     }
 
