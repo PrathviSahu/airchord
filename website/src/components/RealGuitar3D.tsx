@@ -10,24 +10,22 @@ function enhanceMaterials(object: THREE.Object3D) {
   object.traverse(child => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh
+      // Enable shadows but preserve ALL original Blender material properties
       mesh.castShadow = true
       mesh.receiveShadow = true
 
-      if (mesh.material) {
-        const updateMat = (mat: THREE.Material) => {
-          if ('envMapIntensity' in mat) {
-            (mat as any).envMapIntensity = 1.6
-          }
-          if ('roughness' in mat && typeof (mat as any).roughness === 'number') {
-            (mat as any).roughness = Math.min(0.4, (mat as any).roughness)
-          }
-          return mat
-        }
-        if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map(updateMat)
-        } else {
-          mesh.material = updateMat(mesh.material)
-        }
+      const applyMat = (mat: THREE.Material) => {
+        // Mark material as needing update so textures/colors render correctly on mobile
+        mat.needsUpdate = true
+        // Do NOT override color, roughness, metalness, or envMapIntensity
+        // — let the original Blender-exported values come through exactly
+        return mat
+      }
+
+      if (Array.isArray(mesh.material)) {
+        mesh.material = mesh.material.map(applyMat)
+      } else if (mesh.material) {
+        applyMat(mesh.material)
       }
     }
   })

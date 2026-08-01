@@ -26,31 +26,31 @@ function StageLighting() {
         position={[0, 16, 8]}
         angle={0.38}
         penumbra={0.75}
-        intensity={22}
+        intensity={6}
         color="#FFEEDD"
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1024, 1024]}
         shadow-bias={-0.0001}
         distance={48}
         decay={1.2}
       />
-      {/* 2. Warm Front Key Light — brings out rich mahogany & spruce wood grain */}
-      <directionalLight position={[0, 4, 10]} intensity={1.8} color="#FFE4C4" />
+      {/* 2. Warm Front Key Light — keeps Blender material colors visible */}
+      <directionalLight position={[0, 4, 10]} intensity={0.9} color="#FFE4C4" />
 
       {/* 3. Soft Top-Right Fretboard Highlight */}
-      <spotLight position={[5, 10, 7]} angle={0.45} penumbra={0.7} intensity={8} color="#FFF2E6" />
+      <spotLight position={[5, 10, 7]} angle={0.45} penumbra={0.7} intensity={2.5} color="#FFF2E6" />
 
       {/* 4. Soft Left Body Rim */}
-      <directionalLight position={[-5, 3, 6]} intensity={1.2} color="#FFFDF9" />
+      <directionalLight position={[-5, 3, 6]} intensity={0.6} color="#FFFDF9" />
 
       {/* 5. Electric Blue Stage Rim (Left Back) */}
-      <pointLight position={[-9, 4, -2]} intensity={4.2} color="#60A5FA" distance={30} decay={1.8} />
+      <pointLight position={[-9, 4, -2]} intensity={1.8} color="#60A5FA" distance={30} decay={1.8} />
 
       {/* 6. Warm Gold Stage Rim (Right Back) */}
-      <pointLight position={[9, -1, 3]} intensity={3.5} color="#F59E0B" distance={25} decay={1.8} />
+      <pointLight position={[9, -1, 3]} intensity={1.5} color="#F59E0B" distance={25} decay={1.8} />
 
-      {/* 7. Warm Balanced Ambient Fill */}
-      <ambientLight intensity={0.48} color="#FFFDF7" />
+      {/* 7. Warm Balanced Ambient Fill — neutral so Blender colors show true */}
+      <ambientLight intensity={0.7} color="#ffffff" />
     </>
   )
 }
@@ -116,8 +116,8 @@ function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
       <StageFloor />
       <CameraRig scrollProgress={scrollProgress} />
 
-      {/* Environment tuned for authentic natural acoustic wood luster without silver reflections */}
-      <Environment preset="studio" environmentIntensity={0.35} />
+      {/* Environment map with very low intensity so it adds subtle sheen without washing out Blender colors on mobile */}
+      <Environment preset="studio" environmentIntensity={0.1} />
 
       {/* Real downloaded guitar model */}
       <group position={[0, 0, 0]}>
@@ -149,7 +149,7 @@ export default function StageScene({ scrollProgress, onLoaded }: StageSceneProps
         antialias: true,
         alpha: true,                              // transparent so Lightfall shows behind
         toneMapping: THREE.ACESFilmicToneMapping,
-        toneMappingExposure: 1.20,
+        toneMappingExposure: 0.85,               // reduced so Blender colors don't blow out to white on mobile
       }}
       style={{
         width: '100%',
