@@ -1,73 +1,52 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-// ── Animated guitar string SVG ─────────────────────────────────────────
-function GuitarStrings({ ready }: { ready: boolean }) {
-  const strings = [
-    { delay: 0,   thick: 3,   color: '#e2c07c', dur: 0.6  },
-    { delay: 0.1, thick: 2.5, color: '#d4a853', dur: 0.55 },
-    { delay: 0.2, thick: 2,   color: '#c8965e', dur: 0.5  },
-    { delay: 0.3, thick: 1.5, color: '#b87c3b', dur: 0.48 },
-    { delay: 0.4, thick: 1.2, color: '#a06828', dur: 0.45 },
-    { delay: 0.5, thick: 1,   color: '#8a5520', dur: 0.42 },
-  ]
-
+// ── Sleek Neon Audio Waveform Loader ──────────────────────────────────
+function SoundWaveVisualizer({ ready }: { ready: boolean }) {
   return (
-    <svg width="220" height="160" viewBox="0 0 220 160" className="select-none">
-      {/* Guitar body silhouette */}
-      <ellipse cx="110" cy="105" rx="62" ry="50" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1.5" />
-      <ellipse cx="110" cy="105" rx="44" ry="36" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-      {/* Sound hole */}
-      <circle cx="110" cy="102" r="18" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" />
-      {/* Guitar neck */}
-      <rect x="103" y="0" width="14" height="60" rx="3" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="1.5" />
-      {/* Frets */}
-      {[12, 24, 36, 48].map((y, i) => (
-        <line key={i} x1="103" y1={y} x2="117" y2={y} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-      ))}
+    <div className="relative w-56 h-28 flex items-center justify-center select-none my-2">
+      {/* Background glowing ring */}
+      <motion.div
+        className="absolute w-28 h-28 rounded-full border border-purple-500/20"
+        animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.7, 0.3] }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          boxShadow: '0 0 40px rgba(168,85,247,0.15)',
+        }}
+      />
 
-      {/* Animated Guitar Strings */}
-      {strings.map((s, i) => {
-        const x = 95 + i * 6
-        return (
-          <g key={i}>
-            {/* Static string */}
-            <line x1={x} y1={0} x2={x} y2={155} stroke={s.color} strokeWidth={s.thick} opacity={0.3} />
-            {/* Animated vibrating string */}
-            {ready && (
-              <motion.path
-                d={`M ${x} 0 Q ${x + 4} 80 ${x} 155`}
-                stroke={s.color}
-                strokeWidth={s.thick}
-                fill="none"
-                opacity={0.85}
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{
-                  pathLength: [0, 1, 1],
-                  opacity: [0, 0.85, 0.85],
-                  d: [
-                    `M ${x} 0 Q ${x} 80 ${x} 155`,
-                    `M ${x} 0 Q ${x + 6} 80 ${x} 155`,
-                    `M ${x} 0 Q ${x - 6} 80 ${x} 155`,
-                    `M ${x} 0 Q ${x + 4} 80 ${x} 155`,
-                    `M ${x} 0 Q ${x - 2} 80 ${x} 155`,
-                    `M ${x} 0 Q ${x} 80 ${x} 155`,
-                  ],
-                }}
-                transition={{
-                  delay: s.delay,
-                  duration: s.dur * 3,
-                  times: [0, 0.1, 0.3, 0.5, 0.75, 1],
-                  ease: 'easeOut',
-                  repeat: Infinity,
-                  repeatDelay: 1.2,
-                }}
-              />
-            )}
-          </g>
-        )
-      })}
-    </svg>
+      {/* Center glowing audio waveform bars */}
+      <div className="flex items-center gap-1.5 h-16 z-10">
+        {[
+          { h: 24, delay: 0.0,  color: '#c084fc' },
+          { h: 42, delay: 0.15, color: '#a855f7' },
+          { h: 56, delay: 0.3,  color: '#fbbf24' },
+          { h: 32, delay: 0.45, color: '#f59e0b' },
+          { h: 48, delay: 0.2,  color: '#a855f7' },
+          { h: 28, delay: 0.35, color: '#c084fc' },
+        ].map((bar, i) => (
+          <motion.div
+            key={i}
+            className="w-1.5 rounded-full"
+            style={{
+              backgroundColor: bar.color,
+              boxShadow: `0 0 12px ${bar.color}aa`,
+            }}
+            animate={ready ? {
+              height: [bar.h * 0.4, bar.h * 1.1, bar.h * 0.3, bar.h],
+              opacity: [0.6, 1, 0.5, 0.9],
+            } : { height: 8, opacity: 0.3 }}
+            transition={{
+              duration: 0.9,
+              delay: bar.delay,
+              repeat: Infinity,
+              repeatType: 'reverse',
+              ease: 'easeInOut',
+            }}
+          />
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -234,7 +213,7 @@ export default function GuitarLoadingScreen({ isLoaded }: GuitarLoadingScreenPro
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           >
-            <GuitarStrings ready={progress > 20} />
+            <SoundWaveVisualizer ready={progress > 20} />
           </motion.div>
 
           {/* Loading label */}

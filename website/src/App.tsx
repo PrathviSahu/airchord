@@ -24,7 +24,9 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
         transition={{ duration: 0.8 }}
         className="text-center"
       >
-        <div className="text-6xl mb-4 animate-bounce">🎸</div>
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500/20 to-amber-500/20 border border-purple-500/30 flex items-center justify-center text-2xl text-amber-300 shadow-[0_0_30px_rgba(168,85,247,0.3)]">
+          ✨
+        </div>
         <h1 className="text-2xl font-black tracking-widest text-white uppercase">AIRCHORD</h1>
         <p className="text-xs font-mono text-purple-400 mt-1">AI GUITAR PERFORMANCE STUDIO</p>
       </motion.div>
