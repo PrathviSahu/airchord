@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useProgress } from '@react-three/drei'
 
 // ── Sleek Neon Audio Waveform Loader ──────────────────────────────────
 function SoundWaveVisualizer({ ready }: { ready: boolean }) {
@@ -111,26 +112,28 @@ interface GuitarLoadingScreenProps {
 }
 
 export default function GuitarLoadingScreen({ isLoaded }: GuitarLoadingScreenProps) {
+  const { progress: realProgress, active, loaded } = useProgress()
   const [progress, setProgress] = useState(0)
   const [tipIndex, setTipIndex] = useState(0)
   const [visible, setVisible] = useState(true)
 
-  // Fake-progress that runs up to 90, then jumps to 100 when loaded
+  // Track real 3D GLTF download progress and hold screen until 100% finished
   useEffect(() => {
-    if (isLoaded) {
+    if (isLoaded || realProgress >= 100 || (loaded > 0 && !active)) {
       setProgress(100)
-      setTimeout(() => setVisible(false), 900)
-      return
+      const t = setTimeout(() => setVisible(false), 700)
+      return () => clearTimeout(t)
+    } else {
+      const curTarget = Math.max(realProgress, 8)
+      const iv = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= curTarget) return prev
+          return prev + (curTarget - prev) * 0.15 + 0.5
+        })
+      }, 50)
+      return () => clearInterval(iv)
     }
-
-    const iv = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 88) return prev
-        return prev + (88 - prev) * 0.04 + 0.4
-      })
-    }, 60)
-    return () => clearInterval(iv)
-  }, [isLoaded])
+  }, [isLoaded, realProgress, loaded, active])
 
   // Rotate tips
   useEffect(() => {

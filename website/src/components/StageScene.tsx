@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Environment, ContactShadows } from '@react-three/drei'
+import { Environment, ContactShadows, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 import RealGuitar3D from './RealGuitar3D'
 import LightfallBackground from './LightfallBackground'
@@ -97,11 +97,15 @@ interface StageSceneProps {
 }
 
 function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
+  const { active, progress, loaded } = useProgress()
+
   useEffect(() => {
-    // Fire onLoaded after a short frame settle so canvas has painted
-    const t = setTimeout(() => { onLoaded?.() }, 800)
-    return () => clearTimeout(t)
-  }, [onLoaded])
+    // Only notify parent when 3D model is 100% loaded and compiled
+    if (progress >= 100 || (loaded > 0 && !active)) {
+      const t = setTimeout(() => { onLoaded?.() }, 400)
+      return () => clearTimeout(t)
+    }
+  }, [progress, loaded, active, onLoaded])
 
   return (
     <>
