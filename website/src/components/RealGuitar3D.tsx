@@ -6,26 +6,24 @@ import * as THREE from 'three'
 const MODEL_FILE = 'guitar.glb'
 const ext = MODEL_FILE.split('.').pop()?.toLowerCase() ?? ''
 
-// Material palette — maps Blender material names to realistic guitar colors
+// Material palette — original black guitar color scheme
 const MATERIAL_PALETTE: Record<string, {
   color: string
   metalness: number
   roughness: number
-  emissive?: string
-  emissiveIntensity?: number
 }> = {
-  // Guitar body / neck — rich warm wood brown
-  Material: { color: '#6b3a1f', metalness: 0.05, roughness: 0.55 },
-  // Tuner pegs, nut, bridge — dark black plastic
-  Plastic: { color: '#1a1108', metalness: 0.1, roughness: 0.45 },
-  // Steel frets, saddle, strap pins
-  Steel: { color: '#c0c0c0', metalness: 0.92, roughness: 0.15 },
-  // Thicker wound strings (low E, A, D)
-  Strings: { color: '#d4a843', metalness: 0.95, roughness: 0.08 },
-  // Thinner plain strings (G, B, high e)
-  Strings3: { color: '#e8e8e8', metalness: 0.97, roughness: 0.06 },
-  // Fretboard dots / nut — white
-  White: { color: '#f5f5f5', metalness: 0.05, roughness: 0.35 },
+  // Guitar body — premium obsidian black with subtle sheen
+  Material: { color: '#0a0a0c', metalness: 0.15, roughness: 0.18 },
+  // Tuner pegs, neck, body parts — deep matte black
+  Plastic: { color: '#0d0d0f', metalness: 0.1, roughness: 0.35 },
+  // Steel frets, saddle, hardware — polished silver
+  Steel: { color: '#d0d0d0', metalness: 0.95, roughness: 0.12 },
+  // Wound strings (low E, A, D) — warm gold
+  Strings: { color: '#e2c07c', metalness: 0.95, roughness: 0.08 },
+  // Plain strings (G, B, high e) — bright steel
+  Strings3: { color: '#f0f0f0', metalness: 0.97, roughness: 0.05 },
+  // Fretboard dots / nut
+  White: { color: '#e8e8e8', metalness: 0.05, roughness: 0.30 },
 }
 
 function applyMaterials(object: THREE.Object3D) {
@@ -48,10 +46,6 @@ function applyMaterials(object: THREE.Object3D) {
         metalness: preset.metalness,
         roughness: preset.roughness,
         envMapIntensity: 0.8,
-        ...(preset.emissive ? {
-          emissive: new THREE.Color(preset.emissive),
-          emissiveIntensity: preset.emissiveIntensity ?? 0.1,
-        } : {}),
       })
       matCache.set(key, m)
       return m
