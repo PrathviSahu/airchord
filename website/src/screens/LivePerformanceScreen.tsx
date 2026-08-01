@@ -240,19 +240,26 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       const currentSec = (Date.now() - startTime) / 1000
       setElapsedSec(currentSec)
 
-      // Find the active lyric line index based on elapsed song time vs line timestamps
-      let matchIdx = 0
-      for (let i = 0; i < allLyrics.length; i++) {
-        if (allLyrics[i].time <= currentSec) {
-          matchIdx = i
-        } else {
-          break
+      if (lrcStatus === 'ok') {
+        // Find active line index based on LRCLIB synced timestamps
+        let matchIdx = 0
+        for (let i = 0; i < allLyrics.length; i++) {
+          if (typeof allLyrics[i]?.time === 'number' && allLyrics[i].time <= currentSec) {
+            matchIdx = i
+          } else {
+            break
+          }
         }
+        setCurrentLine(prev => Math.max(prev, matchIdx))
+      } else {
+        // Rhythm auto-advance fallback for local lyrics: 1 line per 4 bars (~8 seconds at 90 BPM)
+        const secPerLine = (16 * 60) / (bpm || 90)
+        const calculatedIdx = Math.min(allLyrics.length - 1, Math.floor(currentSec / secPerLine))
+        setCurrentLine(prev => Math.max(prev, calculatedIdx))
       }
-      setCurrentLine(prev => Math.max(prev, matchIdx))
 
-      // Stop performance 4 seconds after the last line ends
-      const lastLineTime = allLyrics[allLyrics.length - 1]?.time ?? 0
+      // Stop performance after last line
+      const lastLineTime = allLyrics[allLyrics.length - 1]?.time ?? (allLyrics.length * 8)
       if (allLyrics.length > 0 && currentSec >= lastLineTime + 8) {
         setIsPlaying(false)
         setActiveBeat(-1)
@@ -260,7 +267,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     }, 100)
 
     return () => clearInterval(iv)
-  }, [isPlaying, allLyrics])
+  }, [isPlaying, allLyrics, lrcStatus, bpm])
 
   // Refs for voice recognition closure safety
   const isPlayingRef     = useRef(isPlaying)
@@ -271,6 +278,26 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   currentLineRef.current   = currentLine
   const allLyricsRef     = useRef(allLyrics)
   allLyricsRef.current     = allLyrics
+
+  // Debounce ref to prevent double-advancing lyrics in short bursts
+  const lastTriggerTimeRef = useRef(0)
+
+  // ── Keyboard Shortcuts (ArrowRight / Space -> Next Line, ArrowLeft -> Prev Line) ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+        e.preventDefault()
+        setCurrentLine(l => Math.min(allLyricsRef.current.length - 1, l + 1))
+      } else if (e.key === 'ArrowLeft') {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+        e.preventDefault()
+        setCurrentLine(l => Math.max(0, l - 1))
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // ── Web Speech API Voice Recognition (Singing Lyric Follower) ────────
   useEffect(() => {
@@ -286,7 +313,6 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       recognition = new SpeechRecognition()
       recognition.continuous     = true
       recognition.interimResults  = true
-      // Use en-US so recognized text is in Latin alphabet (matching Romanized Hindi & English lyrics)
       recognition.lang            = 'en-US'
 
       recognition.onresult = (event: any) => {
@@ -304,35 +330,40 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         const words = rawTranscript.split(/\s+/).filter(Boolean)
         if (words.length === 0) return
 
-        const recentPhrase = words.slice(-3).join(' ')
-        setLastSungWord(recentPhrase || words[words.length - 1])
+        const recentWords = words.slice(-6)
+        const recentPhrase = recentWords.join(' ')
+        setLastSungWord(words.slice(-2).join(' '))
+
+        const now = Date.now()
+        if (now - lastTriggerTimeRef.current < 1000) return // 1s debounce
 
         const curIdx = currentLineRef.current
         const lyrics = allLyricsRef.current
 
-        const currentLineText  = (lyrics[curIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
-        const currentLineWords = currentLineText.split(/\s+/).filter(Boolean)
+        if (curIdx < lyrics.length) {
+          const currentText  = (lyrics[curIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
+          const currentWords = currentText.split(/\s+/).filter(Boolean)
 
-        if (currentLineWords.length > 0) {
-          const lastWord       = currentLineWords[currentLineWords.length - 1]
-          const secondLastWord = currentLineWords.length >= 2 ? currentLineWords[currentLineWords.length - 2] : ''
+          if (currentWords.length > 0) {
+            const lastWord       = currentWords[currentWords.length - 1]
+            const secondLastWord = currentWords.length >= 2 ? currentWords[currentWords.length - 2] : ''
 
-          const nextLineText  = (lyrics[curIdx + 1]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
-          const nextLineWords = nextLineText.split(/\s+/).filter(Boolean)
-          const nextFirstWord = nextLineWords[0] || ''
+            const nextText  = (lyrics[curIdx + 1]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
+            const nextWords = nextText.split(/\s+/).filter(Boolean)
+            const nextFirstWord = nextWords[0] || ''
 
-          // Check if spoken words include the last word (or end phrase) of current line
-          const heardCurrentEnd = (lastWord && words.includes(lastWord)) ||
-            (lastWord && rawTranscript.includes(lastWord))
+            const matchedLast = lastWord && lastWord.length >= 2 && (
+              recentWords.includes(lastWord) ||
+              recentPhrase.includes(lastWord) ||
+              recentWords.some(w => w.endsWith(lastWord) || lastWord.endsWith(w))
+            )
+            const matchedSecondLast = secondLastWord && secondLastWord.length >= 3 && recentWords.includes(secondLastWord)
+            const matchedNextStart = nextFirstWord && nextFirstWord.length >= 3 && recentWords.includes(nextFirstWord)
 
-          const heardSecondLast = secondLastWord.length >= 3 &&
-            (words.includes(secondLastWord) || rawTranscript.includes(secondLastWord))
-
-          const heardNextStart = nextFirstWord.length >= 3 &&
-            (words.includes(nextFirstWord) || rawTranscript.includes(nextFirstWord))
-
-          if (heardCurrentEnd || heardSecondLast || heardNextStart) {
-            setCurrentLine(l => Math.min(lyrics.length - 1, l + 1))
+            if (matchedLast || matchedSecondLast || matchedNextStart) {
+              lastTriggerTimeRef.current = now
+              setCurrentLine(l => Math.min(lyrics.length - 1, l + 1))
+            }
           }
         }
       }
