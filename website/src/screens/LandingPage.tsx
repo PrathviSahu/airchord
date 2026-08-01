@@ -173,14 +173,45 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
   const [isLoaded, setIsLoaded] = useState(false)
   const handleLoaded = useCallback(() => setIsLoaded(true), [])
 
-  // ── Acoustic string pluck effect when scrolling page ──
+  // ── Fingerpicking pattern on scroll ──
   const lastPluckTimeRef = useRef(0)
   const lastScrollPosRef = useRef(0)
+  const pickPatternIdxRef = useRef(0)
 
   useEffect(() => {
-    const unlockAudio = () => {
-      initAudioEngine()
-    }
+    const unlockAudio = () => { initAudioEngine() }
+
+    // Fingerpicking patterns — each sub-array is [bass, mid, treble] picked strings
+    // Feels like Am / Em arpeggiated patterns played by a real guitarist
+    const PICK_PATTERNS: Array<Array<{ note: string; str: number; delay: number }>> = [
+      // Pattern 1 — Em fingerpick: bass → mid → treble
+      [
+        { note: 'E2', str: 0, delay: 0 },
+        { note: 'B3', str: 4, delay: 0.04 },
+        { note: 'E4', str: 5, delay: 0.08 },
+      ],
+      // Pattern 2 — Am fingerpick: root → third → fifth
+      [
+        { note: 'A2', str: 1, delay: 0 },
+        { note: 'E3', str: 2, delay: 0.04 },
+        { note: 'A3', str: 3, delay: 0.08 },
+      ],
+      // Pattern 3 — G roll: bass → pinch
+      [
+        { note: 'G2', str: 0, delay: 0 },
+        { note: 'D3', str: 2, delay: 0.05 },
+        { note: 'G4', str: 5, delay: 0.05 },
+      ],
+      // Pattern 4 — single crisp treble pluck
+      [
+        { note: 'E4', str: 5, delay: 0 },
+      ],
+      // Pattern 5 — D pinch: bass + high string together
+      [
+        { note: 'D3', str: 2, delay: 0 },
+        { note: 'F#4', str: 5, delay: 0.02 },
+      ],
+    ]
 
     const handleScrollSound = () => {
       initAudioEngine()
@@ -188,14 +219,19 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
       const currentPos = window.scrollY
       const delta = Math.abs(currentPos - lastScrollPosRef.current)
 
-      if (delta > 55 && now - lastPluckTimeRef.current > 260) {
+      if (delta > 48 && now - lastPluckTimeRef.current > 220) {
         lastPluckTimeRef.current = now
         lastScrollPosRef.current = currentPos
 
-        const stringNotes = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4', 'G4', 'B4']
-        const noteIdx = Math.floor((currentPos / 220) % stringNotes.length)
-        const note = stringNotes[noteIdx]
-        playPluckNote(note, 0.16, noteIdx % 6)
+        // Advance to next picking pattern on every scroll event
+        const patIdx = pickPatternIdxRef.current % PICK_PATTERNS.length
+        pickPatternIdxRef.current++
+        const pattern = PICK_PATTERNS[patIdx]
+
+        // Fire each note in the arpeggio with its staggered delay
+        pattern.forEach(({ note, str, delay }) => {
+          playPluckNote(note, 0.13, str, delay)
+        })
       }
     }
 

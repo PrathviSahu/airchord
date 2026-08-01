@@ -482,9 +482,9 @@ export const CHORD_NOTES: Record<string, GuitarVoicing> = {
 const DEFAULT_VOICING: GuitarVoicing = ["E2", "B2", "E3", "G3", "B3", "E4"]
 
 // ── Public API ───────────────────────────────────────────────────────────────
-export function playPluckNote(note = "E4", volume = 0.22, stringIndex = 2) {
+export function playPluckNote(note = "E4", volume = 0.22, stringIndex = 2, delaySec = 0) {
   initAudioEngine()
-  getActiveEngine().playPluckNote(note, volume, stringIndex, 0)
+  getActiveEngine().playPluckNote(note, volume, stringIndex, delaySec)
 }
 
 export function triggerGuitarChord(chordName = "Em", volume = 0.32) {
