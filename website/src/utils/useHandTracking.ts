@@ -22,23 +22,40 @@ export function useHandTracking() {
     try {
       console.log('🔄 Initializing MediaPipe HandLandmarker...')
 
+      // Match installed package version (@mediapipe/tasks-vision@0.10.35)
       const vision = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm'
       )
 
-      handLandmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
-          delegate: 'GPU',
-        },
-        runningMode: 'VIDEO',
+      const options = {
+        runningMode: 'VIDEO' as const,
         numHands: 1,
-        minHandDetectionConfidence: 0.75,
-        minHandPresenceConfidence: 0.75,
-        minTrackingConfidence: 0.70,
-      })
+        minHandDetectionConfidence: 0.50,
+        minHandPresenceConfidence: 0.50,
+        minTrackingConfidence: 0.50,
+      }
 
-      console.log('✅ HandLandmarker initialized successfully')
+      // Try GPU delegate first, fallback to CPU for mobile browsers / iOS Safari
+      try {
+        handLandmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
+          ...options,
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+            delegate: 'GPU',
+          },
+        })
+        console.log('✅ HandLandmarker GPU initialized successfully')
+      } catch (gpuErr) {
+        console.warn('⚠️ GPU delegate failed on this device, falling back to CPU delegate...', gpuErr)
+        handLandmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
+          ...options,
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+            delegate: 'CPU',
+          },
+        })
+        console.log('✅ HandLandmarker CPU fallback initialized successfully')
+      }
     } catch (err) {
       console.error('❌ Failed to initialize MediaPipe HandLandmarker:', err)
     }

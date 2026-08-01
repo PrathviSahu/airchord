@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Play, Pause, Video, Download, RotateCcw, Volume2, VolumeX, Mic, Sliders, Music, Sparkles } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Download, RotateCcw, Volume2, VolumeX, Mic } from 'lucide-react'
 import { SessionConfig } from './SongSetupScreen'
 import { initAudioEngine, triggerGuitarChord, playDownStrum, playUpStrum, playMuteStrum, CHORD_NOTES, setCapoFret } from '../utils/guitarSound'
 import { GuitaristEngine, PlayStyle } from '../utils/guitaristEngine'

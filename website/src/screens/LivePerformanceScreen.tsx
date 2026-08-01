@@ -2,11 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Pause, Play, X, ChevronLeft, ChevronRight, Volume2, VolumeX, Youtube } from 'lucide-react'
 import { SessionConfig } from './SongSetupScreen'
-import {
-  initAudioEngine,
-  triggerGuitarChord,
-  setCapoFret,
-} from '../utils/guitarSound'
+import { initAudioEngine, setCapoFret } from '../utils/guitarSound'
 import { GuitaristEngine } from '../utils/guitaristEngine'
 import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'

@@ -1,21 +1,11 @@
-import { useRef, useEffect, Suspense } from 'react'
-import { useFrame, useLoader } from '@react-three/fiber'
+import { useRef, useEffect, Suspense, Component, ReactNode } from 'react'
+import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import * as THREE from 'three'
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ⚙️  CONFIG: set MODEL_FILE to the filename you dropped in /public/models/
-//     Supported formats: .fbx  .obj  .glb  .gltf
-//
-//     e.g.  'guitar.fbx'   or   'acoustic_guitar.obj'  or  'guitar.glb'
-// ─────────────────────────────────────────────────────────────────────────────
 const MODEL_FILE = 'guitar.glb'
-
 const ext = MODEL_FILE.split('.').pop()?.toLowerCase() ?? ''
 
-// ── Material enhancer — preserves original Blender materials & adds environmental reflections ──
 function enhanceMaterials(object: THREE.Object3D) {
   object.traverse(child => {
     if ((child as THREE.Mesh).isMesh) {
@@ -43,87 +33,6 @@ function enhanceMaterials(object: THREE.Object3D) {
   })
 }
 
-// ── FBX loader component ──────────────────────────────────────────────────────
-function FBXGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject<number> }) {
-  const fbx = useLoader(FBXLoader, `/models/${MODEL_FILE}`)
-  const groupRef = useRef<THREE.Group>(null)
-
-  useEffect(() => {
-    if (!fbx) return
-    enhanceMaterials(fbx)
-
-    // Auto-scale: fit the model into a ~6-unit bounding box
-    const box = new THREE.Box3().setFromObject(fbx)
-    const size = new THREE.Vector3()
-    box.getSize(size)
-    const maxDim = Math.max(size.x, size.y, size.z)
-    const targetSize = 8.8
-    fbx.scale.setScalar(targetSize / maxDim)
-
-    // Centre the model at origin
-    box.setFromObject(fbx)
-    const center = new THREE.Vector3()
-    box.getCenter(center)
-    fbx.position.sub(center)
-  }, [fbx])
-
-  useFrame(() => {
-    if (!groupRef.current) return
-    const scroll = scrollProgress.current
-    // Pure scroll-based rotation with smooth lerp
-    const targetRotY = scroll * Math.PI * 2.0
-    groupRef.current.rotation.y += (targetRotY - groupRef.current.rotation.y) * 0.08
-  })
-
-  return (
-    <group ref={groupRef}>
-      <primitive object={fbx} />
-    </group>
-  )
-}
-
-// ── OBJ loader component ──────────────────────────────────────────────────────
-function OBJGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject<number> }) {
-  const obj = useLoader(OBJLoader, `/models/${MODEL_FILE}`)
-  const groupRef = useRef<THREE.Group>(null)
-
-  useEffect(() => {
-    if (!obj) return
-    enhanceMaterials(obj)
-
-    // Align model so neck points UP (+Y) and front body face points forward (+Z)
-    obj.rotation.set(0, Math.PI / 2, Math.PI / 2)
-    obj.updateMatrixWorld(true)
-
-    const box = new THREE.Box3().setFromObject(obj)
-    const size = new THREE.Vector3()
-    box.getSize(size)
-    const maxDim = Math.max(size.x, size.y, size.z)
-    const targetSize = 8.8
-    obj.scale.setScalar(targetSize / maxDim)
-
-    box.setFromObject(obj)
-    const center = new THREE.Vector3()
-    box.getCenter(center)
-    obj.position.sub(center)
-  }, [obj])
-
-  useFrame(() => {
-    if (!groupRef.current) return
-    const scroll = scrollProgress.current
-    // Pure scroll-based rotation with smooth lerp
-    const targetRotY = scroll * Math.PI * 2.0
-    groupRef.current.rotation.y += (targetRotY - groupRef.current.rotation.y) * 0.08
-  })
-
-  return (
-    <group ref={groupRef}>
-      <primitive object={obj} />
-    </group>
-  )
-}
-
-// ── GLB/GLTF loader component ─────────────────────────────────────────────────
 function GLTFGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject<number> }) {
   const { scene } = useGLTF(`/models/${MODEL_FILE}`)
   const groupRef = useRef<THREE.Group>(null)
@@ -132,7 +41,6 @@ function GLTFGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject
     if (!scene) return
     enhanceMaterials(scene)
 
-    // Align model so neck points UP (+Y) and front face points forward (+Z)
     scene.rotation.set(0, Math.PI / 2, Math.PI / 2)
     scene.updateMatrixWorld(true)
 
@@ -149,12 +57,17 @@ function GLTFGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject
     scene.position.sub(center)
   }, [scene])
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     if (!groupRef.current) return
     const scroll = scrollProgress.current
-    // Pure scroll-based rotation with smooth lerp
-    const targetRotY = scroll * Math.PI * 2.0
-    groupRef.current.rotation.y += (targetRotY - groupRef.current.rotation.y) * 0.08
+    const t = clock.getElapsedTime()
+
+    const targetRotY = scroll * Math.PI * 2.2
+    groupRef.current.rotation.y += (targetRotY - groupRef.current.rotation.y) * 0.06
+
+    groupRef.current.position.y = Math.sin(t * 1.2) * 0.18
+    groupRef.current.rotation.z = Math.sin(t * 0.9) * 0.04
+    groupRef.current.rotation.x = Math.cos(t * 0.7) * 0.03
   })
 
   return (
@@ -164,7 +77,6 @@ function GLTFGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject
   )
 }
 
-// ── Sleek Minimalist 3D Spinner Fallback ──────────────────────────────────
 function LoadingPlaceholder() {
   const ref = useRef<THREE.Mesh>(null)
   useFrame(({ clock }) => {
@@ -180,9 +92,6 @@ function LoadingPlaceholder() {
     </mesh>
   )
 }
-
-// ── Error Boundary for Model Load Failures ────────────────────────────────────
-import { Component, ReactNode } from 'react'
 
 class ModelErrorBoundary extends Component<
   { fallback: ReactNode; children: ReactNode },
@@ -201,12 +110,10 @@ class ModelErrorBoundary extends Component<
   }
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
 interface RealGuitarProps {
   scrollProgress: React.MutableRefObject<number>
 }
 
-// Preload 380KB GLTF model for instantaneous rendering across all devices
 if (ext === 'glb' || ext === 'gltf') {
   try {
     useGLTF.preload(`/models/${MODEL_FILE}`)
@@ -217,9 +124,7 @@ export default function RealGuitar3D({ scrollProgress }: RealGuitarProps) {
   return (
     <ModelErrorBoundary fallback={<LoadingPlaceholder />}>
       <Suspense fallback={<LoadingPlaceholder />}>
-        {(ext === 'glb' || ext === 'gltf') && <GLTFGuitar scrollProgress={scrollProgress} />}
-        {ext === 'obj' && <OBJGuitar scrollProgress={scrollProgress} />}
-        {ext === 'fbx' && <FBXGuitar scrollProgress={scrollProgress} />}
+        <GLTFGuitar scrollProgress={scrollProgress} />
       </Suspense>
     </ModelErrorBoundary>
   )
