@@ -17,8 +17,8 @@ build/
 
 # Large 3D Assets (>100MB)
 *.obj
-website/public/models/
 *.fbx
+!website/public/models/guitar.glb
 
 # macOS files
 .DS_Store
