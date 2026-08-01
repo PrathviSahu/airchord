@@ -6,27 +6,61 @@ import * as THREE from 'three'
 const MODEL_FILE = 'guitar.glb'
 const ext = MODEL_FILE.split('.').pop()?.toLowerCase() ?? ''
 
-function enhanceMaterials(object: THREE.Object3D) {
+// Material palette — maps Blender material names to realistic guitar colors
+const MATERIAL_PALETTE: Record<string, {
+  color: string
+  metalness: number
+  roughness: number
+  emissive?: string
+  emissiveIntensity?: number
+}> = {
+  // Guitar body / neck — rich warm wood brown
+  Material: { color: '#6b3a1f', metalness: 0.05, roughness: 0.55 },
+  // Tuner pegs, nut, bridge — dark black plastic
+  Plastic: { color: '#1a1108', metalness: 0.1, roughness: 0.45 },
+  // Steel frets, saddle, strap pins
+  Steel: { color: '#c0c0c0', metalness: 0.92, roughness: 0.15 },
+  // Thicker wound strings (low E, A, D)
+  Strings: { color: '#d4a843', metalness: 0.95, roughness: 0.08 },
+  // Thinner plain strings (G, B, high e)
+  Strings3: { color: '#e8e8e8', metalness: 0.97, roughness: 0.06 },
+  // Fretboard dots / nut — white
+  White: { color: '#f5f5f5', metalness: 0.05, roughness: 0.35 },
+}
+
+function applyMaterials(object: THREE.Object3D) {
+  // Build a cache so we share one material instance per Blender material name
+  const matCache = new Map<string, THREE.MeshStandardMaterial>()
+
   object.traverse(child => {
-    if ((child as THREE.Mesh).isMesh) {
-      const mesh = child as THREE.Mesh
-      // Enable shadows but preserve ALL original Blender material properties
-      mesh.castShadow = true
-      mesh.receiveShadow = true
+    if (!(child as THREE.Mesh).isMesh) return
+    const mesh = child as THREE.Mesh
+    mesh.castShadow = true
+    mesh.receiveShadow = true
 
-      const applyMat = (mat: THREE.Material) => {
-        // Mark material as needing update so textures/colors render correctly on mobile
-        mat.needsUpdate = true
-        // Do NOT override color, roughness, metalness, or envMapIntensity
-        // — let the original Blender-exported values come through exactly
-        return mat
-      }
+    const getMat = (old: THREE.Material) => {
+      const key = old.name || 'Material'
+      if (matCache.has(key)) return matCache.get(key)!
 
-      if (Array.isArray(mesh.material)) {
-        mesh.material = mesh.material.map(applyMat)
-      } else if (mesh.material) {
-        applyMat(mesh.material)
-      }
+      const preset = MATERIAL_PALETTE[key] ?? MATERIAL_PALETTE['Material']
+      const m = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(preset.color),
+        metalness: preset.metalness,
+        roughness: preset.roughness,
+        envMapIntensity: 0.8,
+        ...(preset.emissive ? {
+          emissive: new THREE.Color(preset.emissive),
+          emissiveIntensity: preset.emissiveIntensity ?? 0.1,
+        } : {}),
+      })
+      matCache.set(key, m)
+      return m
+    }
+
+    if (Array.isArray(mesh.material)) {
+      mesh.material = mesh.material.map(getMat)
+    } else if (mesh.material) {
+      mesh.material = getMat(mesh.material)
     }
   })
 }
@@ -37,7 +71,7 @@ function GLTFGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject
 
   useEffect(() => {
     if (!scene) return
-    enhanceMaterials(scene)
+    applyMaterials(scene)
 
     scene.rotation.set(0, Math.PI / 2, Math.PI / 2)
     scene.updateMatrixWorld(true)
@@ -46,8 +80,7 @@ function GLTFGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject
     const size = new THREE.Vector3()
     box.getSize(size)
     const maxDim = Math.max(size.x, size.y, size.z)
-    const targetSize = 8.8
-    scene.scale.setScalar(targetSize / maxDim)
+    scene.scale.setScalar(8.8 / maxDim)
 
     box.setFromObject(scene)
     const center = new THREE.Vector3()
