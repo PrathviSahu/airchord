@@ -155,8 +155,8 @@ const FEATURES = [
   },
   {
     num: '05',
-    title: 'Runs Entirely Offline',
-    body: 'All gesture recognition and synthesis happens on your device. No server. No latency. No subscription required.',
+    title: 'Offline-capable audio',
+    body: 'Guitar modeling runs on your device after the app loads. Cache the camera model and optional samples for a fully offline session.',
   },
 ]
 

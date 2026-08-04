@@ -8,18 +8,20 @@ AirChord is a commercial-grade, AI-powered virtual guitar companion web applicat
 
 ## 🎯 Current Status
 
-**Phase:** Full Production Web Application ✅
+**Phase:** Interactive MVP / production prototype
 
 ### Key Achievements & Features Implemented:
 - ✅ **Pluggable Audio Engine Architecture (`IGuitarEngine`)**:
-  - 🎸 **Studio Acoustic**: High-realism SoundFont multi-sample player with audio buffer caching & silent fetch fallbacks.
-  - 🎻 **Nylon Classical**: Mellow fingerstyle classical sound model.
-  - ⚡ **Classic Synth**: 3-oscillator humanized synthesis model with body EQ, soundboard resonance, and plate reverb.
+  - 🎸 **Studio Acoustic**: Optional SoundFont note samples with a humanized Karplus–Strong physical-model fallback.
+  - 🎻 **Nylon Classical**: Mellow physical-model nylon tone.
+  - ⚡ **Physical Model**: Per-string body EQ, soundboard-style resonance, pick transients, stereo placement, reverb, and safe limiting.
 - ✅ **Humanized Acoustic Dynamics**:
-  - Micro-timing jitter (`±4ms` per string random offset).
-  - Pluck attack pitch-tension spike (`~12-14 cents` sharp settling in `35ms`).
-  - Dynamic string velocity (`±15%`), variable pick angle, and fret scratch/slide transition noise (`playFretScratchNoise`).
-  - Master `DynamicsCompressorNode` for digital clipping prevention.
+  - Sample-accurate strum gaps with small timing jitter (about `±1.2ms` around the string gap).
+  - Small per-pluck pitch variation (about `±2.6 cents`) and attack/decay variation.
+  - Dynamic string velocity, per-string brightness/pan, pick noise, chord-change scratch, and real percussive mute hits.
+  - Separate recording mix bus for guitar + microphone capture.
+
+> The optional remote SoundFont is not a licensed studio multi-sample library. For genuinely recorded guitar, add local/licensed samples per string, fret, velocity, and articulation. See [`docs/CodeReview.md`](docs/CodeReview.md).
 - ✅ **Interactive Practice Room (`PracticeRoomScreen.tsx`)**:
   - Step-by-step chord trainer with gesture badges (`✊ 0 - Fist`, `☝️ 1 - Index`, `✌️ 2 - Peace`, etc.).
   - Real-time MediaPipe hand landmark matching with audio feedback & stage transition unlock.
@@ -48,7 +50,8 @@ npm install
 # Start development server
 npm run dev
 
-# Build for production
+# Typecheck + build for production
+npm run typecheck
 npm run build
 ```
 

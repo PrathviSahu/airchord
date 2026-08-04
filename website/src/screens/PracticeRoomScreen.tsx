@@ -2,7 +2,18 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Play, Pause, Download, RotateCcw, Volume2, VolumeX, Mic } from 'lucide-react'
 import { SessionConfig } from './SongSetupScreen'
-import { initAudioEngine, triggerGuitarChord, playDownStrum, playUpStrum, playMuteStrum, CHORD_NOTES, setCapoFret } from '../utils/guitarSound'
+import {
+  initAudioEngine,
+  triggerGuitarChord,
+  playDownStrum,
+  playUpStrum,
+  playMuteStrum,
+  CHORD_NOTES,
+  setCapoFret,
+  setAudioMuted,
+  createPerformanceRecordingStream,
+  disconnectMicrophoneFromRecording,
+} from '../utils/guitarSound'
 import { GuitaristEngine, PlayStyle } from '../utils/guitaristEngine'
 import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
@@ -78,6 +89,7 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
   const streamRef     = useRef<MediaStream | null>(null)
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const [micReady, setMicReady] = useState(false)
 
   // Gesture & Detection State
   const [detectedFingers, setDetectedFingers] = useState<number>(0)
@@ -102,6 +114,13 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
     setCapoFret(capo)
   }, [capo])
 
+  // Mute the actual audio bus as well as stopping future beat triggers. This
+  // prevents a strum tail from continuing after the HUD mute button is pressed.
+  useEffect(() => {
+    setAudioMuted(isMuted)
+    return () => setAudioMuted(false)
+  }, [isMuted])
+
   // Update Guitarist style when preset changes
   useEffect(() => {
     guitaristRef.current.setStyle(activePreset.style)
@@ -110,12 +129,20 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
   // ── Boot Camera ──────────────────────────────────────────────────────
   useEffect(() => {
     async function startCam() {
+      const video = { facingMode: 'user' as const, width: { ideal: 1280 }, height: { ideal: 720 } }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: true, // Request mic audio for recording & vocal input
-        })
+        let stream: MediaStream
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video,
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          })
+        } catch {
+          // Camera practice should still work if the user declines the mic.
+          stream = await navigator.mediaDevices.getUserMedia({ video })
+        }
         streamRef.current = stream
+        setMicReady(stream.getAudioTracks().length > 0)
         if (videoRef.current) {
           videoRef.current.srcObject = stream
           videoRef.current.onloadedmetadata = () => {
@@ -124,12 +151,13 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
           }
         }
       } catch {
-        setCameraError('Camera / Microphone permission blocked. Please allow media access.')
+        setCameraError('Camera permission blocked. Please allow camera access.')
       }
     }
     startCam()
     return () => {
       streamRef.current?.getTracks().forEach(t => t.stop())
+      disconnectMicrophoneFromRecording()
     }
   }, [])
 
@@ -178,10 +206,10 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
       return
     }
     const beatMs   = Math.round(60000 / (bpm || 90))
-    const patterns = strumPattern
+    const patterns = strumPattern.length > 0 ? strumPattern : ['D']
     let beatIndex  = -1
 
-    const iv = setInterval(() => {
+    const playNextBeat = () => {
       beatIndex = (beatIndex + 1) % patterns.length
       setActiveBeat(beatIndex)
       const stroke    = patterns[beatIndex]
@@ -193,7 +221,11 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
         'Chorus', // Full dynamics for free jam
         0.38
       )
-    }, beatMs)
+    }
+
+    // Put the downbeat on the musical start instead of waiting a full beat.
+    playNextBeat()
+    const iv = setInterval(playNextBeat, beatMs)
 
     return () => clearInterval(iv)
   }, [isPlaying, isMuted, bpm, strumPattern])
@@ -202,12 +234,10 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
   const handleStartRecording = useCallback(() => {
     try {
       recordedChunksRef.current = []
-      let recStream: MediaStream | null = null
+      let recStream: MediaStream | null = createPerformanceRecordingStream(streamRef.current)
 
-      if (streamRef.current) {
-        recStream = streamRef.current
-      } else if (canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
-        recStream = (canvasRef.current as any).captureStream(30)
+      if (!recStream && canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
+        recStream = createPerformanceRecordingStream((canvasRef.current as any).captureStream(30))
       }
 
       if (!recStream || recStream.getTracks().length === 0) return
@@ -253,8 +283,10 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop()
     }
+    disconnectMicrophoneFromRecording()
     if (recTimerRef.current) {
       clearInterval(recTimerRef.current)
+      recTimerRef.current = null
     }
     setIsRecording(false)
   }, [])
@@ -299,8 +331,8 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
               <span className="px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-500/30 text-purple-300 font-mono text-[10px] font-bold uppercase tracking-wider">
                 PRO PRACTICE ROOM
               </span>
-              <span className="text-xs font-mono text-emerald-400 flex items-center gap-1">
-                <Mic className="w-3 h-3" /> Live Mic On
+              <span className={`text-xs font-mono flex items-center gap-1 ${micReady ? 'text-emerald-400' : 'text-white/35'}`}>
+                <Mic className="w-3 h-3" /> {micReady ? 'Live Mic On' : 'Mic Optional'}
               </span>
             </div>
             <h1 className="text-lg font-black tracking-tight text-white mt-0.5">Freestyle Jam & Record</h1>
