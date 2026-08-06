@@ -52,8 +52,6 @@ A truly recorded “real guitar” sound still requires licensed local multi-sam
 | P1 | Practice ignored the selected song strum pattern, and songs without a preset pattern silently changed to Island Pop. | Setup choices did not survive into performance. | Preserve custom/default song patterns and initialize practice from the session configuration. |
 | P1 | Song library used `C#m`, but the audio voicing table had no `C#m` entry. | That finger mapping fell back to Em audio while displaying C#m. | Added the missing voicing and exposed it in chord editors. |
 | P2 | The cached GLTF scene and loading particles were repeatedly mutated/randomized during rerenders. | Re-entering the landing page could leak materials and loading animation could flicker. | Guard material application and make loading particle values deterministic. |
-| P2 | There was no CI gate for typecheck, tests, builds, lint, or dependency audit. | Regressions could land without a reproducible verification step. | Added `.github/workflows/ci.yml` for website and prototype checks. |
-
 ### Remaining bugs / risks
 
 1. **Browser audio, camera, and end-to-end coverage is still missing.** Added six fast Vitest data/orchestration tests for chord voicings, song timelines, profiles, and LRC parsing. Still add Web Audio mocks, gesture landmark fixtures, recording-stream tests, and Playwright coverage for permission-denied and record/download flows.
@@ -66,6 +64,7 @@ A truly recorded “real guitar” sound still requires licensed local multi-sam
 8. **Lyrics and external synced lyrics need licensing/product review.** Full copyrighted lyrics are bundled in `songLibrary.ts`, and LRCLIB is queried at runtime. Obtain rights or limit the product to user-provided/licensed lyrics, add attribution/terms, and avoid treating an external service as a guaranteed API.
 9. **Recording lifecycle is safer but still duplicated.** URL objects, recorder streams, countdown timers, and active recorders now clean up on route change/unmount, but the logic is duplicated between practice/live. Add a single `useRecordingSession` hook with explicit `idle → recording → stopping → ready → disposed` states.
 10. **Accessibility is incomplete.** Several icon-only controls lack accessible labels, camera/audio permission errors are not consistently announced, and the camera UI needs keyboard/focus verification. Add `aria-label`, live regions, focus-visible styles, and reduced-motion coverage.
+11. **CI is not committed yet.** A workflow was prepared locally, but this GitHub connection cannot update workflow files without the `workflows` permission. Add the CI workflow after GitHub is reconnected with that scope; the commands are already documented and pass locally.
 
 ## Recommended next milestones
 
