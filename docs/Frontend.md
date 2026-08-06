@@ -16,7 +16,7 @@
 | Forms | React Hook Form + Zod | Performant, schema-validated inputs |
 | Animations | Framer Motion + GSAP (optional) | Framer Motion for micro-interactions, GSAP only if timeline complexity demands |
 | 3D | React Three Fiber + Drei | React bindings for Three.js, easy instrument rendering |
-| Audio | Tone.js + Web Audio API | Professional-grade synthesis, built-in timing |
+| Audio | Web Audio API + sample/physical-model engine | Low-latency browser playback, humanized string rendering, recording mix bus |
 
 ---
 

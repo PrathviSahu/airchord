@@ -1,11 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import LandingPage from './screens/LandingPage'
-import SongSearchScreen from './screens/SongSearchScreen'
-import SongSetupScreen, { SessionConfig } from './screens/SongSetupScreen'
-import PracticeRoomScreen from './screens/PracticeRoomScreen'
-import LivePerformanceScreen from './screens/LivePerformanceScreen'
-import { SEED_SONGS, Song } from './utils/songLibrary'
+import type { SessionConfig } from './screens/SongSetupScreen'
+import { SEED_SONGS } from './utils/songLibrary'
+import type { Song } from './utils/songLibrary'
+
+// Keep the landing page, camera/MediaPipe practice room, and live recorder out
+// of the first JavaScript payload. Each route is loaded only when entered.
+const LandingPage = lazy(() => import('./screens/LandingPage'))
+const SongSearchScreen = lazy(() => import('./screens/SongSearchScreen'))
+const SongSetupScreen = lazy(() => import('./screens/SongSetupScreen'))
+const PracticeRoomScreen = lazy(() => import('./screens/PracticeRoomScreen'))
+const LivePerformanceScreen = lazy(() => import('./screens/LivePerformanceScreen'))
 
 export type AppMode = 'landing' | 'song-search' | 'song-setup' | 'practice' | 'live'
 
@@ -31,6 +36,14 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
         <p className="text-xs font-mono text-purple-400 mt-1">AI GUITAR PERFORMANCE STUDIO</p>
       </motion.div>
       <div className="absolute bottom-10 text-[10px] font-mono text-white/30">Loading Audio Engine & 3D Stage...</div>
+    </div>
+  )
+}
+
+function RouteLoading() {
+  return (
+    <div className="fixed inset-0 bg-[#06060a] flex items-center justify-center font-mono text-xs text-white/40">
+      Loading studio…
     </div>
   )
 }
@@ -101,7 +114,6 @@ export default function App() {
           <PracticeRoomScreen
             config={sessionConfig ?? undefined}
             onBack={() => setMode(sessionConfig ? 'song-setup' : 'landing')}
-            onStartLive={() => setMode('live')}
           />
         )
 
@@ -128,7 +140,9 @@ export default function App() {
 
       {!showSplash && (
         <main className="w-full h-full bg-[#06060a] text-white">
-          {renderScreen()}
+          <Suspense fallback={<RouteLoading />}>
+            {renderScreen()}
+          </Suspense>
         </main>
       )}
     </>

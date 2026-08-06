@@ -2,7 +2,9 @@
 
 ## 1. Overview
 
-AirChord's audio engine delivers studio-quality guitar synthesis with sub-50ms latency. The engine uses Tone.js and the Web Audio API for real-time audio processing, supporting multiple instruments, strumming patterns, capo transposition, and tempo control. All synthesis runs client-side with no server dependency after initial asset loading.
+The current website engine is implemented in `website/src/utils/guitarSound.ts` with the Web Audio API (the website does not currently use Tone.js). It is sample-first with a humanized Karplus–Strong fallback, so it can respond immediately and continue to work when optional remote samples are unavailable. The current implementation supports multiple guitar tones, strum patterns, capo transposition, mute hits, effects, and a recording mix bus.
+
+This document contains the target architecture as well as the current browser implementation. Claims about a studio-quality multi-sample bank, fixed 48 kHz output, Tone.Transport scheduling, and all-instrument preloading are future targets—not guarantees of the current website build. For the implementation audit and remaining work, see [`CodeReview.md`](./CodeReview.md).
 
 ---
 
@@ -30,10 +32,12 @@ graph TB
 
 | Module | Responsibility |
 |--------|---------------|
-| **Sample Loader** | Pre-loads all instrument samples into memory on app start |
+| **Sample Loader** | Warms a small set of optional SoundFont notes and lazily de-duplicates the rest |
+| **Physical Model** | Renders Karplus–Strong string buffers for immediate/offline fallback playback |
 | **Chord Generator** | Builds chord voicings from note arrays + capo offset |
-| **Strumming Engine** | Timing engine with humanize factor and pattern sequencing |
-| **Effects Chain** | Reverb, delay, chorus, compression, EQ |
+| **Strumming Engine** | AudioContext-scheduled string gaps with humanized timing and velocity |
+| **Effects Chain** | Body EQ, pick transients, reverb, compression, limiting |
+| **Recording Bus** | Mixes guitar output and optional microphone into a MediaStream destination |
 | **Master Mixer** | Balances instrument, metronome, voice, effects |
 | **Dynamic Band** | Responds to voice intensity to adjust arrangement |
 | **Recorder Node** | Captures mixed audio for recording |

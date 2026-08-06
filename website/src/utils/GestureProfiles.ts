@@ -9,6 +9,12 @@ export interface GestureProfile {
 
 export const PRESET_GESTURE_PROFILES: GestureProfile[] = [
   {
+    id: 'classic',
+    name: 'Classic',
+    description: 'Standard open-position guitar chords',
+    mapping: ['Em', 'Am', 'G', 'C', 'D', 'F'],
+  },
+  {
     id: 'beginner',
     name: 'Beginner',
     description: 'Essential 4-chord progression (Em, Am, D, C, G, B7)',

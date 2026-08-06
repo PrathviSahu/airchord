@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-AirChord's testing strategy ensures reliability, performance, and quality across all platforms. The testing pyramid includes unit tests, integration tests, end-to-end tests, performance tests, and specialized audio/gesture testing.
+This document describes AirChord's target testing strategy. The current repository is earlier than the documented target: it has a small Vitest suite in `website/src/utils/core.test.ts`, build/typecheck/lint scripts, but no Playwright suite, backend integration tests, or automated Web Audio/camera fixtures yet. Track actual coverage in CI rather than treating the counts below as completed tests.
 
 ---
 
@@ -22,12 +22,12 @@ graph TB
 
 ### 2.1 Testing Pyramid
 
-| Level | Count | Speed | Coverage |
-|-------|-------|-------|----------|
-| Unit Tests | 1000+ | <1ms each | 80%+ |
-| Integration Tests | 100+ | <100ms each | 60%+ |
-| E2E Tests | 50+ | <5s each | Critical paths |
-| Performance Tests | 20+ | Varies | Benchmarks |
+| Level | Current | Target | Speed | Coverage |
+|-------|---------|--------|-------|----------|
+| Unit Tests | 6 | 1000+ | <1ms each | 80%+ |
+| Integration Tests | 0 | 100+ | <100ms each | 60%+ |
+| E2E Tests | 0 | 50+ | <5s each | Critical paths |
+| Performance Tests | 0 | 20+ | Varies | Benchmarks |
 
 ---
 

@@ -1,7 +1,8 @@
-import { useRef, useEffect, useState, Suspense, useCallback } from 'react'
+import { useRef, useEffect, useState, Suspense, useCallback, lazy } from 'react'
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
-import StageScene from '../components/StageScene'
+
+const StageScene = lazy(() => import('../components/StageScene'))
 import GuitarLoadingScreen from '../components/GuitarLoadingScreen'
 import { playPluckNote, playStrum, initAudioEngine } from '../utils/guitarSound'
 
@@ -99,7 +100,7 @@ function GestureDemo() {
             className="w-0.5 rounded-full bg-white/40 anim-waveform"
             style={{
               animationDelay: `${i * 0.04}s`,
-              animationDuration: `${0.5 + Math.random() * 0.4}s`,
+              animationDuration: `${0.5 + (i % 5) * 0.08}s`,
             }}
           />
         ))}
@@ -155,8 +156,8 @@ const FEATURES = [
   },
   {
     num: '05',
-    title: 'Runs Entirely Offline',
-    body: 'All gesture recognition and synthesis happens on your device. No server. No latency. No subscription required.',
+    title: 'Offline-capable audio',
+    body: 'Guitar modeling runs on your device after the app loads. Cache the camera model and optional samples for a fully offline session.',
   },
 ]
 
@@ -171,7 +172,9 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
   const containerRef = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll()
   const [isLoaded, setIsLoaded] = useState(false)
+  const [stageError, setStageError] = useState(false)
   const handleLoaded = useCallback(() => setIsLoaded(true), [])
+  const handleStageError = useCallback(() => setStageError(true), [])
 
   // ── Fingerpicking pattern on scroll ──
   const lastPluckTimeRef = useRef(0)
@@ -261,7 +264,7 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
   return (
     <div ref={containerRef} style={{ background: '#050505' }}>
       {/* ── Guitar loading screen — shown until 3D scene is ready ── */}
-      <GuitarLoadingScreen isLoaded={isLoaded} />
+      <GuitarLoadingScreen isLoaded={isLoaded || stageError} />
 
       {/* ── Single Three.js canvas: Lightfall BG + rotating guitar, one WebGL context ── */}
       <div style={{
@@ -271,7 +274,7 @@ export default function LandingPage({ onEnter, onOpenStudio }: LandingPageProps)
         pointerEvents: 'none',
       }}>
         <Suspense fallback={null}>
-          <StageScene scrollProgress={scrollProgress} onLoaded={handleLoaded} />
+          <StageScene scrollProgress={scrollProgress} onLoaded={handleLoaded} onLoadError={handleStageError} />
         </Suspense>
       </div>
 

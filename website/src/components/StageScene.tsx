@@ -94,9 +94,10 @@ function CameraRig({ scrollProgress }: { scrollProgress: React.MutableRefObject<
 interface StageSceneProps {
   scrollProgress: React.MutableRefObject<number>
   onLoaded?: () => void
+  onLoadError?: () => void
 }
 
-function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
+function SceneContents({ scrollProgress, onLoaded, onLoadError }: StageSceneProps) {
   const { active, progress, loaded } = useProgress()
 
   useEffect(() => {
@@ -121,7 +122,7 @@ function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
 
       {/* Real downloaded guitar model */}
       <group position={[0, 0, 0]}>
-        <RealGuitar3D scrollProgress={scrollProgress} />
+        <RealGuitar3D scrollProgress={scrollProgress} onError={onLoadError} />
       </group>
 
       {/* Floating interactive chord tags synced to scroll */}
@@ -139,7 +140,7 @@ function SceneContents({ scrollProgress, onLoaded }: StageSceneProps) {
   )
 }
 
-export default function StageScene({ scrollProgress, onLoaded }: StageSceneProps) {
+export default function StageScene({ scrollProgress, onLoaded, onLoadError }: StageSceneProps) {
   return (
     <Canvas
       camera={{ position: [0, 1.2, 14.5], fov: 40, near: 0.1, far: 70 }}
@@ -157,7 +158,7 @@ export default function StageScene({ scrollProgress, onLoaded }: StageSceneProps
         background: 'transparent',              // canvas itself is transparent
       }}
     >
-      <SceneContents scrollProgress={scrollProgress} onLoaded={onLoaded} />
+      <SceneContents scrollProgress={scrollProgress} onLoaded={onLoaded} onLoadError={onLoadError} />
     </Canvas>
   )
 }

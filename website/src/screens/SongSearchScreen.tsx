@@ -1,20 +1,14 @@
 import React, { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Music, ArrowRight, ChevronRight, Star, Zap, Clock, Guitar } from 'lucide-react'
-import { SEED_SONGS, SONG_COLLECTIONS, Song } from '../utils/songLibrary'
+import { Search, Music, ChevronRight, Zap, Clock } from 'lucide-react'
+import { SEED_SONGS, SONG_COLLECTIONS } from '../utils/songLibrary'
+import type { Song } from '../utils/songLibrary'
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   Beginner:     'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   Easy:         'bg-blue-500/20 text-blue-300 border-blue-500/30',
   Intermediate: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
   Advanced:     'bg-rose-500/20 text-rose-300 border-rose-500/30',
-}
-
-const STRUM_PREVIEW: Record<string, string> = {
-  'Island Pop':  '↓↓↑↑↓↑',
-  'Rock 4/4':    '↓↓↓↓↓↓↓↓',
-  'Basic Folk':  '↓↓↑↓↑',
-  'Waltz 3/4':   '↓↑↑↓↑↑',
 }
 
 function SongCard({ song, onSelect, index }: { song: Song; onSelect: (s: Song) => void; index: number }) {

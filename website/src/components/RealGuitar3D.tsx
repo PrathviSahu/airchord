@@ -65,7 +65,11 @@ function GLTFGuitar({ scrollProgress }: { scrollProgress: React.MutableRefObject
 
   useEffect(() => {
     if (!scene) return
+    // Drei caches the GLTF scene. Avoid replacing all materials again every
+    // time the landing route is mounted, which otherwise leaks GPU materials.
+    if (scene.userData.airchordMaterialsApplied) return
     applyMaterials(scene)
+    scene.userData.airchordMaterialsApplied = true
 
     scene.rotation.set(0, Math.PI / 2, Math.PI / 2)
     scene.updateMatrixWorld(true)
@@ -119,7 +123,7 @@ function LoadingPlaceholder() {
 }
 
 class ModelErrorBoundary extends Component<
-  { fallback: ReactNode; children: ReactNode },
+  { fallback: ReactNode; children: ReactNode; onError?: () => void },
   { hasError: boolean }
 > {
   state = { hasError: false }
@@ -128,6 +132,7 @@ class ModelErrorBoundary extends Component<
   }
   componentDidCatch(error: any) {
     console.warn('3D model fetch notice:', error)
+    this.props.onError?.()
   }
   render() {
     if (this.state.hasError) return this.props.fallback
@@ -137,6 +142,7 @@ class ModelErrorBoundary extends Component<
 
 interface RealGuitarProps {
   scrollProgress: React.MutableRefObject<number>
+  onError?: () => void
 }
 
 if (ext === 'glb' || ext === 'gltf') {
@@ -145,9 +151,9 @@ if (ext === 'glb' || ext === 'gltf') {
   } catch {}
 }
 
-export default function RealGuitar3D({ scrollProgress }: RealGuitarProps) {
+export default function RealGuitar3D({ scrollProgress, onError }: RealGuitarProps) {
   return (
-    <ModelErrorBoundary fallback={<LoadingPlaceholder />}>
+    <ModelErrorBoundary fallback={<LoadingPlaceholder />} onError={onError}>
       <Suspense fallback={<LoadingPlaceholder />}>
         <GLTFGuitar scrollProgress={scrollProgress} />
       </Suspense>

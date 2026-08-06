@@ -92,7 +92,7 @@ export function Camera({ onFrame, onFps, onReady }: CameraProps) {
       cancelAnimationFrame(animFrame);
       stream?.getTracks().forEach(t => t.stop());
     };
-  }, []);
+  }, [onFrame, onFps, onReady]);
 
   return (
     <div className="camera-container">

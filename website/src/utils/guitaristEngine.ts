@@ -187,6 +187,8 @@ interface ChordState {
 export class GuitaristEngine {
   private style:      PlayStyle
   private chord:      ChordState | null = null
+  private lastStrokeAt = 0
+  private ringing = false
 
   constructor(style: PlayStyle = 'pop') {
     this.style = style
@@ -263,16 +265,27 @@ export class GuitaristEngine {
   ) {
     if (!stroke || stroke === '.' || stroke === '•') return
 
+    const now = performance.now()
+    const s = stroke.toUpperCase()
+    const isDown = s === 'D' || s === '↓'
+    const isUp = s === 'U' || s === '↑'
+    const isMute = s === 'X' || s === '✕'
+    if (!isDown && !isUp && !isMute) return
     let triggerVoicing: GuitarVoicing
 
     if (this.chord?.name === chordName) {
-      // Same chord — keep the same voicing; no re-trigger logic needed
+      // Same chord — keep the selected voicing, but re-pluck it after a mute or
+      // a long pause because the previously shared strings are no longer ringing.
       triggerVoicing = this.chord.voicing
     } else {
-      // Chord changed — pick a new variant, compute what needs to be re-plucked
+      // Chord changed. Shared open strings may ring through a close transition,
+      // but only while we have recently played a non-muted stroke.
       const newVoicing = this.selectVoicing(chordName)
-      triggerVoicing   = this.chord
-        ? this.buildTransitionVoicing(this.chord.voicing, newVoicing)
+      const canCarrySharedStrings = Boolean(
+        this.chord && this.ringing && now - this.lastStrokeAt < 900,
+      )
+      triggerVoicing = canCarrySharedStrings
+        ? this.buildTransitionVoicing(this.chord!.voicing, newVoicing)
         : newVoicing
       this.chord = { name: chordName, voicing: newVoicing, velocity: baseVol }
     }
@@ -283,12 +296,19 @@ export class GuitaristEngine {
       * this.accentGain(beatIdx, stroke)
 
     // Dispatch to the audio renderer
-    const s = stroke.toUpperCase()
-    if      (s === 'D' || s === '↓') playDownStrum(triggerVoicing, vol)
-    else if (s === 'U' || s === '↑') playUpStrum(triggerVoicing, vol)
-    else if (s === 'X' || s === '✕') playMuteStrum(triggerVoicing, vol)
+    if (isDown) playDownStrum(triggerVoicing, vol)
+    else if (isUp) playUpStrum(triggerVoicing, vol)
+    else if (isMute) playMuteStrum(triggerVoicing, vol)
+
+    if (isDown || isUp) this.ringing = true
+    if (isMute) this.ringing = false
+    this.lastStrokeAt = now
   }
 
   /** Reset chord state — call when the song restarts */
-  reset() { this.chord = null }
+  reset() {
+    this.chord = null
+    this.lastStrokeAt = 0
+    this.ringing = false
+  }
 }

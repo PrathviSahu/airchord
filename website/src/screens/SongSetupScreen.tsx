@@ -1,10 +1,7 @@
-import React, { useState, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import {
-  ArrowLeft, Play, ChevronDown, ChevronUp, Music, Zap, Guitar,
-  RotateCcw, Check, Edit3, ChevronRight, Info
-} from 'lucide-react'
-import { Song, TimestampedLyric } from '../utils/songLibrary'
+import React, { useState } from 'react'
+import { motion } from 'framer-motion'
+import { ArrowLeft, Play, RotateCcw, Check } from 'lucide-react'
+import type { Song } from '../utils/songLibrary'
 import { getEngineMode, setEngineMode, EngineMode } from '../utils/guitarSound'
 
 // ── Strum pattern presets ─────────────────────────────────────────────
@@ -18,7 +15,7 @@ const STRUM_PRESETS = [
 
 const ALL_CHORDS = [
   'Em','Am','G','C','D','F','E','A','Dm','B7','G7','D7','E7','A7',
-  'Bm','Fm','Gm','Cm','F#m','Bb','Eb','Ab','B','F#','Gsus4','Cadd9','Am7',
+  'Bm','Fm','Gm','Cm','C#m','F#m','Bb','Eb','Ab','B','F#','Gsus4','Cadd9','Am7',
 ]
 
 const SECTION_COLORS: Record<string, string> = {
@@ -29,8 +26,18 @@ const SECTION_COLORS: Record<string, string> = {
   Outro:  'text-rose-400 border-rose-500/30 bg-rose-500/10',
 }
 
-// ── Finger gesture labels ─────────────────────────────────────────────
-const FINGER_LABELS = ['✊ 0 — Fist', '☝️ 1 — Index', '✌️ 2 — Peace', '🤟 3 — Three', '🖐️ 4 — Four', '✋ 5 — Palm']
+const STROKE_ALIASES: Record<string, string> = {
+  D: 'D', '↓': 'D', U: 'U', '↑': 'U', X: 'X', '✕': 'X', '.': '.', '•': '.',
+}
+
+function parseCustomPattern(input: string, fallback: string[]) {
+  const parsed = input
+    .trim()
+    .split(/\s+/)
+    .map(token => STROKE_ALIASES[token.toUpperCase()] ?? STROKE_ALIASES[token])
+    .filter((stroke): stroke is string => Boolean(stroke))
+  return parsed.length > 0 ? parsed : fallback
+}
 
 interface SongSetupScreenProps {
   song: Song
@@ -49,40 +56,30 @@ export interface SessionConfig {
 }
 
 export default function SongSetupScreen({ song, onBack, onStartPlaying, onPractice }: SongSetupScreenProps) {
+  const songPresetIndex = STRUM_PRESETS.findIndex(p => p.display === song.displayPattern)
   const [capo, setCapo]               = useState(song.capo)
   const [bpm, setBpm]                 = useState(song.bpm)
-  const [selectedPreset, setPreset]   = useState<number>(() => {
-    const idx = STRUM_PRESETS.findIndex(p => p.display === song.displayPattern)
-    return idx >= 0 ? idx : 0
-  })
+  const [selectedPreset, setPreset]   = useState(songPresetIndex >= 0 ? songPresetIndex : 0)
   const [fingerMapping, setFingerMapping] = useState<string[]>([...song.fingerMapping])
   const [customPattern, setCustom]    = useState(song.displayPattern)
-  const [isCustom, setIsCustom]       = useState(false)
+  const [isCustom, setIsCustom]       = useState(songPresetIndex < 0)
   const [editingMapping, setEditingMapping] = useState(false)
   const [engineState, setEngineState] = useState<EngineMode>(getEngineMode())
 
-  // Flatten all lyrics for display
-  const allLyricsFlat = useMemo(() =>
-    song.sections.flatMap(s => s.lyrics.map(l => ({ ...l, sectionName: s.name }))),
-  [song])
-
-  // Current strum display
-  const activePattern = isCustom
-    ? STRUM_PRESETS[selectedPreset]
-    : STRUM_PRESETS[selectedPreset]
-
-  const getConfig = (): SessionConfig => ({
-    song,
-    capo,
-    bpm,
-    strumPattern: isCustom
-      ? customPattern.trim().split(/\s+/)
-      : STRUM_PRESETS[selectedPreset].pattern,
-    displayPattern: isCustom
-      ? customPattern.trim()
-      : STRUM_PRESETS[selectedPreset].display,
-    fingerMapping,
-  })
+  const getConfig = (): SessionConfig => {
+    const fallbackPattern = STRUM_PRESETS[selectedPreset].pattern
+    const parsedCustomPattern = parseCustomPattern(customPattern, fallbackPattern)
+    return {
+      song,
+      capo,
+      bpm,
+      strumPattern: isCustom ? parsedCustomPattern : fallbackPattern,
+      displayPattern: isCustom && parsedCustomPattern.length > 0
+        ? parsedCustomPattern.map(stroke => stroke === 'D' ? '↓' : stroke === 'U' ? '↑' : stroke === 'X' ? '✕' : '•').join(' ')
+        : STRUM_PRESETS[selectedPreset].display,
+      fingerMapping,
+    }
+  }
 
   const handleStart = () => {
     onStartPlaying(getConfig())
@@ -248,9 +245,9 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
                 }`}
               >
                 <p className={`text-[11px] font-bold ${engineState === 'synth' ? 'text-purple-200' : 'text-white/60'}`}>
-                  ⚡ Synth
+                  ⚡ Model
                 </p>
-                <p className="text-[9px] font-mono text-white/30 mt-0.5">3-Osc</p>
+                <p className="text-[9px] font-mono text-white/30 mt-0.5">Offline KS</p>
               </button>
             </div>
           </div>
