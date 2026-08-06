@@ -1,0 +1,79 @@
+{
+  "id": "perfect",
+  "title": "Perfect",
+  "artist": "Ed Sheeran",
+  "bpm": 63,
+  "timeSignature": "6/8",
+  "key": "G Major (Ab with Capo 1)",
+  "capo": 1,
+  "difficulty": "Easy",
+  "collections": ["English", "Pop", "Romantic", "Beginner"],
+  "duration": "4:23",
+  "defaultStrumPattern": ["D", ".", "D", "U", "D", "U"],
+  "displayPattern": "↓ • ↓ ↑ ↓ ↑",
+  "fingerstylePattern": ["P", "I", "M", "A", "M", "I"],
+  "chords": ["G", "Em", "C", "D"],
+  "sections": [
+    {
+      "name": "Verse",
+      "lyrics": [
+        { "text": "I found a love for me", "chord": "G", "time": 0 },
+        { "text": "Darling, just dive right in and follow my lead", "chord": "Em", "time": 6 },
+        { "text": "Well, I found a girl, beautiful and sweet", "chord": "C", "time": 12 },
+        { "text": "Oh, I never knew you were the someone waiting for me", "chord": "D", "time": 18 },
+        { "text": "Cause we were just kids when we fell in love", "chord": "G", "time": 24 },
+        { "text": "Not knowing what it was, I will not give you up this time", "chord": "Em", "time": 30 },
+        { "text": "Darling, just kiss me slow, your heart is all I own", "chord": "C", "time": 36 },
+        { "text": "And in your eyes, you're holding mine", "chord": "D", "time": 42 }
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lyrics": [
+        { "text": "Baby, I'm dancing in the dark", "chord": "Em", "time": 50 },
+        { "text": "With you between my arms", "chord": "C", "time": 54 },
+        { "text": "Barefoot on the grass", "chord": "G", "time": 58 },
+        { "text": "Listening to our favourite song", "chord": "D", "time": 62 },
+        { "text": "When I saw you in that dress, looking so beautiful", "chord": "Em", "time": 66 },
+        { "text": "I don't deserve this, darling, you look perfect tonight", "chord": "C", "time": 72 }
+      ]
+    },
+    {
+      "name": "Verse",
+      "lyrics": [
+        { "text": "Well I found a woman, stronger than anyone I know", "chord": "G", "time": 82 },
+        { "text": "She shares my dreams, I hope that someday I'll share her home", "chord": "Em", "time": 88 },
+        { "text": "I found a love, to carry more than just my secrets", "chord": "C", "time": 94 },
+        { "text": "To carry love, to carry children of our own", "chord": "D", "time": 100 },
+        { "text": "We are still kids but we're so in love", "chord": "G", "time": 106 },
+        { "text": "Fighting against all odds, I know we'll be alright this time", "chord": "Em", "time": 112 },
+        { "text": "Darling, just hold my hand", "chord": "C", "time": 118 },
+        { "text": "Be my girl, I'll be your man, I've seen the future in your eyes", "chord": "D", "time": 124 }
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lyrics": [
+        { "text": "Baby, I'm dancing in the dark", "chord": "Em", "time": 132 },
+        { "text": "With you between my arms", "chord": "C", "time": 136 },
+        { "text": "Barefoot on the grass", "chord": "G", "time": 140 },
+        { "text": "Listening to our favourite song", "chord": "D", "time": 144 },
+        { "text": "When I saw you in that dress, looking so beautiful", "chord": "Em", "time": 148 },
+        { "text": "I don't deserve this, darling, you look perfect tonight", "chord": "C", "time": 154 }
+      ]
+    },
+    {
+      "name": "Outro",
+      "lyrics": [
+        { "text": "Baby, I'm dancing in the dark", "chord": "Em", "time": 196 },
+        { "text": "With you between my arms", "chord": "C", "time": 200 },
+        { "text": "Barefoot on the grass", "chord": "G", "time": 204 },
+        { "text": "Listening to our favourite song", "chord": "D", "time": 208 },
+        { "text": "I have faith in what I see", "chord": "Em", "time": 212 },
+        { "text": "Now I know I have met an angel in person", "chord": "C", "time": 218 },
+        { "text": "And she looks perfect", "chord": "G", "time": 224 },
+        { "text": "I don't deserve this, you look perfect tonight", "chord": "D", "time": 230 }
+      ]
+    }
+  ]
+}

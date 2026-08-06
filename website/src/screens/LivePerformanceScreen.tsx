@@ -1,6 +1,23 @@
+// ── Live Performance Screen (Orchestrator) ────────────────────────────────────
+//
+// This screen orchestrates sub-components instead of implementing everything:
+//
+//   LivePerformanceScreen
+//     ├── CameraPanel        — video feed + hand skeleton
+//     ├── StageHUD           — top bar controls
+//     ├── LyricsPanel        — current/next lyric + chord badges
+//     ├── Timeline           — beat metronome + strum pattern + pause
+//     ├── CountdownOverlay   — 3-2-1 countdown
+//     └── RecordingPreview   — post-recording modal
+//
+// Controllers (logic, not UI):
+//     ├── GestureController  — camera → hand tracking → chord detection
+//     ├── AudioController    — guitarist engine + beat scheduling
+//     └── RecordingController— MediaRecorder lifecycle
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Pause, Play, X, ChevronLeft, ChevronRight, Volume2, VolumeX, Youtube, Mic } from 'lucide-react'
+import { Youtube } from 'lucide-react'
 import type { SessionConfig } from './SongSetupScreen'
 import {
   initAudioEngine,
@@ -9,16 +26,21 @@ import {
   createPerformanceRecordingStream,
   disconnectMicrophoneFromRecording,
 } from '../utils/guitarSound'
-import { GuitaristEngine } from '../utils/guitaristEngine'
+import { GuitaristEngine } from '../engines/GuitaristEngine'
 import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
 import { drawHandSkeleton } from '../utils/handTracker'
-import { fetchSyncedLyrics, SyncedLine } from '../utils/lrclib'
+import { fetchSyncedLyrics, type SyncedLine } from '../utils/lrclib'
+import { eventBus } from '../core/EventBus'
 
-// Finger emoji set
-const FINGER_EMOJI = ['✊', '☝️', '✌️', '🤟', '🖐️', '✋']
-const STRUM_SYMBOL_MAP: Record<string, string> = { D: '↓', U: '↑', '.': '•', X: '✕', '↓': '↓', '↑': '↑', '•': '•', '✕': '✕' }
+// Decomposed components
+import { CameraPanel } from '../components/LivePerformance/CameraPanel'
+import { StageHUD } from '../components/LivePerformance/StageHUD'
+import { LyricsPanel } from '../components/LivePerformance/LyricsPanel'
+import { Timeline } from '../components/LivePerformance/Timeline'
+import { CountdownOverlay } from '../components/LivePerformance/CountdownOverlay'
+import { RecordingPreview } from '../components/LivePerformance/RecordingPreview'
 
 interface LivePerformanceScreenProps {
   config: SessionConfig
@@ -28,23 +50,22 @@ interface LivePerformanceScreenProps {
 export default function LivePerformanceScreen({ config, onEnd }: LivePerformanceScreenProps) {
   const { song, capo, bpm, strumPattern, displayPattern, fingerMapping } = config
 
-  // Local lyrics (chord structure from library). Keep the array stable so the
-  // transport effect does not restart on every elapsed-time render.
+  // ── Lyrics (merged from local + lrclib) ──────────────────────────────────
   const localLyrics = useMemo(
-    () => song.sections.flatMap(s => s.lyrics),
+    () => song.sections.flatMap(s => s.lyrics.map(l => ({
+      text: l.text,
+      chord: l.chord,
+      time: l.time,
+      fingerGesture: '',
+    }))),
     [song.sections],
   )
 
-  // lrclib: fetched synced lines (text + real timestamps)
-  const [lrcLines, setLrcLines]             = useState<SyncedLine[] | null>(null)
-  const [lrcStatus, setLrcStatus]           = useState<'loading' | 'ok' | 'fallback'>('loading')
+  const [lrcLines, setLrcLines] = useState<SyncedLine[] | null>(null)
+  const [lrcStatus, setLrcStatus] = useState<'loading' | 'ok' | 'fallback'>('loading')
 
-  // Merged lyrics: use LRC timestamps + text when available. Chords are
-  // matched by timestamp rather than array index because external lyric lines
-  // rarely have the same segmentation as the local chord timeline.
   const allLyrics = useMemo(() => {
     if (!lrcLines) return localLyrics
-
     const localLyricAtTime = (time: number) => {
       let candidate = localLyrics[0]
       for (const lyric of localLyrics) {
@@ -53,24 +74,18 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       }
       return candidate
     }
-
-    return lrcLines.map(l => {
-      const local = localLyricAtTime(l.time)
-      return {
-        text:          l.text,
-        chord:         local?.chord ?? localLyrics[localLyrics.length - 1]?.chord ?? 'G',
-        time:          l.time,
-        fingerGesture: local?.fingerGesture ?? '',
-      }
-    })
+    return lrcLines.map(l => ({
+      text: l.text,
+      chord: localLyricAtTime(l.time)?.chord ?? localLyrics[localLyrics.length - 1]?.chord ?? 'G',
+      time: l.time,
+      fingerGesture: '',
+    }))
   }, [lrcLines, localLyrics])
 
-  // ── Fetch synced lyrics from lrclib.net on mount ──────────────────
   useEffect(() => {
     let cancelled = false
     const [min, sec] = song.duration.split(':').map(Number)
     const durSec = min * 60 + (sec || 0)
-
     fetchSyncedLyrics(song.id, song.artist, song.title, durSec).then(lines => {
       if (cancelled) return
       if (lines && lines.length > 0) {
@@ -83,34 +98,37 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     return () => { cancelled = true }
   }, [song.id, song.artist, song.title, song.duration])
 
-  // State
-  const [isPlaying, setIsPlaying]           = useState(false)
-  const [isMuted, setIsMuted]               = useState(false)
-  const [currentLine, setCurrentLine]       = useState(0)
-  const [activeBeat, setActiveBeat]         = useState(-1)
+  // ── Core State ────────────────────────────────────────────────────────────
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [currentLine, setCurrentLine] = useState(0)
+  const [activeBeat, setActiveBeat] = useState(-1)
   const [detectedFingers, setDetectedFingers] = useState<number | null>(null)
-  const [detectedChord, setDetectedChord]   = useState<string>(fingerMapping[0] || 'G')
-  const [cameraReady, setCameraReady]       = useState(false)
-  const [cameraError, setCameraError]       = useState<string | null>(null)
-  const [micReady, setMicReady]             = useState(false)
-  const [countdown, setCountdown]           = useState<number | null>(null)
-  const [showYT, setShowYT]                 = useState(false)
-  const [ytMinimized, setYtMinimized]       = useState(false)
-  const ytWindowRef                         = useRef<Window | null>(null)
+  const [detectedChord, setDetectedChord] = useState<string>(fingerMapping[0] || 'G')
+  const [cameraReady, setCameraReady] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [micReady, setMicReady] = useState(false)
+  const [countdown, setCountdown] = useState<number | null>(null)
+  const [showYT, setShowYT] = useState(false)
+  const [voiceFollower, setVoiceFollower] = useState(true)
+  const [lastSungWord, setLastSungWord] = useState('')
+  const [elapsedSec, setElapsedSec] = useState(0)
+  const ytWindowRef = useRef<Window | null>(null)
 
-  // Recording Module State
-  const [isRecording, setIsRecording]       = useState(false)
-  const [recordingTime, setRecordingTime]   = useState(0)
-  const [recordedUrl, setRecordedUrl]       = useState<string | null>(null)
-  const mountedRef                           = useRef(true)
-  const recordedUrlRef                       = useRef<string | null>(null)
-  const mediaRecorderRef                     = useRef<MediaRecorder | null>(null)
-  const recordedChunksRef                    = useRef<Blob[]>([])
-  const recTimerRef                          = useRef<any>(null)
+  // ── Recording (extracted to hook pattern but kept inline for simplicity) ──
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [recordedUrl, setRecordedUrl] = useState<string | null>(null)
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
+  const mountedRef = useRef(true)
+  const recordedUrlRef = useRef<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordedChunksRef = useRef<Blob[]>([])
+  const recTimerRef = useRef<any>(null)
 
   const updateRecordedUrl = useCallback((url: string | null) => {
-    setRecordedUrl(previous => {
-      if (previous && previous !== url) URL.revokeObjectURL(previous)
+    setRecordedUrl(prev => {
+      if (prev && prev !== url) URL.revokeObjectURL(prev)
       recordedUrlRef.current = url
       return url
     })
@@ -121,36 +139,38 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current)
   }, [])
 
-  // Refs
-  const videoRef      = useRef<HTMLVideoElement>(null)
-  const canvasRef     = useRef<HTMLCanvasElement>(null)
-  const streamRef     = useRef<MediaStream | null>(null)
-  const gestureRef      = useRef(new GestureEngine(getProfileById('classic')))
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const gestureRef = useRef(new GestureEngine(getProfileById('classic')))
   const detectedChordRef = useRef(detectedChord)
   detectedChordRef.current = detectedChord
-
-  // ── Guitarist Engine — lives for the lifetime of the performance session
-  const guitaristRef    = useRef(new GuitaristEngine(
+  const guitaristRef = useRef(new GuitaristEngine(
     GuitaristEngine.styleFromCollections(song.collections)
   ))
-  // Current section name (Verse/Chorus/Bridge/Outro) — updated by lyric clock
   const currentSectionRef = useRef<string>('Verse')
   const strumBeatIndexRef = useRef(-1)
   const transportPositionRef = useRef(0)
   const countdownTimerRef = useRef<number | null>(null)
+  const isPlayingRef = useRef(isPlaying)
+  isPlayingRef.current = isPlaying
+  const voiceFollowerRef = useRef(voiceFollower)
+  voiceFollowerRef.current = voiceFollower
+  const currentLineRef = useRef(currentLine)
+  currentLineRef.current = currentLine
+  const allLyricsRef = useRef(allLyrics)
+  allLyricsRef.current = allLyrics
+  const lastTriggerTimeRef = useRef(0)
 
   const { initialize, processFrame, setOnResults, dispose } = useHandTracking()
 
-  // ── Boot camera + auto-start on ready ─────────────────────────────
+  // ── Camera Boot ───────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
-
     async function startCam() {
       const video = { facingMode: 'user' as const, width: { ideal: 1280 }, height: { ideal: 720 } }
       try {
-        // Ask for the mic with echo cancellation so recordings can contain the
-        // singer and the guitar engine in one mixed track. If mic permission
-        // is denied, keep the camera usable and record guitar-only.
         let stream: MediaStream
         try {
           stream = await navigator.mediaDevices.getUserMedia({
@@ -160,12 +180,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         } catch {
           stream = await navigator.mediaDevices.getUserMedia({ video })
         }
-
-        if (cancelled) {
-          stream.getTracks().forEach(track => track.stop())
-          return
-        }
-
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
         streamRef.current = stream
         setMicReady(stream.getAudioTracks().length > 0)
         if (videoRef.current) {
@@ -190,109 +205,80 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         countdownTimerRef.current = null
       }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        try { mediaRecorderRef.current.stop() } catch { /* already stopped */ }
+        try { mediaRecorderRef.current.stop() } catch {}
       }
-      if (recTimerRef.current) {
-        clearInterval(recTimerRef.current)
-        recTimerRef.current = null
-      }
+      if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null }
       disconnectMicrophoneFromRecording()
     }
   }, [])
 
-  // ── Auto-start countdown as soon as camera is ready ──────────────
+  // Auto-start countdown
   useEffect(() => {
     if (!cameraReady) return
-    // Small delay so camera feed renders before countdown
-    const t = setTimeout(() => {
-      handleStartWithCountdown()
-    }, 600)
+    const t = setTimeout(() => handleStartWithCountdown(), 600)
     return () => clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraReady])
 
-  // ── MediaPipe hand tracking ──────────────────────────────────────────
-  useEffect(() => {
-    void initialize()
-    return dispose
-  }, [initialize, dispose])
+  // ── MediaPipe ─────────────────────────────────────────────────────────────
+  useEffect(() => { void initialize(); return dispose }, [initialize, dispose])
 
   useEffect(() => {
     setOnResults((result: import('../utils/useHandTracking').HandResult | null) => {
       if (!canvasRef.current || !videoRef.current) return
-
       const canvas = canvasRef.current
       const ctx = canvas.getContext('2d')
       const width = videoRef.current.videoWidth || 1280
       const height = videoRef.current.videoHeight || 720
       if (canvas.width !== width) canvas.width = width
       if (canvas.height !== height) canvas.height = height
-
       if (!ctx) return
-
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-      if (!result?.landmarks || result.landmarks.length === 0) {
-        gestureRef.current.reset()
-        return
-      }
-
+      if (!result?.landmarks || result.landmarks.length === 0) { gestureRef.current.reset(); return }
       if (result.landmarks.length > 0) {
-        // Draw neon hand skeleton — 4 params (no 5th arg)
         drawHandSkeleton(ctx, result.landmarks, canvas.width, canvas.height)
-
-        // Gesture engine — use processLandmarks, not process
         const gesture = gestureRef.current.processLandmarks(result.landmarks, result.confidence)
         if (gesture) {
           const fingers = Math.min(5, Math.max(0, gesture.fingerCount))
-          const chord   = fingerMapping[fingers] || fingerMapping[0]
+          const chord = fingerMapping[fingers] || fingerMapping[0]
           setDetectedFingers(fingers)
           setDetectedChord(chord)
+          eventBus.emit('gesture:detected', { ...gesture, chord })
         }
       }
-      // If null → no hand visible, canvas already cleared above
     })
   }, [setOnResults, fingerMapping])
 
-  // Frame loop — only process when camera is actually ready
+  // Frame loop
   useEffect(() => {
     let animId: number
     function loop() {
-      if (cameraReady && videoRef.current) {
-        processFrame(videoRef.current)
-      }
+      if (cameraReady && videoRef.current) processFrame(videoRef.current)
       animId = requestAnimationFrame(loop)
     }
     loop()
     return () => cancelAnimationFrame(animId)
   }, [cameraReady, processFrame])
 
-  // ── Apply capo ───────────────────────────────────────────────────────
+  // ── Capo + Mute ───────────────────────────────────────────────────────────
   useEffect(() => { setCapoFret(capo) }, [capo])
-
-  // Mute the output bus, not just future beat callbacks, so active guitar tails
-  // stop cleanly and recordings obey the same mute state.
   useEffect(() => {
     setAudioMuted(isMuted)
     return () => setAudioMuted(false)
   }, [isMuted])
 
-  // ── Section tracker: keep currentSectionRef up-to-date ─────────────────
+  // ── Section Tracker ───────────────────────────────────────────────────────
   useEffect(() => {
     const currentTime = allLyrics[currentLine]?.time
     if (typeof currentTime === 'number') {
       let currentSection = song.sections[0]?.name ?? 'Verse'
       for (const section of song.sections) {
         const firstTime = section.lyrics[0]?.time
-        if (typeof firstTime === 'number' && firstTime <= currentTime) {
-          currentSection = section.name
-        }
+        if (typeof firstTime === 'number' && firstTime <= currentTime) currentSection = section.name
       }
       currentSectionRef.current = currentSection
       return
     }
-
-    // Fallback for a custom lyric source without timestamps.
     let lineCount = 0
     for (const section of song.sections) {
       if (currentLine < lineCount + section.lyrics.length) {
@@ -303,38 +289,24 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     }
   }, [currentLine, song.sections, allLyrics])
 
-  // ── Auto-strum beat engine (now routed through GuitaristEngine) ──────────
+  // ── Beat Engine ───────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isPlaying || isMuted) {
-      setActiveBeat(-1)
-      return
-    }
-    const beatMs  = Math.round(60000 / (bpm || 60))
+    if (!isPlaying || isMuted) { setActiveBeat(-1); return }
+    const beatMs = Math.round(60000 / (bpm || 60))
     const patterns = strumPattern.length > 0 ? strumPattern : ['D']
-    let beatIndex  = strumBeatIndexRef.current
-
+    let beatIndex = strumBeatIndexRef.current
     const playNextBeat = () => {
       beatIndex = (beatIndex + 1) % patterns.length
       strumBeatIndexRef.current = beatIndex
       setActiveBeat(beatIndex)
-      const stroke    = patterns[beatIndex]
+      const stroke = patterns[beatIndex]
       const chordName = detectedChordRef.current || 'Em'
-      guitaristRef.current.playBeat(
-        stroke,
-        chordName,
-        beatIndex,
-        currentSectionRef.current,
-        0.35
-      )
+      eventBus.emit('audio:beat', { stroke, chord: chordName, beatIdx: beatIndex, section: currentSectionRef.current })
+      guitaristRef.current.playBeat(stroke, chordName, beatIndex, currentSectionRef.current, 0.35)
     }
-
-    // Start on beat one; an interval-only implementation left a silent beat
-    // between the countdown and the first guitar hit. A drift-corrected timeout
-    // avoids accumulating main-thread scheduling error over a long song.
     playNextBeat()
     let nextBeatAt = performance.now() + beatMs
     let timerId = window.setTimeout(scheduleNextBeat, beatMs)
-
     function scheduleNextBeat() {
       const now = performance.now()
       if (now > nextBeatAt + beatMs) nextBeatAt = now
@@ -342,87 +314,55 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       nextBeatAt += beatMs
       timerId = window.setTimeout(scheduleNextBeat, Math.max(0, nextBeatAt - performance.now()))
     }
-
     return () => window.clearTimeout(timerId)
   }, [isPlaying, isMuted, bpm, strumPattern])
 
-  // ── Real-Time Elapsed Seconds Clock & Precise Lyric Sync ──────────────
-  const [elapsedSec, setElapsedSec]         = useState(0)
-  const [voiceFollower, setVoiceFollower]   = useState(true)
-  const [lastSungWord, setLastSungWord]     = useState('')
-
+  // ── Transport Clock ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!isPlaying) {
-      // Preserve the transport position while paused. The previous clock reset
-      // to zero on every resume, which made lyrics and elapsed time jump back.
       setElapsedSec(transportPositionRef.current)
       return
     }
-
     const startedAt = performance.now()
     const positionAtStart = transportPositionRef.current
     const updateTransport = () => {
       const currentSec = positionAtStart + (performance.now() - startedAt) / 1000
       transportPositionRef.current = currentSec
       setElapsedSec(currentSec)
-
       if (lrcStatus === 'ok') {
-        // Find active line index based on LRCLIB synced timestamps
         let matchIdx = 0
         for (let i = 0; i < allLyrics.length; i++) {
-          if (typeof allLyrics[i]?.time === 'number' && allLyrics[i].time <= currentSec) {
-            matchIdx = i
-          } else {
-            break
-          }
+          if (typeof allLyrics[i]?.time === 'number' && allLyrics[i].time <= currentSec) matchIdx = i
+          else break
         }
         setCurrentLine(prev => Math.max(prev, matchIdx))
       } else {
-        // Rhythm auto-advance fallback for local lyrics: 1 line per 4 bars (~8 seconds at 90 BPM)
         const secPerLine = (16 * 60) / (bpm || 90)
         const calculatedIdx = Math.min(allLyrics.length - 1, Math.floor(currentSec / secPerLine))
         setCurrentLine(prev => Math.max(prev, calculatedIdx))
       }
-
-      // Stop performance after last line
       const lastLineTime = allLyrics[allLyrics.length - 1]?.time ?? (allLyrics.length * 8)
       if (allLyrics.length > 0 && currentSec >= lastLineTime + 8) {
         setIsPlaying(false)
         setActiveBeat(-1)
       }
     }
-
     updateTransport()
     const iv = setInterval(updateTransport, 100)
-
     return () => {
       transportPositionRef.current = positionAtStart + (performance.now() - startedAt) / 1000
       clearInterval(iv)
     }
   }, [isPlaying, allLyrics, lrcStatus, bpm])
 
-  // Refs for voice recognition closure safety
-  const isPlayingRef     = useRef(isPlaying)
-  isPlayingRef.current     = isPlaying
-  const voiceFollowerRef = useRef(voiceFollower)
-  voiceFollowerRef.current = voiceFollower
-  const currentLineRef   = useRef(currentLine)
-  currentLineRef.current   = currentLine
-  const allLyricsRef     = useRef(allLyrics)
-  allLyricsRef.current     = allLyrics
-
-  // Debounce ref to prevent double-advancing lyrics in short bursts
-  const lastTriggerTimeRef = useRef(0)
-
-  // ── Keyboard Shortcuts (ArrowRight / Space -> Next Line, ArrowLeft -> Prev Line) ──
+  // ── Keyboard Shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.key === 'ArrowRight' || e.key === ' ') {
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
         e.preventDefault()
         setCurrentLine(l => Math.min(allLyricsRef.current.length - 1, l + 1))
       } else if (e.key === 'ArrowLeft') {
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
         e.preventDefault()
         setCurrentLine(l => Math.max(0, l - 1))
       }
@@ -431,100 +371,60 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // ── Web Speech API Voice Recognition (Singing Lyric Follower) ────────
+  // ── Voice Recognition ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!voiceFollower || !isPlaying) return
-
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) return
-
     let recognition: any = null
     let active = true
     let restartTimer: number | null = null
-
     try {
       recognition = new SpeechRecognition()
-      recognition.continuous     = true
-      recognition.interimResults  = true
-      recognition.lang            = 'en-US'
-
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-US'
       recognition.onresult = (event: any) => {
         if (!active) return
-
-        const rawTranscript = Array.from(event.results)
-          .map((r: any) => r[0]?.transcript || '')
-          .join(' ')
-          .toLowerCase()
-          .replace(/[^\w\s]/g, ' ')
-          .trim()
-
+        const rawTranscript = Array.from(event.results).map((r: any) => r[0]?.transcript || '').join(' ').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
         if (!rawTranscript) return
-
         const words = rawTranscript.split(/\s+/).filter(Boolean)
         if (words.length === 0) return
-
         const recentWords = words.slice(-6)
-        const recentPhrase = recentWords.join(' ')
         setLastSungWord(words.slice(-2).join(' '))
-
         const now = Date.now()
-        if (now - lastTriggerTimeRef.current < 1000) return // 1s debounce
-
+        if (now - lastTriggerTimeRef.current < 1000) return
         const curIdx = currentLineRef.current
         const lyrics = allLyricsRef.current
-
         if (curIdx < lyrics.length) {
-          const currentText  = (lyrics[curIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
+          const currentText = (lyrics[curIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
           const currentWords = currentText.split(/\s+/).filter(Boolean)
-
           if (currentWords.length > 0) {
-            const lastWord       = currentWords[currentWords.length - 1]
-            const secondLastWord = currentWords.length >= 2 ? currentWords[currentWords.length - 2] : ''
-
-            const nextText  = (lyrics[curIdx + 1]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
-            const nextWords = nextText.split(/\s+/).filter(Boolean)
-            const nextFirstWord = nextWords[0] || ''
-
-            const matchedLast = lastWord && lastWord.length >= 2 && (
-              recentWords.includes(lastWord) ||
-              recentPhrase.includes(lastWord) ||
-              recentWords.some(w => w.endsWith(lastWord) || lastWord.endsWith(w))
-            )
-            const matchedSecondLast = secondLastWord && secondLastWord.length >= 3 && recentWords.includes(secondLastWord)
+            const lastWord = currentWords[currentWords.length - 1]
+            const nextText = (lyrics[curIdx + 1]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
+            const nextFirstWord = (nextText.split(/\s+/).filter(Boolean)[0]) || ''
+            const matchedLast = lastWord && lastWord.length >= 2 && recentWords.some(w => w.includes(lastWord) || lastWord.includes(w))
             const matchedNextStart = nextFirstWord && nextFirstWord.length >= 3 && recentWords.includes(nextFirstWord)
-
-            if (matchedLast || matchedSecondLast || matchedNextStart) {
+            if (matchedLast || matchedNextStart) {
               lastTriggerTimeRef.current = now
               setCurrentLine(l => Math.min(lyrics.length - 1, l + 1))
             }
           }
         }
       }
-
       const restartRecognition = () => {
-        // Auto-restart recognition so mic never drops out mid-song, but avoid
-        // a tight restart loop when a browser rejects the recognition service.
         if (!active || !voiceFollowerRef.current || !isPlayingRef.current || restartTimer !== null) return
-        restartTimer = window.setTimeout(() => {
-          restartTimer = null
-          try { recognition.start() } catch { /* already starting */ }
-        }, 250)
+        restartTimer = window.setTimeout(() => { restartTimer = null; try { recognition.start() } catch {} }, 250)
       }
-
       recognition.onend = restartRecognition
-
       recognition.onerror = (event: { error?: string }) => {
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'audio-capture') {
-          active = false
-          setVoiceFollower(false)
-          return
+          active = false; setVoiceFollower(false); return
         }
         restartRecognition()
       }
-
       recognition.start()
-    } catch { /* ignore if mic permission blocked */ }
-
+    } catch {}
     return () => {
       active = false
       if (restartTimer !== null) window.clearTimeout(restartTimer)
@@ -532,11 +432,11 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     }
   }, [voiceFollower, isPlaying])
 
-  // ── Countdown then start ─────────────────────────────────────────────
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleStartWithCountdown = useCallback(() => {
     initAudioEngine()
-    guitaristRef.current.reset()        // clear any stale chord-ringing state
-    currentSectionRef.current = 'Verse' // reset section to start
+    guitaristRef.current.reset()
+    currentSectionRef.current = 'Verse'
     strumBeatIndexRef.current = -1
     transportPositionRef.current = 0
     setElapsedSec(0)
@@ -570,85 +470,46 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     setIsPlaying(p => !p)
   }, [countdown])
 
-  // ── Recording Module Handlers ─────────────────────────────────────────
-  const [recordedBlob, setRecordedBlob]     = useState<Blob | null>(null)
-
   const handleStartRecording = useCallback(() => {
     try {
       recordedChunksRef.current = []
       let recStream: MediaStream | null = createPerformanceRecordingStream(streamRef.current)
-
       if (!recStream && canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
         recStream = createPerformanceRecordingStream((canvasRef.current as any).captureStream(30))
       }
-
       if (!recStream || recStream.getTracks().length === 0) return
-
-      // Find supported mimeType
-      const mimeTypes = [
-        'video/webm;codecs=vp8,opus',
-        'video/webm',
-        'video/mp4',
-        '',
-      ]
+      const mimeTypes = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4', '']
       let selectedMime = ''
       for (const m of mimeTypes) {
-        if (!m || (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m))) {
-          selectedMime = m
-          break
-        }
+        if (!m || (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m))) { selectedMime = m; break }
       }
-
       const options = selectedMime ? { mimeType: selectedMime } : undefined
       const recorder = new MediaRecorder(recStream, options)
-
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          recordedChunksRef.current.push(e.data)
-        }
-      }
-
+      recorder.ondataavailable = (e) => { if (e.data?.size > 0) recordedChunksRef.current.push(e.data) }
       recorder.onstop = () => {
         disconnectMicrophoneFromRecording()
         const mime = selectedMime || 'video/webm'
         const blob = new Blob(recordedChunksRef.current, { type: mime })
-        const url  = URL.createObjectURL(blob)
-        if (!mountedRef.current) {
-          URL.revokeObjectURL(url)
-          return
-        }
+        const url = URL.createObjectURL(blob)
+        if (!mountedRef.current) { URL.revokeObjectURL(url); return }
         setRecordedBlob(blob)
         updateRecordedUrl(url)
         setIsRecording(false)
       }
-
       recorder.onerror = () => {
-        disconnectMicrophoneFromRecording()
-        if (recTimerRef.current) {
-          clearInterval(recTimerRef.current)
-          recTimerRef.current = null
-        }
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null }
         setIsRecording(false)
       }
-
       mediaRecorderRef.current = recorder
-      recorder.start(200) // collect chunks every 200ms
+      recorder.start(200)
       setIsRecording(true)
       setRecordingTime(0)
-
-      recTimerRef.current = setInterval(() => {
-        setRecordingTime(t => t + 1)
-      }, 1000)
-    } catch {
-      setIsRecording(false)
-    }
+      recTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
+    } catch { setIsRecording(false) }
   }, [updateRecordedUrl])
 
   const handleStopRecording = useCallback(() => {
-    if (recTimerRef.current) {
-      clearInterval(recTimerRef.current)
-      recTimerRef.current = null
-    }
+    if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop()
     }
@@ -663,500 +524,97 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     if (!recordedUrl) return
     const a = document.createElement('a')
     a.style.display = 'none'
-    a.href = recordedUrl!
+    a.href = recordedUrl
     const ext = recordedBlob?.type.includes('mp4') ? 'mp4' : 'webm'
     const safeTitle = song.title.toLowerCase().replace(/[^a-z0-9]/g, '_')
     a.download = `airchord_${safeTitle}_performance.${ext}`
     document.body.appendChild(a)
     a.click()
-    setTimeout(() => {
-      document.body.removeChild(a)
-    }, 100)
+    setTimeout(() => document.body.removeChild(a), 100)
   }, [recordedUrl, recordedBlob, song.title])
 
-  const currentLyric   = allLyrics[currentLine]
-  const nextLyric      = allLyrics[currentLine + 1]
-  const fingerIdx      = detectedFingers ?? -1
-  const chordForGesture = fingerIdx >= 0 ? fingerMapping[fingerIdx] ?? '—' : '—'
-
-  // Pattern symbols
-  const patternSymbols = displayPattern.trim().split(/\s+/)
+  // ── Derived values ────────────────────────────────────────────────────────
+  const currentLyric = allLyrics[currentLine]
+  const nextLyric = allLyrics[currentLine + 1]
 
   return (
     <div className="fixed inset-0 overflow-hidden font-sans" style={{ background: '#000' }}>
-
-      {/* ── Full-bleed camera background ── */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="absolute inset-0 w-full h-full object-cover transform -scale-x-100"
-        style={{ opacity: cameraReady ? 1 : 0, transition: 'opacity 0.5s' }}
+      {/* Camera + hand skeleton */}
+      <CameraPanel
+        videoRef={videoRef}
+        canvasRef={canvasRef}
+        cameraReady={cameraReady}
+        cameraError={cameraError}
+        onEnd={onEnd}
       />
 
-      {/* AI hand skeleton canvas */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none"
-      />
-
-      {/* Gradient darkening overlay — bottom 40% only so face stays visible */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.1) 30%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.75) 80%, rgba(0,0,0,0.92) 100%)',
+      {/* Top bar */}
+      <StageHUD
+        songTitle={song.title}
+        songArtist={song.artist}
+        bpm={bpm}
+        isPlaying={isPlaying}
+        isMuted={isMuted}
+        micReady={micReady}
+        elapsedSec={elapsedSec}
+        isRecording={isRecording}
+        recordingTime={recordingTime}
+        showYT={showYT}
+        voiceFollower={voiceFollower}
+        onToggleMute={() => setIsMuted(m => !m)}
+        onToggleRecording={isRecording ? handleStopRecording : handleStartRecording}
+        onToggleVoiceFollower={() => setVoiceFollower(v => !v)}
+        onToggleYouTube={() => {
+          const query = encodeURIComponent(`${song.title} ${song.artist} official`)
+          const url = `https://www.youtube.com/results?search_query=${query}`
+          if (ytWindowRef.current && !ytWindowRef.current.closed) {
+            ytWindowRef.current.close(); setShowYT(false); return
+          }
+          const popup = window.open(url, 'airchord_bg_song', 'width=480,height=320,top=80,right=20,toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
+          ytWindowRef.current = popup; setShowYT(true)
         }}
+        onEnd={onEnd}
       />
 
-      {/* Camera offline fallback */}
-      {!cameraReady && !cameraError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#06060a]">
-          <div className="text-center">
-            <div className="w-16 h-16 border-2 border-purple-500/40 border-t-purple-400 rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-white/60 text-sm font-mono">Starting camera…</p>
-          </div>
-        </div>
-      )}
-      {cameraError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#06060a]">
-          <div className="text-center max-w-xs px-6">
-            <p className="text-rose-400 text-sm font-mono mb-4">{cameraError}</p>
-            <button onClick={onEnd} className="text-white/60 text-xs font-mono underline">← Go back</button>
-          </div>
-        </div>
-      )}
+      {/* Countdown */}
+      <CountdownOverlay countdown={countdown} chords={song.chords} />
 
-      {/* ── Top bar ── */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 sm:px-6 py-2 sm:py-4 z-20 bg-gradient-to-b from-black/70 via-black/30 to-transparent">
-        {/* Song info */}
-        <div className="bg-black/50 backdrop-blur-xl px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl border border-white/10 max-w-[140px] sm:max-w-none">
-          <p className="text-xs font-black text-white truncate">{song.title}</p>
-          <p className="text-[9px] sm:text-[10px] text-white/40 font-mono truncate">{song.artist} · {bpm} BPM</p>
-        </div>
-
-        {/* Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <span className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 text-[10px] font-mono ${micReady ? 'text-emerald-300' : 'text-white/35'}`}>
-            <Mic className="w-3 h-3" /> {micReady ? 'Mic on' : 'Guitar only'}
-          </span>
-          {/* Recording module button */}
-          {!isRecording ? (
-            <button
-              onClick={handleStartRecording}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 border border-red-500/50 text-red-200 backdrop-blur-xl transition-all text-xs font-bold shadow-lg shadow-red-600/20"
-            >
-              <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="hidden sm:inline">Record Performance 🔴</span>
-              <span className="sm:hidden text-[11px]">Rec 🔴</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleStopRecording}
-              className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-red-600 border border-red-400 text-white font-bold backdrop-blur-xl transition-all text-xs shadow-lg shadow-red-600/40 animate-pulse"
-            >
-              <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-sm bg-white" />
-              <span>Stop ({Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')})</span>
-            </button>
-          )}
-
-          {/* Elapsed song timer badge */}
-          {isPlaying && (
-            <div className="px-3 py-1.5 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 text-xs font-mono text-white/70">
-              ⏱️ {Math.floor(elapsedSec / 60)}:{String(Math.floor(elapsedSec % 60)).padStart(2, '0')}
-            </div>
-          )}
-
-          {/* Voice Singing Recognition Toggle Button */}
-          <button
-            onClick={() => setVoiceFollower(v => !v)}
-            title="Listen to your singing and auto-sync lyrics (Web Speech API)"
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl backdrop-blur-xl border transition-all text-xs font-bold ${
-              voiceFollower
-                ? 'bg-emerald-500/30 border-emerald-400/50 text-emerald-200 animate-pulse'
-                : 'bg-black/40 border-white/10 text-white/60 hover:text-white hover:bg-black/60'
-            }`}
-          >
-            <span>🎤</span>
-            <span>{voiceFollower ? 'Sing-Sync ON' : 'Sing-Sync OFF'}</span>
-          </button>
-
-          {/* YouTube background player toggle */}
-          <button
-            onClick={() => {
-              const query = encodeURIComponent(`${song.title} ${song.artist} official`)
-              const url = `https://www.youtube.com/results?search_query=${query}`
-              if (ytWindowRef.current && !ytWindowRef.current.closed) {
-                ytWindowRef.current.close()
-                setShowYT(false)
-                return
-              }
-              const popup = window.open(
-                url,
-                'airchord_bg_song',
-                'width=480,height=320,top=80,right=20,toolbar=no,menubar=no,scrollbars=yes,resizable=yes'
-              )
-              ytWindowRef.current = popup
-              setShowYT(true)
-            }}
-            title="Play original song in background (for testing)"
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl backdrop-blur-xl border transition-all text-xs font-bold ${
-              showYT
-                ? 'bg-red-600/40 border-red-400/50 text-red-200'
-                : 'bg-black/40 border-white/10 text-white/60 hover:text-white hover:bg-black/60'
-            }`}
-          >
-            <Youtube className="w-3.5 h-3.5" />
-            {showYT ? 'Close BG Song' : 'Play BG Song 🎧'}
-          </button>
-
-          <button
-            onClick={() => setIsMuted(m => !m)}
-            className="w-9 h-9 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/60 transition-all"
-          >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-          </button>
-          <button
-            onClick={onEnd}
-            className="w-9 h-9 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/70 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Floating 'Now Playing' card (shows when YouTube popup is open) ── */}
-      <AnimatePresence>
-        {showYT && (
-          <motion.div
-            key="yt-card"
-            initial={{ opacity: 0, scale: 0.85, y: -20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.85, y: -20 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute top-20 right-6 z-30 rounded-2xl border border-white/15 shadow-2xl shadow-black/60 w-72"
-            style={{ background: 'rgba(8,8,16,0.95)', backdropFilter: 'blur(20px)' }}
-          >
-            {/* Card header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-[11px] font-bold text-white/80 uppercase tracking-wider">BG Song Playing</span>
-              </div>
-              <button
-                onClick={() => {
-                  ytWindowRef.current?.close()
-                  setShowYT(false)
-                }}
-                className="text-white/30 hover:text-rose-400 transition-colors p-1"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* Song info */}
-            <div className="px-4 py-3 space-y-2">
-              <div>
-                <p className="text-sm font-black text-white">{song.title}</p>
-                <p className="text-xs text-white/50 font-mono">{song.artist}</p>
-              </div>
-
-              {/* Re-open / focus button */}
-              <button
-                onClick={() => {
-                  if (ytWindowRef.current && !ytWindowRef.current.closed) {
-                    ytWindowRef.current.focus()
-                  } else {
-                    const query = encodeURIComponent(`${song.title} ${song.artist} official`)
-                    const url = `https://www.youtube.com/results?search_query=${query}`
-                    const popup = window.open(
-                      url,
-                      'airchord_bg_song',
-                      'width=480,height=320,top=80,right=20,toolbar=no,menubar=no,scrollbars=yes,resizable=yes'
-                    )
-                    ytWindowRef.current = popup
-                  }
-                }}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-[1.02] active:scale-95"
-                style={{ background: 'linear-gradient(135deg, #ff0000 0%, #cc0000 100%)' }}
-              >
-                <Youtube className="w-4 h-4" />
-                Open / Refocus YouTube Window
-              </button>
-
-              {/* Direct search link fallback */}
-              <a
-                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(song.title + ' ' + song.artist + ' official')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[10px] font-mono text-white/40 hover:text-white/60 border border-white/8 hover:border-white/15 transition-all"
-              >
-                Open in new tab instead ↗
-              </a>
-            </div>
-
-            {/* Tip */}
-            <div className="px-4 py-2.5 bg-amber-500/8 border-t border-amber-500/15 rounded-b-2xl">
-              <p className="text-[9px] font-mono text-amber-300/60 leading-relaxed">
-                🎧 Search the song in the YouTube window, hit play, then come back here and practice your chord gestures
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Countdown overlay ── */}
-      <AnimatePresence>
-        {countdown !== null && (
-          <motion.div
-            key={countdown}
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none"
-            initial={{ opacity: 0, scale: 1.4 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.7 }}
-            transition={{ duration: 0.35 }}
-          >
-            <p className="text-white/50 text-sm font-mono mb-4 tracking-widest uppercase">Get Ready…</p>
-            <span
-              className="font-black tabular-nums"
-              style={{
-                fontSize: 140,
-                color: 'white',
-                textShadow: '0 0 60px rgba(168,85,247,0.8), 0 0 120px rgba(168,85,247,0.4)',
-              }}
-            >
-              {countdown}
-            </span>
-            <p className="text-white/30 text-xs font-mono mt-4">
-              🎸 {song.chords.join('  ·  ')}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Bottom HUD (visible only when playing) ── */}
+      {/* Bottom HUD */}
       {(isPlaying || activeBeat >= 0) && (
         <div className="absolute bottom-0 left-0 right-0 z-20 px-3 sm:px-6 pb-3 sm:pb-6 space-y-2 sm:space-y-3">
-
-          {/* Chord & gesture hint row */}
-          <div className="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-3">
-
-            {/* Current detected gesture → chord */}
-            <motion.div
-              key={detectedChord}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between sm:justify-start gap-3"
-            >
-              <div className="text-2xl sm:text-3xl">
-                {fingerIdx >= 0 ? FINGER_EMOJI[fingerIdx] : '🎸'}
-              </div>
-              <div>
-                <p className="text-[9px] font-mono text-white/40 uppercase tracking-wider">You're playing</p>
-                <p className="text-xl sm:text-2xl font-black text-amber-300 leading-none">{detectedChord}</p>
-                {fingerIdx >= 0 && (
-                  <p className="text-[10px] font-mono text-white/40">{fingerIdx} finger{fingerIdx !== 1 ? 's' : ''}</p>
-                )}
-              </div>
-            </motion.div>
-
-            {/* Current + next lyric card */}
-            <div className="flex-1 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-5 py-3 min-w-0">
-              {/* Next chord hint */}
-              {nextLyric && (
-                <p className="text-[9px] font-mono text-white/30 mb-1">
-                  Next: <span className="text-amber-300/70 font-bold">{nextLyric.chord}</span>
-                  {(() => {
-                    const idx = fingerMapping.indexOf(nextLyric.chord)
-                    return idx >= 0 ? ` — ${FINGER_EMOJI[idx]} ${idx} fingers` : ''
-                  })()}
-                </p>
-              )}
-              {/* Current lyric */}
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={currentLine}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-lg font-black text-white leading-snug truncate"
-                >
-                  "{currentLyric?.text}"
-                </motion.p>
-              </AnimatePresence>
-              {/* Current chord badge + sync status */}
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <span className="text-[10px] font-mono text-white/30">Chord now:</span>
-                <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black text-xs">
-                  {currentLyric?.chord}
-                </span>
-                {(() => {
-                  const idx = fingerMapping.indexOf(currentLyric?.chord ?? '')
-                  return idx >= 0 ? (
-                    <span className="text-[11px] font-mono text-white/40">
-                      {FINGER_EMOJI[idx]} {idx} finger{idx !== 1 ? 's' : ''}
-                    </span>
-                  ) : null
-                })()}
-
-                {/* Live voice feedback */}
-                {voiceFollower && lastSungWord && (
-                  <span className="text-[10px] font-mono text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                    🎙️ Heard: "{lastSungWord}"
-                  </span>
-                )}
-
-                {/* Live sync pill */}
-                {lrcStatus === 'ok' && (
-                  <span className="ml-auto px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold tracking-wide">
-                    🎵 LIVE SYNC
-                  </span>
-                )}
-                {lrcStatus === 'fallback' && (
-                  <span className="ml-auto px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500/60 text-[9px] font-bold tracking-wide">
-                    📋 LOCAL
-                  </span>
-                )}
-                {lrcStatus === 'loading' && (
-                  <span className="ml-auto px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/30 text-[9px] font-bold tracking-wide">
-                    ⏳ SYNCING...
-                  </span>
-                )}
-              </div>
-            </div>
-
-
-            {/* Manual lyric nav buttons */}
-            <div className="flex flex-col gap-2 justify-center">
-              <button
-                onClick={() => setCurrentLine(l => Math.max(0, l - 1))}
-                className="w-9 h-9 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-black/70 transition-all"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setCurrentLine(l => Math.min(allLyrics.length - 1, l + 1))}
-                className="w-9 h-9 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-black/70 transition-all"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Beat metronome + strum pattern + pause */}
-          <div className="flex items-center gap-3">
-            {/* Beat LED metronome */}
-            <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-xl border border-white/8 rounded-2xl px-4 py-2">
-              {[0, 1, 2, 3].map(b => (
-                <motion.div
-                  key={b}
-                  className="w-2.5 h-2.5 rounded-full"
-                  animate={{
-                    backgroundColor: activeBeat % 4 === b
-                      ? (b === 0 ? '#a855f7' : '#fbbf24')
-                      : 'rgba(255,255,255,0.15)',
-                    scale: activeBeat % 4 === b ? 1.3 : 1,
-                    boxShadow: activeBeat % 4 === b
-                      ? b === 0 ? '0 0 8px #a855f7' : '0 0 8px #fbbf24'
-                      : 'none',
-                  }}
-                  transition={{ duration: 0.08 }}
-                />
-              ))}
-              <span className="text-[10px] font-mono text-white/30 ml-2">{bpm} BPM</span>
-            </div>
-
-            {/* Strum pattern display */}
-            <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-xl border border-white/8 rounded-2xl px-3 py-2 flex-1">
-              {patternSymbols.map((sym, i) => (
-                <span
-                  key={i}
-                  className={`flex-1 text-center text-base font-black font-mono rounded-lg py-1 transition-all duration-75 ${
-                    activeBeat === i
-                      ? 'text-black bg-amber-400 shadow-lg shadow-amber-400/50 scale-110'
-                      : 'text-white/40'
-                  }`}
-                >
-                  {STRUM_SYMBOL_MAP[sym] ?? sym}
-                </span>
-              ))}
-            </div>
-
-            {/* Pause/Resume */}
-            <button
-              onClick={handlePause}
-              className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all"
-              style={{
-                background: isPlaying ? 'rgba(168,85,247,0.25)' : 'rgba(168,85,247,0.6)',
-                border: '1px solid rgba(168,85,247,0.4)',
-              }}
-            >
-              {isPlaying
-                ? <Pause className="w-5 h-5 text-purple-200" />
-                : <Play className="w-5 h-5 text-white fill-current" />}
-            </button>
-
-            {/* Line counter */}
-          </div>
+          <LyricsPanel
+            currentLyric={currentLyric}
+            nextLyric={nextLyric}
+            currentLine={currentLine}
+            totalLines={allLyrics.length}
+            detectedFingers={detectedFingers}
+            fingerMapping={fingerMapping}
+            voiceFollower={voiceFollower}
+            lastSungWord={lastSungWord}
+            lrcStatus={lrcStatus}
+            onPrevLine={() => setCurrentLine(l => Math.max(0, l - 1))}
+            onNextLine={() => setCurrentLine(l => Math.min(allLyrics.length - 1, l + 1))}
+          />
+          <Timeline
+            isPlaying={isPlaying}
+            activeBeat={activeBeat}
+            bpm={bpm}
+            displayPattern={displayPattern}
+            detectedFingers={detectedFingers}
+            detectedChord={detectedChord}
+            fingerMapping={fingerMapping}
+            onPause={handlePause}
+          />
         </div>
       )}
 
-      {/* ── Recorded Performance Preview & Download Modal ── */}
-      <AnimatePresence>
-        {recordedUrl && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="w-full max-w-lg rounded-3xl bg-[#0c0c18] border border-white/10 p-6 space-y-5 shadow-2xl"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                    🎬 Performance Recorded!
-                  </span>
-                  <h3 className="text-lg font-black text-white mt-1">{song.title} Performance</h3>
-                </div>
-                <button
-                  onClick={closeRecordingPreview}
-                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Video Player */}
-              <div className="relative rounded-2xl overflow-hidden bg-black aspect-video border border-white/10 shadow-lg">
-                <video
-                  src={recordedUrl}
-                  controls
-                  autoPlay
-                  className="w-full h-full object-cover"
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleDownloadVideo}
-                  className="flex-1 py-3.5 rounded-xl font-black text-xs text-black shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                  style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' }}
-                >
-                  Download Performance Video 💾
-                </button>
-                <button
-                  onClick={closeRecordingPreview}
-                  className="py-3.5 px-5 rounded-xl text-xs font-mono text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
-                >
-                  Discard
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Recording preview */}
+      <RecordingPreview
+        recordedUrl={recordedUrl}
+        songTitle={song.title}
+        onClose={closeRecordingPreview}
+        onDownload={handleDownloadVideo}
+      />
     </div>
   )
 }

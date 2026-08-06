@@ -1,0 +1,52 @@
+{
+  "id": "channa-mereya",
+  "title": "Channa Mereya",
+  "artist": "Arijit Singh",
+  "bpm": 90,
+  "timeSignature": "4/4",
+  "key": "C Major (D with Capo 2)",
+  "capo": 2,
+  "difficulty": "Easy",
+  "collections": ["Hindi", "Bollywood", "Romantic", "Beginner"],
+  "duration": "4:49",
+  "defaultStrumPattern": ["D", ".", "D", "U", ".", "U", "D", "U"],
+  "displayPattern": "↓ • ↓ ↑ • ↑ ↓ ↑",
+  "chords": ["C", "G", "Am", "F"],
+  "sections": [
+    { "name": "Verse", "lyrics": [
+      { "text": "Accha chalta hoon, duaon mein yaad rakhna", "chord": "C", "time": 0 },
+      { "text": "Mere zikr ka zubaan pe swaad rakhna", "chord": "G", "time": 6 },
+      { "text": "Dil ke sandookon mein, mere acche kaam rakhna", "chord": "Am", "time": 12 },
+      { "text": "Chitti taaron mein bhi mera tu salaam rakhna", "chord": "F", "time": 18 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "O channa mereya mereya beliya o piya", "chord": "C", "time": 26 },
+      { "text": "O channa mereya mereya beliya o piya", "chord": "G", "time": 32 },
+      { "text": "O channa mereya mereya beliya o piya", "chord": "Am", "time": 38 },
+      { "text": "Kitabeyan se dil laga ke ve", "chord": "F", "time": 44 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Mann mera tune le liya", "chord": "C", "time": 54 },
+      { "text": "Dil mera chheen liya", "chord": "G", "time": 60 },
+      { "text": "Teri aankhon ne woh kaisa jaadoo kiya", "chord": "Am", "time": 66 },
+      { "text": "Tujhe pooja kiya main ne pooja kiya", "chord": "F", "time": 72 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "O channa mereya mereya beliya o piya", "chord": "C", "time": 80 },
+      { "text": "O channa mereya mereya beliya o piya", "chord": "G", "time": 86 },
+      { "text": "O channa mereya mereya beliya o piya", "chord": "Am", "time": 92 },
+      { "text": "Kitabeyan se dil laga ke ve", "chord": "F", "time": 98 }
+    ]},
+    { "name": "Bridge", "lyrics": [
+      { "text": "Tere bin jeena toh nahi", "chord": "Am", "time": 108 },
+      { "text": "Tere bina marna bhi nahi", "chord": "F", "time": 114 },
+      { "text": "Jeena bhi hai tujhsi ke saath", "chord": "C", "time": 120 },
+      { "text": "Marna bhi hai tujhsi ke saath", "chord": "G", "time": 126 }
+    ]},
+    { "name": "Outro", "lyrics": [
+      { "text": "O channa mereya mereya beliya o piya", "chord": "C", "time": 134 },
+      { "text": "O channa mereya mereya beliya o piya", "chord": "G", "time": 140 },
+      { "text": "O channa mereya...", "chord": "Am", "time": 146 }
+    ]}
+  ]
+}

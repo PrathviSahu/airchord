@@ -60,7 +60,13 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
   const [capo, setCapo]               = useState(song.capo)
   const [bpm, setBpm]                 = useState(song.bpm)
   const [selectedPreset, setPreset]   = useState(songPresetIndex >= 0 ? songPresetIndex : 0)
-  const [fingerMapping, setFingerMapping] = useState<string[]>([...song.fingerMapping])
+  // Derive finger mapping from song if available, otherwise from song chords + defaults
+  const defaultMapping = song.fingerMapping ?? [
+    ...song.chords,
+    // Fill remaining slots with common chords not yet used
+    ...['Am', 'Em', 'Dm', 'Bm', 'G', 'F'].filter(c => !song.chords.includes(c)),
+  ].slice(0, 6)
+  const [fingerMapping, setFingerMapping] = useState<string[]>([...defaultMapping])
   const [customPattern, setCustom]    = useState(song.displayPattern)
   const [isCustom, setIsCustom]       = useState(songPresetIndex < 0)
   const [editingMapping, setEditingMapping] = useState(false)
@@ -474,7 +480,7 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
             </div>
 
             <button
-              onClick={() => setFingerMapping([...song.fingerMapping])}
+              onClick={() => setFingerMapping([...defaultMapping])}
               className="w-full py-1.5 rounded-lg bg-white/3 border border-white/8 text-[10px] font-mono text-white/30 hover:text-white/50 hover:bg-white/6 transition-all flex items-center justify-center gap-1"
             >
               <RotateCcw className="w-3 h-3" /> Reset to song defaults

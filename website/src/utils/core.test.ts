@@ -22,7 +22,8 @@ describe('AirChord chord data', () => {
 
   it('has an audio voicing for every song chord and finger mapping', () => {
     for (const song of SEED_SONGS) {
-      for (const chord of [...song.chords, ...song.fingerMapping]) {
+      const mapping = song.fingerMapping ?? []
+      for (const chord of [...song.chords, ...mapping]) {
         expect(supportedChords.has(chord), `${song.id} uses unsupported chord ${chord}`).toBe(true)
       }
       for (const section of song.sections) {
@@ -38,7 +39,9 @@ describe('AirChord chord data', () => {
     expect(new Set(ids).size).toBe(ids.length)
 
     for (const song of SEED_SONGS) {
-      expect(song.fingerMapping).toHaveLength(6)
+      if (song.fingerMapping) {
+        expect(song.fingerMapping).toHaveLength(6)
+      }
       const duration = durationInSeconds(song.duration)
       const lastLyricTime = Math.max(...song.sections.flatMap(section => section.lyrics.map(line => line.time)))
       expect(lastLyricTime, `${song.id} lyric timeline`).toBeLessThanOrEqual(duration)
