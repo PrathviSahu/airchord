@@ -1,8 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Pause, Play, X, ChevronLeft, ChevronRight, Volume2, VolumeX, Youtube } from 'lucide-react'
-import { SessionConfig } from './SongSetupScreen'
-import { initAudioEngine, setCapoFret } from '../utils/guitarSound'
+import { Pause, Play, X, ChevronLeft, ChevronRight, Volume2, VolumeX, Youtube, Mic } from 'lucide-react'
+import type { SessionConfig } from './SongSetupScreen'
+import {
+  initAudioEngine,
+  setCapoFret,
+  setAudioMuted,
+  createPerformanceRecordingStream,
+  disconnectMicrophoneFromRecording,
+} from '../utils/guitarSound'
 import { GuitaristEngine } from '../utils/guitaristEngine'
 import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
@@ -22,22 +28,42 @@ interface LivePerformanceScreenProps {
 export default function LivePerformanceScreen({ config, onEnd }: LivePerformanceScreenProps) {
   const { song, capo, bpm, strumPattern, displayPattern, fingerMapping } = config
 
-  // Local lyrics (chord structure from library)
-  const localLyrics = song.sections.flatMap(s => s.lyrics)
+  // Local lyrics (chord structure from library). Keep the array stable so the
+  // transport effect does not restart on every elapsed-time render.
+  const localLyrics = useMemo(
+    () => song.sections.flatMap(s => s.lyrics),
+    [song.sections],
+  )
 
   // lrclib: fetched synced lines (text + real timestamps)
   const [lrcLines, setLrcLines]             = useState<SyncedLine[] | null>(null)
   const [lrcStatus, setLrcStatus]           = useState<'loading' | 'ok' | 'fallback'>('loading')
 
-  // Merged lyrics: use lrc timestamps + text when available, else local data
-  const allLyrics = lrcLines
-    ? lrcLines.map((l, i) => ({
+  // Merged lyrics: use LRC timestamps + text when available. Chords are
+  // matched by timestamp rather than array index because external lyric lines
+  // rarely have the same segmentation as the local chord timeline.
+  const allLyrics = useMemo(() => {
+    if (!lrcLines) return localLyrics
+
+    const localLyricAtTime = (time: number) => {
+      let candidate = localLyrics[0]
+      for (const lyric of localLyrics) {
+        if (lyric.time > time) break
+        candidate = lyric
+      }
+      return candidate
+    }
+
+    return lrcLines.map(l => {
+      const local = localLyricAtTime(l.time)
+      return {
         text:          l.text,
-        chord:         localLyrics[i]?.chord ?? localLyrics[localLyrics.length - 1]?.chord ?? 'G',
+        chord:         local?.chord ?? localLyrics[localLyrics.length - 1]?.chord ?? 'G',
         time:          l.time,
-        fingerGesture: localLyrics[i]?.fingerGesture ?? '',
-      }))
-    : localLyrics
+        fingerGesture: local?.fingerGesture ?? '',
+      }
+    })
+  }, [lrcLines, localLyrics])
 
   // ── Fetch synced lyrics from lrclib.net on mount ──────────────────
   useEffect(() => {
@@ -66,6 +92,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const [detectedChord, setDetectedChord]   = useState<string>(fingerMapping[0] || 'G')
   const [cameraReady, setCameraReady]       = useState(false)
   const [cameraError, setCameraError]       = useState<string | null>(null)
+  const [micReady, setMicReady]             = useState(false)
   const [countdown, setCountdown]           = useState<number | null>(null)
   const [showYT, setShowYT]                 = useState(false)
   const [ytMinimized, setYtMinimized]       = useState(false)
@@ -75,9 +102,24 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const [isRecording, setIsRecording]       = useState(false)
   const [recordingTime, setRecordingTime]   = useState(0)
   const [recordedUrl, setRecordedUrl]       = useState<string | null>(null)
+  const mountedRef                           = useRef(true)
+  const recordedUrlRef                       = useRef<string | null>(null)
   const mediaRecorderRef                     = useRef<MediaRecorder | null>(null)
   const recordedChunksRef                    = useRef<Blob[]>([])
   const recTimerRef                          = useRef<any>(null)
+
+  const updateRecordedUrl = useCallback((url: string | null) => {
+    setRecordedUrl(previous => {
+      if (previous && previous !== url) URL.revokeObjectURL(previous)
+      recordedUrlRef.current = url
+      return url
+    })
+  }, [])
+
+  useEffect(() => () => {
+    mountedRef.current = false
+    if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current)
+  }, [])
 
   // Refs
   const videoRef      = useRef<HTMLVideoElement>(null)
@@ -93,31 +135,68 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   ))
   // Current section name (Verse/Chorus/Bridge/Outro) — updated by lyric clock
   const currentSectionRef = useRef<string>('Verse')
+  const strumBeatIndexRef = useRef(-1)
+  const transportPositionRef = useRef(0)
+  const countdownTimerRef = useRef<number | null>(null)
 
-  const { initialize, processFrame, setOnResults } = useHandTracking()
+  const { initialize, processFrame, setOnResults, dispose } = useHandTracking()
 
   // ── Boot camera + auto-start on ready ─────────────────────────────
   useEffect(() => {
+    let cancelled = false
+
     async function startCam() {
+      const video = { facingMode: 'user' as const, width: { ideal: 1280 }, height: { ideal: 720 } }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        })
+        // Ask for the mic with echo cancellation so recordings can contain the
+        // singer and the guitar engine in one mixed track. If mic permission
+        // is denied, keep the camera usable and record guitar-only.
+        let stream: MediaStream
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video,
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          })
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video })
+        }
+
+        if (cancelled) {
+          stream.getTracks().forEach(track => track.stop())
+          return
+        }
+
         streamRef.current = stream
+        setMicReady(stream.getAudioTracks().length > 0)
         if (videoRef.current) {
           videoRef.current.srcObject = stream
           videoRef.current.onloadedmetadata = () => {
+            if (cancelled) return
             videoRef.current?.play().catch(() => {})
             setCameraReady(true)
           }
         }
       } catch {
-        setCameraError('Camera blocked. Please allow camera access and refresh.')
+        if (!cancelled) setCameraError('Camera blocked. Please allow camera access and refresh.')
       }
     }
-    startCam()
+    void startCam()
     return () => {
+      cancelled = true
       streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+      if (countdownTimerRef.current !== null) {
+        window.clearInterval(countdownTimerRef.current)
+        countdownTimerRef.current = null
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop() } catch { /* already stopped */ }
+      }
+      if (recTimerRef.current) {
+        clearInterval(recTimerRef.current)
+        recTimerRef.current = null
+      }
+      disconnectMicrophoneFromRecording()
     }
   }, [])
 
@@ -133,7 +212,10 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   }, [cameraReady])
 
   // ── MediaPipe hand tracking ──────────────────────────────────────────
-  useEffect(() => { initialize() }, [initialize])
+  useEffect(() => {
+    void initialize()
+    return dispose
+  }, [initialize, dispose])
 
   useEffect(() => {
     setOnResults((result: import('../utils/useHandTracking').HandResult | null) => {
@@ -141,19 +223,26 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
       const canvas = canvasRef.current
       const ctx = canvas.getContext('2d')
-      canvas.width  = videoRef.current.videoWidth  || 1280
-      canvas.height = videoRef.current.videoHeight || 720
+      const width = videoRef.current.videoWidth || 1280
+      const height = videoRef.current.videoHeight || 720
+      if (canvas.width !== width) canvas.width = width
+      if (canvas.height !== height) canvas.height = height
 
       if (!ctx) return
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      if (result && result.landmarks && result.landmarks.length > 0) {
+      if (!result?.landmarks || result.landmarks.length === 0) {
+        gestureRef.current.reset()
+        return
+      }
+
+      if (result.landmarks.length > 0) {
         // Draw neon hand skeleton — 4 params (no 5th arg)
         drawHandSkeleton(ctx, result.landmarks, canvas.width, canvas.height)
 
         // Gesture engine — use processLandmarks, not process
-        const gesture = gestureRef.current.processLandmarks(result.landmarks)
+        const gesture = gestureRef.current.processLandmarks(result.landmarks, result.confidence)
         if (gesture) {
           const fingers = Math.min(5, Math.max(0, gesture.fingerCount))
           const chord   = fingerMapping[fingers] || fingerMapping[0]
@@ -181,8 +270,29 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   // ── Apply capo ───────────────────────────────────────────────────────
   useEffect(() => { setCapoFret(capo) }, [capo])
 
+  // Mute the output bus, not just future beat callbacks, so active guitar tails
+  // stop cleanly and recordings obey the same mute state.
+  useEffect(() => {
+    setAudioMuted(isMuted)
+    return () => setAudioMuted(false)
+  }, [isMuted])
+
   // ── Section tracker: keep currentSectionRef up-to-date ─────────────────
   useEffect(() => {
+    const currentTime = allLyrics[currentLine]?.time
+    if (typeof currentTime === 'number') {
+      let currentSection = song.sections[0]?.name ?? 'Verse'
+      for (const section of song.sections) {
+        const firstTime = section.lyrics[0]?.time
+        if (typeof firstTime === 'number' && firstTime <= currentTime) {
+          currentSection = section.name
+        }
+      }
+      currentSectionRef.current = currentSection
+      return
+    }
+
+    // Fallback for a custom lyric source without timestamps.
     let lineCount = 0
     for (const section of song.sections) {
       if (currentLine < lineCount + section.lyrics.length) {
@@ -191,7 +301,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       }
       lineCount += section.lyrics.length
     }
-  }, [currentLine, song.sections])
+  }, [currentLine, song.sections, allLyrics])
 
   // ── Auto-strum beat engine (now routed through GuitaristEngine) ──────────
   useEffect(() => {
@@ -200,11 +310,12 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       return
     }
     const beatMs  = Math.round(60000 / (bpm || 60))
-    const patterns = strumPattern
-    let beatIndex  = -1
+    const patterns = strumPattern.length > 0 ? strumPattern : ['D']
+    let beatIndex  = strumBeatIndexRef.current
 
-    const iv = setInterval(() => {
+    const playNextBeat = () => {
       beatIndex = (beatIndex + 1) % patterns.length
+      strumBeatIndexRef.current = beatIndex
       setActiveBeat(beatIndex)
       const stroke    = patterns[beatIndex]
       const chordName = detectedChordRef.current || 'Em'
@@ -215,9 +326,24 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         currentSectionRef.current,
         0.35
       )
-    }, beatMs)
+    }
 
-    return () => clearInterval(iv)
+    // Start on beat one; an interval-only implementation left a silent beat
+    // between the countdown and the first guitar hit. A drift-corrected timeout
+    // avoids accumulating main-thread scheduling error over a long song.
+    playNextBeat()
+    let nextBeatAt = performance.now() + beatMs
+    let timerId = window.setTimeout(scheduleNextBeat, beatMs)
+
+    function scheduleNextBeat() {
+      const now = performance.now()
+      if (now > nextBeatAt + beatMs) nextBeatAt = now
+      playNextBeat()
+      nextBeatAt += beatMs
+      timerId = window.setTimeout(scheduleNextBeat, Math.max(0, nextBeatAt - performance.now()))
+    }
+
+    return () => window.clearTimeout(timerId)
   }, [isPlaying, isMuted, bpm, strumPattern])
 
   // ── Real-Time Elapsed Seconds Clock & Precise Lyric Sync ──────────────
@@ -227,13 +353,17 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
   useEffect(() => {
     if (!isPlaying) {
-      setElapsedSec(0)
+      // Preserve the transport position while paused. The previous clock reset
+      // to zero on every resume, which made lyrics and elapsed time jump back.
+      setElapsedSec(transportPositionRef.current)
       return
     }
 
-    const startTime = Date.now()
-    const iv = setInterval(() => {
-      const currentSec = (Date.now() - startTime) / 1000
+    const startedAt = performance.now()
+    const positionAtStart = transportPositionRef.current
+    const updateTransport = () => {
+      const currentSec = positionAtStart + (performance.now() - startedAt) / 1000
+      transportPositionRef.current = currentSec
       setElapsedSec(currentSec)
 
       if (lrcStatus === 'ok') {
@@ -260,9 +390,15 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         setIsPlaying(false)
         setActiveBeat(-1)
       }
-    }, 100)
+    }
 
-    return () => clearInterval(iv)
+    updateTransport()
+    const iv = setInterval(updateTransport, 100)
+
+    return () => {
+      transportPositionRef.current = positionAtStart + (performance.now() - startedAt) / 1000
+      clearInterval(iv)
+    }
   }, [isPlaying, allLyrics, lrcStatus, bpm])
 
   // Refs for voice recognition closure safety
@@ -304,6 +440,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
     let recognition: any = null
     let active = true
+    let restartTimer: number | null = null
 
     try {
       recognition = new SpeechRecognition()
@@ -364,17 +501,25 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         }
       }
 
-      recognition.onend = () => {
-        // Auto-restart recognition so mic never drops out mid-song
-        if (active && voiceFollowerRef.current && isPlayingRef.current) {
-          try { recognition.start() } catch {}
-        }
+      const restartRecognition = () => {
+        // Auto-restart recognition so mic never drops out mid-song, but avoid
+        // a tight restart loop when a browser rejects the recognition service.
+        if (!active || !voiceFollowerRef.current || !isPlayingRef.current || restartTimer !== null) return
+        restartTimer = window.setTimeout(() => {
+          restartTimer = null
+          try { recognition.start() } catch { /* already starting */ }
+        }, 250)
       }
 
-      recognition.onerror = () => {
-        if (active && voiceFollowerRef.current && isPlayingRef.current) {
-          try { recognition.start() } catch {}
+      recognition.onend = restartRecognition
+
+      recognition.onerror = (event: { error?: string }) => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'audio-capture') {
+          active = false
+          setVoiceFollower(false)
+          return
         }
+        restartRecognition()
       }
 
       recognition.start()
@@ -382,6 +527,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
     return () => {
       active = false
+      if (restartTimer !== null) window.clearTimeout(restartTimer)
       try { recognition?.stop() } catch {}
     }
   }, [voiceFollower, isPlaying])
@@ -391,12 +537,17 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     initAudioEngine()
     guitaristRef.current.reset()        // clear any stale chord-ringing state
     currentSectionRef.current = 'Verse' // reset section to start
+    strumBeatIndexRef.current = -1
+    transportPositionRef.current = 0
+    setElapsedSec(0)
     setCountdown(3)
+    if (countdownTimerRef.current !== null) window.clearInterval(countdownTimerRef.current)
     let count = 3
-    const iv = setInterval(() => {
+    const timerId = window.setInterval(() => {
       count -= 1
       if (count <= 0) {
-        clearInterval(iv)
+        window.clearInterval(timerId)
+        countdownTimerRef.current = null
         setCountdown(null)
         setIsPlaying(true)
         setCurrentLine(0)
@@ -404,9 +555,20 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         setCountdown(count)
       }
     }, 1000)
+    countdownTimerRef.current = timerId
   }, [])
 
-  const handlePause = useCallback(() => setIsPlaying(p => !p), [])
+  const handlePause = useCallback(() => {
+    if (countdown !== null) {
+      if (countdownTimerRef.current !== null) {
+        window.clearInterval(countdownTimerRef.current)
+        countdownTimerRef.current = null
+      }
+      setCountdown(null)
+      return
+    }
+    setIsPlaying(p => !p)
+  }, [countdown])
 
   // ── Recording Module Handlers ─────────────────────────────────────────
   const [recordedBlob, setRecordedBlob]     = useState<Blob | null>(null)
@@ -414,16 +576,10 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const handleStartRecording = useCallback(() => {
     try {
       recordedChunksRef.current = []
-      let recStream: MediaStream | null = null
+      let recStream: MediaStream | null = createPerformanceRecordingStream(streamRef.current)
 
-      if (streamRef.current) {
-        recStream = new MediaStream()
-        // Add webcam video track
-        streamRef.current.getVideoTracks().forEach(track => recStream?.addTrack(track))
-        // Add webcam audio track if available
-        streamRef.current.getAudioTracks().forEach(track => recStream?.addTrack(track))
-      } else if (canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
-        recStream = (canvasRef.current as any).captureStream(30)
+      if (!recStream && canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
+        recStream = createPerformanceRecordingStream((canvasRef.current as any).captureStream(30))
       }
 
       if (!recStream || recStream.getTracks().length === 0) return
@@ -453,11 +609,25 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       }
 
       recorder.onstop = () => {
+        disconnectMicrophoneFromRecording()
         const mime = selectedMime || 'video/webm'
         const blob = new Blob(recordedChunksRef.current, { type: mime })
         const url  = URL.createObjectURL(blob)
+        if (!mountedRef.current) {
+          URL.revokeObjectURL(url)
+          return
+        }
         setRecordedBlob(blob)
-        setRecordedUrl(url)
+        updateRecordedUrl(url)
+        setIsRecording(false)
+      }
+
+      recorder.onerror = () => {
+        disconnectMicrophoneFromRecording()
+        if (recTimerRef.current) {
+          clearInterval(recTimerRef.current)
+          recTimerRef.current = null
+        }
         setIsRecording(false)
       }
 
@@ -472,17 +642,25 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     } catch {
       setIsRecording(false)
     }
-  }, [])
+  }, [updateRecordedUrl])
 
   const handleStopRecording = useCallback(() => {
-    if (recTimerRef.current) clearInterval(recTimerRef.current)
+    if (recTimerRef.current) {
+      clearInterval(recTimerRef.current)
+      recTimerRef.current = null
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop()
     }
   }, [])
 
+  const closeRecordingPreview = useCallback(() => {
+    updateRecordedUrl(null)
+    setRecordedBlob(null)
+  }, [updateRecordedUrl])
+
   const handleDownloadVideo = useCallback(() => {
-    if (!recordedUrl && !recordedBlob) return
+    if (!recordedUrl) return
     const a = document.createElement('a')
     a.style.display = 'none'
     a.href = recordedUrl!
@@ -559,6 +737,9 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
 
         {/* Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          <span className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 text-[10px] font-mono ${micReady ? 'text-emerald-300' : 'text-white/35'}`}>
+            <Mic className="w-3 h-3" /> {micReady ? 'Mic on' : 'Guitar only'}
+          </span>
           {/* Recording module button */}
           {!isRecording ? (
             <button
@@ -939,7 +1120,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
                   <h3 className="text-lg font-black text-white mt-1">{song.title} Performance</h3>
                 </div>
                 <button
-                  onClick={() => setRecordedUrl(null)}
+                  onClick={closeRecordingPreview}
                   className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -966,7 +1147,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
                   Download Performance Video 💾
                 </button>
                 <button
-                  onClick={() => setRecordedUrl(null)}
+                  onClick={closeRecordingPreview}
                   className="py-3.5 px-5 rounded-xl text-xs font-mono text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
                 >
                   Discard

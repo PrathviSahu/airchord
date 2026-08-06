@@ -47,6 +47,11 @@ export class GestureEngine {
 
   setProfile(profile: GestureProfile) {
     this.profile = profile
+    this.reset()
+  }
+
+  /** Clear held-gesture state when the hand leaves the frame or confidence drops. */
+  reset() {
     this.state = { lastFingerCount: -1, lastTriggerTime: 0, holdCount: 0 }
   }
 
@@ -106,8 +111,23 @@ export class GestureEngine {
     return count
   }
 
-  processLandmarks(landmarks: { x: number; y: number; z?: number }[]): GestureResult | null {
-    if (!landmarks || landmarks.length < 21) return null
+  processLandmarks(
+    landmarks: { x: number; y: number; z?: number }[],
+    detectionConfidence = 1,
+  ): GestureResult | null {
+    if (!landmarks || landmarks.length < 21) {
+      this.reset()
+      return null
+    }
+
+    // Do not turn an uncertain detector frame into a confident chord. The
+    // MediaPipe score is passed through by useHandTracking; the default keeps
+    // this utility backwards-compatible with callers/tests that provide only
+    // landmarks.
+    if (detectionConfidence < 0.56) {
+      this.reset()
+      return null
+    }
 
     // Anatomical hand ratio check (rejects ear / face / background false positives)
     const wrist = landmarks[0]
@@ -120,6 +140,7 @@ export class GestureEngine {
 
     // A real hand in video frame must have valid palm proportions
     if (palmLength < 0.055 || palmWidth < 0.032) {
+      this.reset()
       return null
     }
 
@@ -129,7 +150,7 @@ export class GestureEngine {
     if (!chord) return null
 
     const now = performance.now()
-    const confidence = 0.95
+    const confidence = Math.min(1, Math.max(0, detectionConfidence))
 
     // Smoothing: require held for N frames
     if (fingerCount === this.state.lastFingerCount) {

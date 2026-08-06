@@ -70,7 +70,7 @@ function NeonProgressBar({ progress }: { progress: number }) {
 }
 
 // ── Floating particle dots ─────────────────────────────────────────────
-function Particle({ x, y, size, delay }: { x: number; y: number; size: number; delay: number }) {
+function Particle({ x, y, size, delay, color, duration }: { x: number; y: number; size: number; delay: number; color: string; duration: number }) {
   return (
     <motion.div
       className="absolute rounded-full"
@@ -79,8 +79,8 @@ function Particle({ x, y, size, delay }: { x: number; y: number; size: number; d
         top: `${y}%`,
         width: size,
         height: size,
-        background: Math.random() > 0.5 ? 'rgba(168,85,247,0.6)' : 'rgba(251,191,36,0.5)',
-        boxShadow: `0 0 ${size * 2}px currentColor`,
+        background: color,
+        boxShadow: `0 0 ${size * 2}px ${color}`,
       }}
       animate={{
         y: [0, -20, 0],
@@ -88,7 +88,7 @@ function Particle({ x, y, size, delay }: { x: number; y: number; size: number; d
         scale: [0.8, 1.2, 0.8],
       }}
       transition={{
-        duration: 2.5 + Math.random() * 1.5,
+        duration,
         delay,
         repeat: Infinity,
         ease: 'easeInOut',
@@ -147,6 +147,8 @@ export default function GuitarLoadingScreen({ isLoaded }: GuitarLoadingScreenPro
     y: (i * 53 + 7) % 90 + 3,
     size: (i % 4) + 2,
     delay: (i * 0.2) % 2.5,
+    duration: 2.5 + (i % 4) * 0.35,
+    color: i % 2 === 0 ? 'rgba(168,85,247,0.6)' : 'rgba(251,191,36,0.5)',
   }))
 
   if (!visible) return null

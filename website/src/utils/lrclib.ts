@@ -15,7 +15,7 @@ interface LrclibResponse {
 }
 
 // Parse "[mm:ss.xx]" or "[mm:ss:xx]" or "[mm:ss]" → { time, text }[]
-function parseLRC(lrc: string): SyncedLine[] {
+export function parseLRC(lrc: string): SyncedLine[] {
   const lines: SyncedLine[] = []
   for (const raw of lrc.split('\n')) {
     const match = raw.match(/^\[(\d{2}):(\d{2})[\.\:]?(\d{1,3})?\]\s*(.*)$/)
@@ -27,6 +27,10 @@ function parseLRC(lrc: string): SyncedLine[] {
     if (!text) continue
     lines.push({ time: min * 60 + sec + ms / 1000, text })
   }
+
+  // Providers normally return sorted lines, but normalize them before using
+  // timestamps to map chords and drive the transport.
+  lines.sort((a, b) => a.time - b.time)
 
   // Shift timestamps if first line starts after a long intro so lyric 0 starts at t=0
   if (lines.length > 0 && lines[0].time > 3) {

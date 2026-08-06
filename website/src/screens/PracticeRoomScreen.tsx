@@ -1,8 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Play, Pause, Download, RotateCcw, Volume2, VolumeX, Mic } from 'lucide-react'
-import { SessionConfig } from './SongSetupScreen'
-import { initAudioEngine, triggerGuitarChord, playDownStrum, playUpStrum, playMuteStrum, CHORD_NOTES, setCapoFret } from '../utils/guitarSound'
+import type { SessionConfig } from './SongSetupScreen'
+import {
+  initAudioEngine,
+  triggerGuitarChord,
+  playDownStrum,
+  playUpStrum,
+  playMuteStrum,
+  CHORD_NOTES,
+  setCapoFret,
+  setAudioMuted,
+  createPerformanceRecordingStream,
+  disconnectMicrophoneFromRecording,
+} from '../utils/guitarSound'
 import { GuitaristEngine, PlayStyle } from '../utils/guitaristEngine'
 import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
@@ -21,27 +32,37 @@ const STRUM_PRESETS: { name: string; pattern: string[]; display: string; style: 
 interface PracticeRoomScreenProps {
   config?: SessionConfig
   onBack: () => void
-  onStartLive?: () => void
 }
 
 const AVAILABLE_CHORDS = [
   'Em', 'Am', 'C', 'D', 'G', 'F',
-  'Bm', 'B7', 'F#m', 'Cadd9', 'Dsus2', 'Dsus4',
+  'Bm', 'B7', 'F#m', 'C#m', 'Cadd9', 'Dsus2', 'Dsus4',
   'Am7', 'E', 'A', 'B', 'G7', 'E7', 'A7', 'D7', 'Dm'
 ]
 
-export default function PracticeRoomScreen({ config, onBack, onStartLive }: PracticeRoomScreenProps) {
+export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScreenProps) {
   // Config defaults for Pro Jam Room & Editable Finger Mapping
   const defaultFingerMapping = ['Em', 'Am', 'C', 'D', 'G', 'F']
   const [fingerMapping, setFingerMapping] = useState<string[]>(config?.fingerMapping ?? defaultFingerMapping)
   const [editingFingerIdx, setEditingFingerIdx] = useState<number | null>(null)
   const [customInput, setCustomInput] = useState('')
+  const [customChordError, setCustomChordError] = useState('')
 
   // Capo & BPM Controls
   const [capo, setCapo] = useState<number>(config?.capo ?? 0)
   const [bpm, setBpm]   = useState<number>(config?.bpm ?? 90)
-  const [selectedPresetIdx, setSelectedPresetIdx] = useState(0)
-  const [customPattern, setCustomPattern]       = useState<string[] | null>(null)
+  const [selectedPresetIdx, setSelectedPresetIdx] = useState(() => {
+    const configured = config?.displayPattern
+    const index = configured
+      ? STRUM_PRESETS.findIndex(p => p.display === configured)
+      : -1
+    return index >= 0 ? index : 0
+  })
+  const [customPattern, setCustomPattern] = useState<string[] | null>(() => {
+    if (!config?.strumPattern?.length) return null
+    const isPreset = STRUM_PRESETS.some(p => p.display === config.displayPattern)
+    return isPreset ? null : [...config.strumPattern]
+  })
   const [showPatternModal, setShowPatternModal] = useState(false)
 
   const activePreset = STRUM_PRESETS[selectedPresetIdx]
@@ -78,6 +99,7 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
   const streamRef     = useRef<MediaStream | null>(null)
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const [micReady, setMicReady] = useState(false)
 
   // Gesture & Detection State
   const [detectedFingers, setDetectedFingers] = useState<number>(0)
@@ -87,20 +109,42 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
 
   const gestureRef  = useRef(new GestureEngine(getProfileById('classic')))
   const guitaristRef = useRef(new GuitaristEngine(activePreset.style))
-  const { initialize, processFrame, setOnResults } = useHandTracking()
+  const { initialize, processFrame, setOnResults, dispose } = useHandTracking()
 
   // ── Recording State ──────────────────────────────────────────────────
   const [isRecording, setIsRecording]       = useState(false)
   const [recordingTime, setRecordingTime]   = useState(0)
   const [recordedUrl, setRecordedUrl]       = useState<string | null>(null)
+  const mountedRef                           = useRef(true)
+  const recordedUrlRef                       = useRef<string | null>(null)
   const mediaRecorderRef                     = useRef<MediaRecorder | null>(null)
   const recordedChunksRef                    = useRef<Blob[]>([])
   const recTimerRef                          = useRef<any>(null)
+
+  const updateRecordedUrl = useCallback((url: string | null) => {
+    setRecordedUrl(previous => {
+      if (previous && previous !== url) URL.revokeObjectURL(previous)
+      recordedUrlRef.current = url
+      return url
+    })
+  }, [])
+
+  useEffect(() => () => {
+    mountedRef.current = false
+    if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current)
+  }, [])
 
   // ── Apply Capo ───────────────────────────────────────────────────────
   useEffect(() => {
     setCapoFret(capo)
   }, [capo])
+
+  // Mute the actual audio bus as well as stopping future beat triggers. This
+  // prevents a strum tail from continuing after the HUD mute button is pressed.
+  useEffect(() => {
+    setAudioMuted(isMuted)
+    return () => setAudioMuted(false)
+  }, [isMuted])
 
   // Update Guitarist style when preset changes
   useEffect(() => {
@@ -109,46 +153,85 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
 
   // ── Boot Camera ──────────────────────────────────────────────────────
   useEffect(() => {
+    let cancelled = false
+
     async function startCam() {
+      const video = { facingMode: 'user' as const, width: { ideal: 1280 }, height: { ideal: 720 } }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: true, // Request mic audio for recording & vocal input
-        })
+        let stream: MediaStream
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video,
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          })
+        } catch {
+          // Camera practice should still work if the user declines the mic.
+          stream = await navigator.mediaDevices.getUserMedia({ video })
+        }
+
+        // Navigation can unmount the screen while getUserMedia is pending.
+        // Stop the late stream instead of attaching it to a dead component.
+        if (cancelled) {
+          stream.getTracks().forEach(track => track.stop())
+          return
+        }
+
         streamRef.current = stream
+        setMicReady(stream.getAudioTracks().length > 0)
         if (videoRef.current) {
           videoRef.current.srcObject = stream
           videoRef.current.onloadedmetadata = () => {
+            if (cancelled) return
             videoRef.current?.play().catch(() => {})
             setCameraReady(true)
           }
         }
       } catch {
-        setCameraError('Camera / Microphone permission blocked. Please allow media access.')
+        if (!cancelled) setCameraError('Camera permission blocked. Please allow camera access.')
       }
     }
-    startCam()
+    void startCam()
     return () => {
+      cancelled = true
       streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop() } catch { /* already stopped */ }
+      }
+      if (recTimerRef.current) {
+        clearInterval(recTimerRef.current)
+        recTimerRef.current = null
+      }
+      disconnectMicrophoneFromRecording()
     }
   }, [])
 
   // ── Hand Tracking MediaPipe ──────────────────────────────────────────
-  useEffect(() => { initialize() }, [initialize])
+  useEffect(() => {
+    void initialize()
+    return dispose
+  }, [initialize, dispose])
 
   useEffect(() => {
     setOnResults((result) => {
       if (!canvasRef.current || !videoRef.current) return
       const canvas = canvasRef.current
       const ctx    = canvas.getContext('2d')
-      canvas.width  = videoRef.current.videoWidth  || 1280
-      canvas.height = videoRef.current.videoHeight || 720
+      const width = videoRef.current.videoWidth || 1280
+      const height = videoRef.current.videoHeight || 720
+      if (canvas.width !== width) canvas.width = width
+      if (canvas.height !== height) canvas.height = height
       if (!ctx) return
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      if (result?.landmarks && result.landmarks.length > 0) {
+      if (!result?.landmarks || result.landmarks.length === 0) {
+        gestureRef.current.reset()
+        return
+      }
+
+      if (result.landmarks.length > 0) {
         drawHandSkeleton(ctx, result.landmarks, canvas.width, canvas.height)
-        const gesture = gestureRef.current.processLandmarks(result.landmarks)
+        const gesture = gestureRef.current.processLandmarks(result.landmarks, result.confidence)
         if (gesture) {
           const fingers = Math.min(5, Math.max(0, gesture.fingerCount))
           const chord   = fingerMapping[fingers] || fingerMapping[0]
@@ -178,10 +261,10 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
       return
     }
     const beatMs   = Math.round(60000 / (bpm || 90))
-    const patterns = strumPattern
+    const patterns = strumPattern.length > 0 ? strumPattern : ['D']
     let beatIndex  = -1
 
-    const iv = setInterval(() => {
+    const playNextBeat = () => {
       beatIndex = (beatIndex + 1) % patterns.length
       setActiveBeat(beatIndex)
       const stroke    = patterns[beatIndex]
@@ -193,21 +276,33 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
         'Chorus', // Full dynamics for free jam
         0.38
       )
-    }, beatMs)
+    }
 
-    return () => clearInterval(iv)
+    // Put the downbeat on the musical start instead of waiting a full beat.
+    // Drift-correct the timer so a long jam does not gradually move off tempo.
+    playNextBeat()
+    let nextBeatAt = performance.now() + beatMs
+    let timerId = window.setTimeout(scheduleNextBeat, beatMs)
+
+    function scheduleNextBeat() {
+      const now = performance.now()
+      if (now > nextBeatAt + beatMs) nextBeatAt = now
+      playNextBeat()
+      nextBeatAt += beatMs
+      timerId = window.setTimeout(scheduleNextBeat, Math.max(0, nextBeatAt - performance.now()))
+    }
+
+    return () => window.clearTimeout(timerId)
   }, [isPlaying, isMuted, bpm, strumPattern])
 
   // ── Recording Module Handlers ────────────────────────────────────────
   const handleStartRecording = useCallback(() => {
     try {
       recordedChunksRef.current = []
-      let recStream: MediaStream | null = null
+      let recStream: MediaStream | null = createPerformanceRecordingStream(streamRef.current)
 
-      if (streamRef.current) {
-        recStream = streamRef.current
-      } else if (canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
-        recStream = (canvasRef.current as any).captureStream(30)
+      if (!recStream && canvasRef.current && typeof (canvasRef.current as any).captureStream === 'function') {
+        recStream = createPerformanceRecordingStream((canvasRef.current as any).captureStream(30))
       }
 
       if (!recStream || recStream.getTracks().length === 0) return
@@ -231,9 +326,23 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
       }
 
       recorder.onstop = () => {
+        disconnectMicrophoneFromRecording()
         const blob = new Blob(recordedChunksRef.current, { type: selectedMime || 'video/webm' })
         const url  = URL.createObjectURL(blob)
-        setRecordedUrl(url)
+        if (!mountedRef.current) {
+          URL.revokeObjectURL(url)
+          return
+        }
+        updateRecordedUrl(url)
+      }
+
+      recorder.onerror = () => {
+        disconnectMicrophoneFromRecording()
+        if (recTimerRef.current) {
+          clearInterval(recTimerRef.current)
+          recTimerRef.current = null
+        }
+        setIsRecording(false)
       }
 
       recorder.start(1000)
@@ -247,7 +356,7 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
     } catch {
       alert('Recording failed to initialize. Please check permissions.')
     }
-  }, [])
+  }, [updateRecordedUrl])
 
   const handleStopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -255,6 +364,7 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
     }
     if (recTimerRef.current) {
       clearInterval(recTimerRef.current)
+      recTimerRef.current = null
     }
     setIsRecording(false)
   }, [])
@@ -299,8 +409,8 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
               <span className="px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-500/30 text-purple-300 font-mono text-[10px] font-bold uppercase tracking-wider">
                 PRO PRACTICE ROOM
               </span>
-              <span className="text-xs font-mono text-emerald-400 flex items-center gap-1">
-                <Mic className="w-3 h-3" /> Live Mic On
+              <span className={`text-xs font-mono flex items-center gap-1 ${micReady ? 'text-emerald-400' : 'text-white/35'}`}>
+                <Mic className="w-3 h-3" /> {micReady ? 'Live Mic On' : 'Mic Optional'}
               </span>
             </div>
             <h1 className="text-lg font-black tracking-tight text-white mt-0.5">Freestyle Jam & Record</h1>
@@ -463,6 +573,7 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
                 initAudioEngine()
                 setEditingFingerIdx(idx)
                 setCustomInput(chord)
+                setCustomChordError('')
               }}
               title="Click to edit chord for this finger count"
               className={`px-3.5 py-2 rounded-xl border font-mono text-xs flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95 ${
@@ -530,7 +641,7 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
                   <p className="text-xs font-mono text-white/50">Preview your jam recording below</p>
                 </div>
                 <button
-                  onClick={() => setRecordedUrl(null)}
+                  onClick={() => updateRecordedUrl(null)}
                   className="text-white/40 hover:text-white text-sm font-mono"
                 >
                   ✕ Close
@@ -543,7 +654,7 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
 
               <div className="flex items-center justify-between gap-3 pt-2">
                 <button
-                  onClick={() => setRecordedUrl(null)}
+                  onClick={() => updateRecordedUrl(null)}
                   className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-mono text-xs flex items-center gap-2 transition-all"
                 >
                   <RotateCcw className="w-4 h-4" /> Re-record
@@ -603,19 +714,29 @@ export default function PracticeRoomScreen({ config, onBack, onStartLive }: Prac
                 />
                 <button
                   onClick={() => {
-                    if (customInput.trim()) {
-                      const newMap = [...fingerMapping]
-                      newMap[editingFingerIdx] = customInput.trim()
-                      setFingerMapping(newMap)
-                      triggerGuitarChord(customInput.trim(), 0.35)
-                      setEditingFingerIdx(null)
+                    const requested = customInput.trim()
+                    const supported = Object.keys(CHORD_NOTES).find(
+                      chord => chord.toLowerCase() === requested.toLowerCase(),
+                    )
+                    if (!supported || editingFingerIdx === null) {
+                      setCustomChordError('Choose a supported chord from the list below.')
+                      return
                     }
+                    const newMap = [...fingerMapping]
+                    newMap[editingFingerIdx] = supported
+                    setFingerMapping(newMap)
+                    triggerGuitarChord(supported, 0.35)
+                    setCustomChordError('')
+                    setEditingFingerIdx(null)
                   }}
                   className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-black font-mono text-xs font-bold rounded-xl shadow-lg shadow-amber-400/20 transition-all"
                 >
                   Apply Chord
                 </button>
               </div>
+              {customChordError && (
+                <p className="text-xs font-mono text-rose-300" role="alert">{customChordError}</p>
+              )}
 
               {/* Available Chords Grid */}
               <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-60 overflow-y-auto pr-1">
