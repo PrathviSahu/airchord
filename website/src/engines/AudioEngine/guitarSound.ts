@@ -9,6 +9,8 @@ export {
   type EngineMode,
   type GuitarVoicing,
   type IGuitarEngine,
+  type HumanizedNoteInput,
+  type HumanizedStrumInput,
   initAudioEngine,
   setCapoFret,
   getCapoFret,
@@ -34,6 +36,8 @@ export {
   playMuteStrum,
   playPatternBeat,
   playPluckNote,
+  playHumanizedStrum,
+  setEffectsConfig,
   setGuitarSampleBaseUrl,
   getGuitarSampleBaseUrl,
 } from '../../utils/guitarSound'

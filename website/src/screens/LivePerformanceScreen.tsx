@@ -23,6 +23,7 @@ import {
   initAudioEngine,
   setCapoFret,
   setAudioMuted,
+  setEffectsConfig,
   createPerformanceRecordingStream,
   disconnectMicrophoneFromRecording,
 } from '../utils/guitarSound'
@@ -270,12 +271,26 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     return () => cancelAnimationFrame(animId)
   }, [cameraReady, processFrame])
 
-  // ── Capo + Mute ───────────────────────────────────────────────────────────
+  // ── Capo + Mute + Effects ──────────────────────────────────────────────────
   useEffect(() => { setCapoFret(capo) }, [capo])
   useEffect(() => {
     setAudioMuted(isMuted)
     return () => setAudioMuted(false)
   }, [isMuted])
+
+  // Apply effects preset from session config
+  useEffect(() => {
+    const effectsMap: Record<string, { reverbMix: number; compressionThresholdDb: number; compressionRatio: number }> = {
+      acoustic:  { reverbMix: 0.15, compressionThresholdDb: -18, compressionRatio: 3 },
+      intimate:  { reverbMix: 0.05, compressionThresholdDb: -14, compressionRatio: 4 },
+      concert:   { reverbMix: 0.30, compressionThresholdDb: -20, compressionRatio: 2.5 },
+      warm:      { reverbMix: 0.18, compressionThresholdDb: -16, compressionRatio: 3.5 },
+      campfire:  { reverbMix: 0.20, compressionThresholdDb: -16, compressionRatio: 3 },
+      studio:    { reverbMix: 0.10, compressionThresholdDb: -15, compressionRatio: 4 },
+    }
+    const fx = effectsMap[config.effectsPreset] ?? effectsMap.acoustic
+    setEffectsConfig(fx)
+  }, [config.effectsPreset])
 
   // ── Section Tracker ───────────────────────────────────────────────────────
   useEffect(() => {

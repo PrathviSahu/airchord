@@ -980,6 +980,213 @@ export function playPatternBeat(stroke: string, voicing: GuitarVoicing, volume =
   else if (normalized === 'X' || normalized === '✕') playMuteStrum(voicing, volume)
 }
 
+// ── Humanizer-Aware Playback ─────────────────────────────────────────────────
+//
+// This is the bridge between the Humanizer engine and the audio output.
+// Each note in the humanized strum gets its EXACT timing, velocity, and pitch —
+// no additional randomization. The Humanizer is the SOLE source of variation.
+
+export interface HumanizedNoteInput {
+  note: string
+  stringIndex: number
+  volume: number
+  delaySec: number
+  playbackRate: number
+  isDeadNote: boolean
+}
+
+export interface HumanizedStrumInput {
+  notes: HumanizedNoteInput[]
+  spreadDuration: number
+  includeFretSqueak: boolean
+}
+
+/**
+ * Play a humanized strum — each note uses EXACTLY the timing/velocity/pitch
+ * from the Humanizer engine. No additional randomization is applied.
+ * This is what makes the same chord never sound exactly the same twice.
+ */
+export function playHumanizedStrum(strum: HumanizedStrumInput) {
+  if (!isStrummingEnabled) return
+  initAudioEngine()
+  const ctx = getAudioContext()
+  if (!ctx) return
+  buildMaster(ctx)
+
+  // Fret squeak before the strum (position change noise)
+  if (strum.includeFretSqueak) {
+    playFretScratchNoise(ctx)
+  }
+
+  const engine = getActiveEngine()
+  const rate = capoRatio()
+
+  for (const note of strum.notes) {
+    if (note.isDeadNote) {
+      // Dead note = muted fret noise instead of pitched note
+      const now = ctx.currentTime + note.delaySec
+      playMutedHit(ctx, now, note.volume * 0.4, note.stringIndex)
+      continue
+    }
+
+    // Play the note with EXACTLY the humanized parameters
+    const parsed = parseNote(note.note)
+    const canonical = parsed?.canonical ?? note.note
+    const si = clamp(Math.round(note.stringIndex), 0, 5)
+
+    // Get the buffer (sample or physical model)
+    let buffer: AudioBuffer | null = null
+    if (currentEngineMode === 'sampled') {
+      const sample = sampleCache.get(canonical)
+      if (sample) {
+        buffer = sample
+      } else {
+        void loadSample(ctx, canonical)
+        // Fall through to physical model
+        buffer = getModelBuffer(ctx, canonical, currentGuitarType)
+      }
+    } else {
+      buffer = getModelBuffer(ctx, canonical, currentGuitarType)
+    }
+
+    if (!buffer) continue
+
+    const duration = STRING_DECAY[si] * (currentGuitarType === 'nylon' ? 0.86 : 1)
+
+    // Play with EXACTLY the humanized playback rate (includes pitch drift)
+    // and EXACTLY the humanized volume — no additional randomization
+    playBufferVoiceExact(ctx, buffer, note.volume, si, note.delaySec, {
+      playbackRate: rate * note.playbackRate,
+      duration,
+      transientScale: 0.8,
+      includePick: true,
+    })
+  }
+}
+
+/**
+ * Play a buffer voice with EXACT parameters — no internal randomization.
+ * This is the humanizer-aware version of playBufferVoice.
+ */
+function playBufferVoiceExact(
+  ctx: AudioContext,
+  buffer: AudioBuffer,
+  volume: number,
+  stringIndex: number,
+  delaySec: number,
+  options: BufferVoiceOptions,
+) {
+  if (!dryBus || !wetBus || !masterOut) return
+
+  const si = clamp(Math.round(stringIndex), 0, 5)
+  const tone = GUITAR_TONES[currentGuitarType]
+  const now = ctx.currentTime + Math.max(0, delaySec)
+  // Use EXACT playback rate — no random cents drift (humanizer provides it)
+  const playbackRate = Math.max(0.05, options.playbackRate)
+  const requestedDecay = clamp(options.duration, 0.16, 5.0)
+  const sourceDuration = buffer.duration / playbackRate
+  const decay = Math.min(requestedDecay, Math.max(0.16, sourceDuration - 0.04))
+  // Use EXACT volume — no random variation (humanizer provides it)
+  const peak = clamp(volume, 0.0001, 0.95)
+
+  const source = ctx.createBufferSource()
+  source.buffer = buffer
+  source.playbackRate.setValueAtTime(playbackRate, now)
+
+  const lowpass = ctx.createBiquadFilter()
+  lowpass.type = 'lowpass'
+  lowpass.frequency.value = Math.min(ctx.sampleRate * 0.45, STRING_BRIGHTNESS[si])
+  lowpass.Q.value = 0.45
+
+  const highpass = ctx.createBiquadFilter()
+  highpass.type = 'highpass'
+  highpass.frequency.value = si >= 2 ? 72 : 34
+  highpass.Q.value = 0.55
+
+  const bodyLow = ctx.createBiquadFilter()
+  bodyLow.type = 'peaking'
+  bodyLow.frequency.value = tone.bodyLow
+  bodyLow.Q.value = 1.05
+  bodyLow.gain.value = si <= 1 ? tone.bodyGain : tone.bodyGain * 0.28
+
+  const bodyMid = ctx.createBiquadFilter()
+  bodyMid.type = 'peaking'
+  bodyMid.frequency.value = tone.bodyMid
+  bodyMid.Q.value = 1.15
+  bodyMid.gain.value = 1.4
+
+  const shelf = ctx.createBiquadFilter()
+  shelf.type = 'highshelf'
+  shelf.frequency.value = 3600
+  shelf.gain.value = tone.shelfGain
+
+  const envelope = ctx.createGain()
+  const attack = STRING_ATTACK[si]
+  envelope.gain.setValueAtTime(0.0001, now)
+  envelope.gain.linearRampToValueAtTime(peak, now + attack)
+  envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.42), now + 0.075)
+  envelope.gain.exponentialRampToValueAtTime(0.0001, now + decay)
+
+  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
+  pan?.pan.setValueAtTime(clamp(STRING_PAN[si], -0.8, 0.8), now)
+
+  source.connect(lowpass)
+  lowpass.connect(highpass)
+  highpass.connect(bodyLow)
+  bodyLow.connect(bodyMid)
+  bodyMid.connect(shelf)
+  shelf.connect(envelope)
+  const output: AudioNode = pan ? (envelope.connect(pan), pan) : envelope
+  output.connect(dryBus)
+  output.connect(wetBus)
+
+  if (options.includePick) {
+    playPickTransient(ctx, now, peak * options.transientScale * tone.transient, si, tone)
+  }
+
+  source.start(now)
+  source.stop(now + Math.min(decay + 0.08, Math.max(0.12, sourceDuration + 0.04)))
+}
+
+// ── Runtime Effects Configuration ────────────────────────────────────────────
+
+/**
+ * Update the master effects chain at runtime.
+ * Allows changing reverb, compression, and EQ without rebuilding the graph.
+ */
+export function setEffectsConfig(config: {
+  reverbMix?: number
+  compressionThresholdDb?: number
+  compressionRatio?: number
+  masterLevel?: number
+}) {
+  if (!audioCtx || !masterOut) return
+  const now = audioCtx.currentTime
+
+  if (config.reverbMix !== undefined && dryBus && wetBus) {
+    const wet = clamp(config.reverbMix, 0, 0.5)
+    const dry = 1 - wet * 0.5
+    dryBus.gain.setTargetAtTime(dry, now, 0.05)
+    wetBus.gain.setTargetAtTime(wet, now, 0.05)
+  }
+
+  if (config.compressionThresholdDb !== undefined && compressor) {
+    compressor.threshold.setTargetAtTime(config.compressionThresholdDb, now, 0.05)
+  }
+
+  if (config.compressionRatio !== undefined && compressor) {
+    compressor.ratio.setTargetAtTime(config.compressionRatio, now, 0.05)
+  }
+
+  if (config.masterLevel !== undefined && masterOut) {
+    masterOut.gain.setTargetAtTime(
+      audioMuted ? 0 : clamp(config.masterLevel, 0, 1),
+      now,
+      0.05,
+    )
+  }
+}
+
 // Unlock audio after a real user gesture. Creating the context before the
 // gesture is allowed by browsers, but resuming it is not.
 if (typeof window !== 'undefined') {

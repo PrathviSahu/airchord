@@ -8,14 +8,21 @@
 //     ↓
 //   Humanizer (micro-timing, velocity, pitch variation)
 //     ↓
-//   Audio Output (guitarSound functions)
+//   playHumanizedStrum (EXACT timing/velocity/pitch per string)
+//     ↓
+//   Audio Output
 //
-// Backward-compatible API maintained for existing callers.
+// The Humanizer is the SOLE source of variation — no additional
+// randomization is applied by the audio engine.
 
 import type { GuitarVoicing, PlayStyle } from '../../core/types'
 import { VirtualGuitarist } from '../VirtualGuitarist'
 import { Humanizer } from '../Humanizer/Humanizer'
-import { playDownStrum, playUpStrum, playMuteStrum } from '../AudioEngine/guitarSound'
+import {
+  playHumanizedStrum,
+  playMuteStrum,
+  type HumanizedStrumInput,
+} from '../AudioEngine/guitarSound'
 import { personalityFromCollections } from '../VirtualGuitarist/personalities'
 
 // Re-export sub-modules for direct access
@@ -84,10 +91,11 @@ export class GuitaristEngine {
   /**
    * Legacy API: play one beat of the strum pattern.
    *
-   * Internally uses:
+   * Full pipeline:
    * 1. Virtual Guitarist decides voicing, character, velocity
    * 2. Humanizer adds micro-timing and velocity variation
-   * 3. Audio output plays the humanized notes
+   * 3. playHumanizedStrum plays each string with EXACT humanized parameters
+   *    — the Humanizer is the SOLE source of variation
    */
   playBeat(
     stroke: string,
@@ -109,7 +117,7 @@ export class GuitaristEngine {
 
     if (decision.stroke === 'rest') return
 
-    // ── Mute strokes ──────────────────────────────────────────────────
+    // ── Mute strokes (still use direct audio) ─────────────────────────
     if (isMute || decision.stroke === 'mute') {
       playMuteStrum(decision.voicing, decision.velocity)
       return
@@ -123,16 +131,22 @@ export class GuitaristEngine {
       decision.includeFretNoise,
     )
 
-    // ── Audio output — play each humanized note ───────────────────────
-    // For now, we still use the existing strum functions.
-    // The humanizer's timing and velocity info will be fully utilized
-    // when we connect to the Sample Engine in the future.
-    // For now, the velocity variation is applied at the strum level.
-    if (decision.stroke === 'down') {
-      playDownStrum(decision.voicing, decision.velocity)
-    } else {
-      playUpStrum(decision.voicing, decision.velocity)
-    }
+    // ── Play with EXACT humanized parameters ──────────────────────────
+    // The Humanizer's timing, velocity, and pitch are passed through
+    // without any additional randomization. This is what makes every
+    // strum sound unique and human.
+    playHumanizedStrum({
+      notes: humanized.notes.map(n => ({
+        note: n.note,
+        stringIndex: n.stringIndex,
+        volume: n.volume,
+        delaySec: n.delaySec,
+        playbackRate: n.playbackRate,
+        isDeadNote: n.isDeadNote,
+      })),
+      spreadDuration: humanized.spreadDuration,
+      includeFretSqueak: humanized.includeFretSqueak,
+    })
   }
 
   reset() {
