@@ -95,7 +95,7 @@
 ## 🔜 Future (Phase C: Production MVP)
 
 ### Core Features
-- [ ] Real guitar samples (replace synth)
+- [ ] Licensed recorded guitar multi-samples (per string/fret/velocity/articulation; augment the physical-model fallback)
 - [ ] Strumming patterns (8 patterns)
 - [ ] Tempo control (40-240 BPM)
 - [ ] Capo transposition (0-12 frets)
@@ -175,8 +175,8 @@
 | Prototype files | 11 source files |
 | Chords supported | 6 (Em, Am, G, C, D, F) |
 | Gesture profiles | 4 (Classic, Worship, Bollywood, Blues) |
-| Current phase | Phase A Complete ✅ |
-| Next phase | Phase B (Figma UI Design) |
+| Current phase | Interactive MVP / production prototype |
+| Next phase | Recorded sample library, tests, and performance hardening |
 
 ---
 
