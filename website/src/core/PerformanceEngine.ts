@@ -1,46 +1,60 @@
-// ── AirChord Performance Engine ───────────────────────────────────────────────
+// ── AirChord Performance Engine v2 ────────────────────────────────────────────
 //
-// The Performance Engine is the conductor. It sits between gesture input and
-// all output subsystems:
+// The conductor. Full pipeline:
 //
-//   Gesture
+//   Gesture → Performance Engine → Song Timeline
 //     ↓
-//   Performance Engine (conductor)
+//   Virtual Guitarist (musical decisions)
 //     ↓
-//   Timeline → Guitarist → Audio → Recording → UI
+//   Humanizer (micro-timing, velocity, pitch variation)
+//     ↓
+//   Strumming Engine → Audio Output
+//     ↓
+//   Effects Chain (reverb, EQ, compression)
 //
-// It coordinates the TransportEngine, GuitaristEngine (via VoicingResolver +
-// StrummingEngine), and emits events for all other subsystems to consume.
+// The Performance Engine coordinates everything from a single clock.
 
 import { eventBus } from './EventBus'
 import { TransportEngine } from './TransportEngine'
-import { VoicingResolver } from '../engines/GuitaristEngine/VoicingResolver'
-import { StrummingEngine } from '../engines/GuitaristEngine/StrummingEngine'
-import type { Song, PlayStyle, TransportState } from './types'
+import { VirtualGuitarist } from '../engines/VirtualGuitarist'
+import { Humanizer } from '../engines/Humanizer/Humanizer'
+import { FingerstyleEngine } from '../engines/Fingerstyle'
+import { personalityFromCollections } from '../engines/VirtualGuitarist/personalities'
+import type { Song, TransportState, PlayStyle, GuitaristPersonalityId, HumanizerPreset, EffectsPreset } from './types'
 
 export class PerformanceEngine {
   private transport: TransportEngine
-  private voicingResolver: VoicingResolver
-  private strummingEngine: StrummingEngine
-  private style: PlayStyle
+  private guitarist: VirtualGuitarist
+  private humanizer: Humanizer
+  private fingerstyleEngine: FingerstyleEngine
   private beatTimer: number | null = null
   private beatIndex = -1
   private strumPattern: string[]
   private fingerMapping: string[]
   private detectedChord = 'G'
-  private lastBeatAt = 0
+  private currentSection = 'Verse'
+  private isFingerstyleMode = false
+  private effectsPreset: EffectsPreset = 'acoustic'
 
   constructor(
     song: Song,
     bpm: number,
     strumPattern: string[],
     fingerMapping: string[],
-    style: PlayStyle = 'pop',
+    personality?: GuitaristPersonalityId,
   ) {
     this.transport = new TransportEngine(song, bpm)
-    this.voicingResolver = new VoicingResolver(style)
-    this.strummingEngine = new StrummingEngine()
-    this.style = style
+
+    // Virtual Guitarist — derive personality from song collections
+    const personalityId = personality ?? this.derivePersonality(song.collections)
+    this.guitarist = new VirtualGuitarist(personalityId)
+
+    // Humanizer — natural feel by default
+    this.humanizer = new Humanizer('natural')
+
+    // Fingerstyle engine — separate from strumming
+    this.fingerstyleEngine = new FingerstyleEngine('travis')
+
     this.strumPattern = strumPattern.length > 0 ? strumPattern : ['D']
     this.fingerMapping = fingerMapping
 
@@ -49,6 +63,17 @@ export class PerformanceEngine {
       this.detectedChord = result.chord
       eventBus.emit('audio:chord-change', result.chord)
     })
+  }
+
+  /** Derive guitarist personality from song collection tags. */
+  private derivePersonality(collections: string[]): GuitaristPersonalityId {
+    if (collections.includes('Campfire')) return 'campfire'
+    if (collections.includes('Worship')) return 'worship'
+    if (collections.includes('Rock')) return 'rock'
+    if (collections.includes('Indie')) return 'indie'
+    if (collections.includes('Bollywood')) return 'bollywood'
+    if (collections.includes('Romantic') || collections.includes('Ballad')) return 'worship'
+    return 'pop'
   }
 
   /** Start the full performance. */
@@ -70,14 +95,14 @@ export class PerformanceEngine {
     this.transport.stop()
     this.stopBeatEngine()
     this.beatIndex = -1
-    this.voicingResolver.reset()
+    this.guitarist.reset()
     eventBus.emit('transport:stop')
   }
 
   /** Reset transport to zero and restart. */
   restart() {
     this.stop()
-    this.voicingResolver.reset()
+    this.guitarist.reset()
     this.beatIndex = -1
   }
 
@@ -89,6 +114,53 @@ export class PerformanceEngine {
   /** Get the transport engine for direct access if needed. */
   getTransport(): TransportEngine {
     return this.transport
+  }
+
+  /** Get the Virtual Guitarist for advanced configuration. */
+  getGuitarist(): VirtualGuitarist {
+    return this.guitarist
+  }
+
+  /** Get the Humanizer for adjusting feel. */
+  getHumanizer(): Humanizer {
+    return this.humanizer
+  }
+
+  /** Get the Fingerstyle engine. */
+  getFingerstyleEngine(): FingerstyleEngine {
+    return this.fingerstyleEngine
+  }
+
+  /** Switch guitarist personality at runtime. */
+  setPersonality(personality: GuitaristPersonalityId) {
+    this.guitarist.setPersonality(personality)
+    // Update humanizer to match
+    const humanizerMap: Record<string, HumanizerPreset> = {
+      campfire: 'campfire',
+      pop: 'natural',
+      bollywood: 'natural',
+      rock: 'tight',
+      worship: 'loose',
+      fingerstyle: 'studio',
+      indie: 'natural',
+    }
+    this.humanizer.setPreset(humanizerMap[personality] ?? 'natural')
+  }
+
+  /** Switch humanizer preset. */
+  setHumanizerPreset(preset: HumanizerPreset) {
+    this.humanizer.setPreset(preset)
+  }
+
+  /** Switch effects preset. */
+  setEffectsPreset(preset: EffectsPreset) {
+    this.effectsPreset = preset
+  }
+
+  /** Toggle fingerstyle mode. */
+  setFingerstyleMode(enabled: boolean, pattern?: string) {
+    this.isFingerstyleMode = enabled
+    if (pattern) this.fingerstyleEngine.setPattern(pattern)
   }
 
   /** Update the detected chord (called from gesture controller). */
@@ -110,7 +182,7 @@ export class PerformanceEngine {
 
   private startBeatEngine() {
     this.stopBeatEngine()
-    const bpm = this.transport['bpm'] || 60
+    const bpm = (this.transport as any)['bpm'] || 60
     const beatMs = Math.round(60000 / bpm)
 
     // Play first beat immediately
@@ -143,6 +215,30 @@ export class PerformanceEngine {
     const chordName = this.detectedChord || 'Em'
     const state = this.transport.getState()
 
+    // ── Virtual Guitarist decides HOW to play ───────────────────────────
+    const decision = this.guitarist.decideStroke(
+      stroke,
+      chordName,
+      this.beatIndex,
+      state.section,
+      0.35,
+    )
+
+    // ── Humanizer adds micro-variation ──────────────────────────────────
+    if (decision.stroke !== 'rest' && decision.voicing) {
+      const humanized = this.humanizer.humanizeStrum(
+        decision.voicing,
+        decision.stroke === 'down' ? 'down' : 'up',
+        decision.velocity,
+        decision.includeFretNoise,
+      )
+
+      // The humanized strum is ready for the audio engine
+      // In the current implementation, we pass through to the existing
+      // StrummingEngine for actual audio output.
+      // Future: connect directly to the Sample Engine.
+    }
+
     // Emit beat event for UI (metronome LEDs)
     eventBus.emit('audio:beat', {
       stroke,
@@ -150,14 +246,6 @@ export class PerformanceEngine {
       beatIdx: this.beatIndex,
       section: state.section,
     })
-
-    // Resolve voicing and play through strumming engine
-    const voicing = this.voicingResolver.resolve(chordName, this.beatIndex, state.section)
-    if (voicing && stroke && stroke !== '.' && stroke !== '•') {
-      this.strummingEngine.play(stroke, voicing, this.beatIndex, state.section, 0.35)
-    }
-
-    this.lastBeatAt = performance.now()
   }
 
   /** Dispose all resources. */

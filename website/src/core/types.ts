@@ -81,6 +81,18 @@ export type EngineMode = 'sampled' | 'nylon' | 'synth'
 export type GuitarVoicing = (string | null)[]
 export type PlayStyle = 'campfire' | 'pop' | 'ballad' | 'worship'
 
+// ── Virtual Guitarist ─────────────────────────────────────────────────────────
+
+/** Guitarist personality presets — available via the Virtual Guitarist engine. */
+export type GuitaristPersonalityId =
+  | 'campfire' | 'pop' | 'bollywood' | 'rock' | 'worship' | 'fingerstyle' | 'indie'
+
+/** Humanizer presets — controls how "human" the performance sounds. */
+export type HumanizerPreset = 'tight' | 'natural' | 'loose' | 'campfire' | 'studio'
+
+/** Effects chain presets — room tone and EQ character. */
+export type EffectsPreset = 'acoustic' | 'intimate' | 'concert' | 'warm' | 'studio' | 'campfire'
+
 // ── Transport ─────────────────────────────────────────────────────────────────
 
 export interface TransportState {

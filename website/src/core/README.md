@@ -1,190 +1,210 @@
-# AirChord Architecture v2
+# AirChord Architecture v3 — The Virtual Guitarist
 
-> "AirChord no longer feels like 'an AI project.' It feels like the beginning of a real software product."
+> "People won't say 'it has great hand tracking.' They'll say: **It sounds like a real guitarist is playing with you.**"
+
+## The Pipeline
+
+```
+Gesture Engine
+  ↓
+Performance Engine (conductor + single clock)
+  ↓
+Song Timeline (beat, measure, section, chord)
+  ↓
+Virtual Guitarist (musical decisions)
+  ↓
+Humanizer (micro-timing, velocity, pitch variation)
+  ↓
+Sample Engine (plays the actual audio)
+  ↓
+Effects Chain (reverb, EQ, compression)
+  ↓
+Output
+```
+
+**The Humanizer sits ABOVE the sample engine.** The sample engine only plays audio. The Humanizer makes musical decisions.
 
 ## New Folder Structure
 
 ```
 website/src/
 ├── core/                          # Foundation layer
-│   ├── types.ts                   # Central type definitions (Song, Transport, Events, etc.)
-│   ├── EventBus.ts                # Publish/subscribe decoupling system
-│   ├── TransportEngine.ts         # Single-clock timeline (like a DAW)
-│   └── PerformanceEngine.ts       # The conductor between gesture → audio → UI
+│   ├── types.ts                   # Central type definitions
+│   ├── EventBus.ts                # Publish/subscribe decoupling
+│   ├── TransportEngine.ts         # Single-clock timeline (DAW-style)
+│   └── PerformanceEngine.ts       # The conductor
 │
 ├── engines/
-│   ├── GuitaristEngine/
-│   │   ├── index.ts               # Backward-compatible wrapper
-│   │   ├── VoicingResolver.ts     # Chord voicing selection (knows NOTES, not audio)
-│   │   └── StrummingEngine.ts     # Stroke direction + accent + audio dispatch
-│   └── AudioEngine/
-│       ├── index.ts
-│       └── guitarSound.ts         # Re-export of audio renderer
+│   ├── VirtualGuitarist/          # ⭐ THE BRAIN
+│   │   ├── VirtualGuitarist.ts    # Style-aware performance decisions
+│   │   ├── personalities.ts       # Campfire, Pop, Bollywood, Rock, etc.
+│   │   └── types.ts               # StrokeDecision, TransitionPlan, etc.
+│   │
+│   ├── Humanizer/                 # ⭐ MAKES IT SOUND HUMAN
+│   │   └── Humanizer.ts           # ±4ms timing, ±2dB velocity, ±3 cents pitch
+│   │
+│   ├── Fingerstyle/               # ⭐ DEDICATED FINGERSTYLE ENGINE
+│   │   └── FingerstyleEngine.ts   # P-I-M-A patterns (Travis, Arpeggio, etc.)
+│   │
+│   ├── Effects/                   # Signal processing chain
+│   │   └── EffectsChain.ts        # Reverb, EQ, compression, chorus
+│   │
+│   ├── GuitaristEngine/           # Backward-compatible wrapper
+│   │   ├── index.ts               # v2 now uses VirtualGuitarist + Humanizer
+│   │   ├── VoicingResolver.ts     # Chord voicing selection
+│   │   └── StrummingEngine.ts     # Stroke direction + audio dispatch
+│   │
+│   └── AudioEngine/               # Low-level audio output
+│       ├── guitarSound.ts         # Karplus-Strong + sample playback
+│       └── index.ts
 │
 ├── services/
-│   └── SongLoader.ts              # JSON-based song loading service
+│   └── SongLoader.ts              # JSON-based song loading
 │
 ├── hooks/
 │   ├── useTransport.ts            # React hook for transport state
-│   └── useRecording.ts            # React hook for MediaRecorder lifecycle
+│   └── useRecording.ts            # React hook for MediaRecorder
 │
-├── components/
-│   └── LivePerformance/
-│       ├── CameraPanel.tsx        # Video feed + hand skeleton overlay
-│       ├── StageHUD.tsx           # Top bar controls
-│       ├── LyricsPanel.tsx        # Current/next lyric + chord badges
-│       ├── Timeline.tsx           # Beat metronome + strum pattern + pause
-│       ├── CountdownOverlay.tsx   # 3-2-1 countdown
-│       └── RecordingPreview.tsx   # Post-recording modal
+├── components/LivePerformance/    # Decomposed performance screen
+│   ├── CameraPanel.tsx
+│   ├── StageHUD.tsx
+│   ├── LyricsPanel.tsx
+│   ├── Timeline.tsx
+│   ├── CountdownOverlay.tsx
+│   └── RecordingPreview.tsx
 │
-├── screens/
-│   ├── LandingPage.tsx
-│   ├── SongSearchScreen.tsx
-│   ├── SongSetupScreen.tsx
-│   ├── PracticeRoomScreen.tsx
-│   └── LivePerformanceScreen.tsx  # Now orchestrates sub-components
-│
-├── songs/                         # JSON song files (editable, translatable)
-│   ├── perfect.json
-│   ├── tum-hi-ho.json
-│   ├── kesariya.json
-│   ├── hotel-california.json
-│   ├── channa-mereya.json
-│   ├── kabira.json
-│   ├── riptide.json
-│   ├── hallelujah.json
-│   └── ... (19 total)
-│
-└── utils/                         # Legacy compat (re-exports from new paths)
-    ├── songLibrary.ts             # Re-exports types + SEED_SONGS
-    ├── guitaristEngine.ts         # Re-exports from engines/GuitaristEngine
-    ├── guitarSound.ts             # Audio engine (unchanged)
-    ├── GestureEngine.ts
-    ├── GestureProfiles.ts
-    ├── handTracker.ts
-    ├── useHandTracking.ts
-    └── lrclib.ts
+├── screens/                       # Route-level screens
+├── songs/                         # JSON song files (19 songs)
+└── utils/                         # Legacy compat re-exports
 ```
 
-## Architecture Changes (Addressing the Review)
+## Virtual Guitarist — Style Personalities
 
-### 1. LivePerformanceScreen Decomposition ✅
+Each personality changes HOW the guitarist plays:
 
-**Before:** 1163 lines doing transport, lyrics, audio, gesture, UI, recording, mic, sync, animation.
+| Personality | Intensity | Feel | Dynamics | Let Ring | Accent |
+|---|---|---|---|---|---|
+| **Campfire** | 0.65 | Laid-back | 0.3 | 0.7 | 0.5 |
+| **Pop** | 0.72 | Natural | 0.4 | 0.4 | 0.65 |
+| **Bollywood** | 0.70 | Natural | 0.5 | 0.5 | 0.6 |
+| **Rock** | 0.88 | Tight | 0.35 | 0.2 | 0.8 |
+| **Worship** | 0.55 | Laid-back | 0.6 | 0.85 | 0.4 |
+| **Fingerstyle** | 0.40 | Natural | 0.55 | 0.9 | 0.3 |
+| **Indie** | 0.60 | Natural | 0.45 | 0.55 | 0.55 |
 
-**After:** Orchestrator screen (~500 lines) delegates to:
-- `CameraPanel` — video feed + hand skeleton
-- `StageHUD` — top bar with controls
-- `LyricsPanel` — lyric display + chord badges
-- `Timeline` — beat metronome + strum pattern
-- `CountdownOverlay` — 3-2-1 countdown
-- `RecordingPreview` — post-recording modal
+The Virtual Guitarist decides:
+- **Which voicing** to use (from multiple variants)
+- **Whether to accent or ghost** this beat
+- **Whether to palm-mute** or let ring
+- **How to transition** between chords (shared strings ring through)
+- **Whether to add fret noise** on position changes
 
-### 2. Song Library → JSON Files ✅
+## Humanizer — Making It Sound Real
 
-**Before:** `SEED_SONGS` hardcoded in TypeScript.
+The same chord never sounds exactly the same twice.
 
-**After:** Each song is a standalone JSON file in `songs/`:
-- Easier to edit
-- Translators can contribute
-- Users can create songs
-- Future online sync ready
-
-`SongLoader` service loads JSON files lazily via dynamic `import()`.
-
-### 3. Guitarist Engine Split ✅
-
-**Before:** Single `GuitaristEngine` class doing voicing + strumming + audio.
-
-**After:**
 ```
-GuitaristEngine
-  ├── VoicingResolver  → chord voicing selection (knows notes, not audio)
-  └── StrummingEngine  → stroke direction + accent + audio dispatch
-```
-
-Legacy `GuitaristEngine` class kept as thin wrapper for backward compatibility.
-
-### 4. Event Bus ✅
-
-**Before:** Direct coupling between subsystems.
-
-**After:** `EventBus` with typed events:
-```
-Gesture → eventBus.emit('gesture:detected')
-            ↓
-         Audio, Lyrics, Practice, Recording, Analytics
-         (all subscribe, nothing depends directly)
-```
-
-Events: `transport:tick`, `gesture:detected`, `audio:beat`, `lyrics:line-change`, `recording:complete`, etc.
-
-### 5. Transport Engine ✅
-
-**Before:** Inline timing logic scattered through LivePerformanceScreen.
-
-**After:** `TransportEngine` — single clock source like professional DAWs:
-```
-Transport
+Random Sample Selection
   ↓
-Current Beat → Current Measure → Current Section → Current Chord → Lyrics
+±4 ms Timing Jitter
   ↓
-Recording / Metronome / Audio / UI
-```
-
-Everything runs from one clock.
-
-### 6. Performance Engine ✅
-
-**Before:** `Gesture → Guitarist → Audio` (direct chain).
-
-**After:** `Performance Engine` as the conductor:
-```
-Gesture
+±8% Velocity Variation
   ↓
-Performance Engine (conductor)
+±2.5 cents Pitch Drift
   ↓
-Timeline → Guitarist → Audio → Recording → UI
+Per-String Emphasis
+  ↓
+Output
 ```
 
-### 7. Finger Mapping Separation ✅
+| Preset | Timing | Velocity | Pitch | Dead Notes | Fret Squeak |
+|---|---|---|---|---|---|
+| **Tight** | ±1.5ms | ±4% | ±1¢ | 2% | 10% |
+| **Natural** | ±3.5ms | ±8% | ±2.5¢ | 6% | 30% |
+| **Loose** | ±5.5ms | ±14% | ±4¢ | 10% | 50% |
+| **Campfire** | ±4ms | ±10% | ±3¢ | 8% | 40% |
+| **Studio** | ±2ms | ±5% | ±1.5¢ | 3% | 15% |
 
-**Before:** Songs contained `fingerMapping` (gesture info mixed with song data).
+## Fingerstyle Engine
 
-**After:**
-- Songs know: **Chord → Timing** (no gesture info)
-- Profiles know: **Gesture → Chord** (separate concern)
-- `fingerMapping` on Song is now `@deprecated` and optional
-- `SongSetupScreen` derives mapping from profile when song doesn't provide one
+Fingerstyle is NOT "play chord and arpeggiate." It's a dedicated engine:
 
-### 8. Folder Structure Reorganization ✅
-
-**Before:** Everything in `utils/`.
-
-**After:**
 ```
-core/        — Foundation (types, event bus, transport, performance engine)
-engines/     — Domain logic (guitarist, audio)
-services/    — Business services (song loading, lyrics)
-hooks/       — React hooks (transport, recording)
-components/  — Reusable UI components
-screens/     — Route-level screens
-songs/       — JSON data files
-utils/       — Legacy compat re-exports
+P (Thumb)  → Bass note
+  ↓
+I (Index)  → String 3
+  ↓
+M (Middle) → String 2
+  ↓
+A (Ring)   → String 1
+  ↓
+(repeat)
 ```
 
-## Scoring (Post-Refactor Expectations)
+With variable timing, bass accents, melody emphasis, and per-finger attack character.
 
-| Area | Before | After |
-|------|--------|-------|
-| Code Architecture | 9.6 | 9.8+ |
-| Audio System | 7.8 | 8.5+ |
-| Scalability | 9.7 | 9.9 |
-| Performance | 9.0 | 9.3+ |
+**Preset Patterns:**
+- Travis Picking (alternating bass + melody)
+- Simple Arpeggio (P-I-M-A)
+- Waltz (Oom-pah-pah)
+- Bollywood Pick (bass emphasis)
+- Worship Ambient (slow, spacious)
+- Campfire Boom-Chick
 
-## Future Recommendations (From Review)
+## Chord Transitions
 
-1. **Adaptive Chord Preview** — Animate the upcoming gesture before it arrives
-2. **Performance Themes** — Campfire, Studio, Concert visual modes
-3. **Sample-based Audio** — Move from synthesis to multi-sample library
-4. **Online Song Sync** — Users share songs via the JSON format
+Going from G → Em:
+- Some strings **continue ringing** (shared notes)
+- Some **stop** (damped strings)
+- Some are **restruck** (different pitch)
+
+The Virtual Guitarist decides. That's what makes the transition sound alive.
+
+## Effects Chain
+
+| Preset | Reverb | Room | Body EQ | Brightness | Compression |
+|---|---|---|---|---|---|
+| **Acoustic** | 15% | Medium | +3.5dB | 8kHz | -18dB / 3:1 |
+| **Intimate** | 5% | Small | +5dB | 6kHz | -14dB / 4:1 |
+| **Concert** | 30% | Large | +2.5dB | 10kHz | -20dB / 2.5:1 |
+| **Warm** | 18% | Medium | +4.5dB | 4.5kHz | -16dB / 3.5:1 |
+| **Studio** | 10% | Small | +2dB | 12kHz | -15dB / 4:1 |
+| **Campfire** | 20% | Small | +4dB | 6.5kHz | -16dB / 3:1 |
+
+## Test Coverage
+
+```
+✅ 38 tests passing
+   - 12 Humanizer tests (timing, velocity, pitch, ordering)
+   - 12 Virtual Guitarist tests (personalities, decisions, transitions)
+   - 8 Fingerstyle tests (patterns, timing, velocity)
+   - 6 Core tests (chord data, gesture profiles, LRC parsing)
+```
+
+## Budget Roadmap
+
+### $0 Budget (Now)
+- [x] Virtual Guitarist architecture
+- [x] Humanizer engine
+- [x] 7 style personalities
+- [x] 6 fingerstyle patterns
+- [x] 6 effects presets
+- [ ] Karplus-Strong synthesis (already working)
+
+### Phase 2 — Sample Integration
+- [ ] Use legally licensed sample library
+- [ ] Connect Humanizer output to sample playback
+- [ ] Multiple attack variants per chord
+
+### Phase 3 — AirChord Guitar Library
+- [ ] Record professional guitarist
+- [ ] 5-10 downstrokes per chord
+- [ ] 5-10 upstrokes per chord
+- [ ] Muted, slides, fret noise
+- [ ] Multiple mic positions
+
+### Phase 4 — Advanced Features
+- [ ] Adaptive Chord Preview (animate next gesture)
+- [ ] Performance Themes (Campfire/Studio/Concert visual modes)
+- [ ] Online song sync
+- [ ] User-created songs via JSON format
