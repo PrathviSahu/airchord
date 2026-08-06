@@ -53,7 +53,48 @@ export interface SessionConfig {
   strumPattern: string[]
   displayPattern: string
   fingerMapping: string[]
+  /** Virtual Guitarist personality (Campfire, Pop, Rock, etc.) */
+  personality: string
+  /** Humanizer preset (tight, natural, loose, etc.) */
+  humanizerPreset: string
+  /** Effects chain preset (acoustic, intimate, concert, etc.) */
+  effectsPreset: string
+  /** Whether fingerstyle mode is active */
+  isFingerstyle: boolean
+  /** Fingerstyle pattern name (travis, arpeggio, etc.) */
+  fingerstylePattern: string
 }
+
+// ── Virtual Guitarist personality options ──────────────────────────────
+const PERSONALITY_OPTIONS = [
+  { id: 'campfire', emoji: '🏕️', name: 'Campfire', desc: 'Warm, relaxed' },
+  { id: 'pop', emoji: '🎵', name: 'Pop', desc: 'Clean, rhythmic' },
+  { id: 'bollywood', emoji: '🎬', name: 'Bollywood', desc: 'Emotional, dynamic' },
+  { id: 'rock', emoji: '🎸', name: 'Rock', desc: 'Aggressive, tight' },
+  { id: 'worship', emoji: '🙏', name: 'Worship', desc: 'Ambient, swelling' },
+  { id: 'indie', emoji: '🌿', name: 'Indie', desc: 'Alternative, organic' },
+]
+
+const HUMANIZER_OPTIONS = [
+  { id: 'tight', emoji: '🎯', name: 'Tight', desc: 'Precise timing' },
+  { id: 'natural', emoji: '🌊', name: 'Natural', desc: 'Human feel' },
+  { id: 'loose', emoji: '🎲', name: 'Loose', desc: 'Raw, expressive' },
+]
+
+const EFFECTS_OPTIONS = [
+  { id: 'acoustic', emoji: '🎸', name: 'Acoustic', desc: 'Balanced' },
+  { id: 'intimate', emoji: '🛋️', name: 'Intimate', desc: 'Close, dry' },
+  { id: 'concert', emoji: '🏟️', name: 'Concert', desc: 'Large hall' },
+  { id: 'warm', emoji: '🕯️', name: 'Warm', desc: 'Mellow tone' },
+  { id: 'campfire', emoji: '🔥', name: 'Campfire', desc: 'Cozy room' },
+]
+
+const FINGERSTYLE_PATTERNS = [
+  { id: 'travis', name: 'Travis Picking', desc: 'Alternating bass + melody' },
+  { id: 'arpeggio', name: 'Arpeggio', desc: 'P-I-M-A flowing' },
+  { id: 'waltz', name: 'Waltz', desc: 'Oom-pah-pah' },
+  { id: 'campfire', name: 'Boom-Chick', desc: 'Simple bass + strum' },
+]
 
 export default function SongSetupScreen({ song, onBack, onStartPlaying, onPractice }: SongSetupScreenProps) {
   const songPresetIndex = STRUM_PRESETS.findIndex(p => p.display === song.displayPattern)
@@ -71,6 +112,11 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
   const [isCustom, setIsCustom]       = useState(songPresetIndex < 0)
   const [editingMapping, setEditingMapping] = useState(false)
   const [engineState, setEngineState] = useState<EngineMode>(getEngineMode())
+  const [personality, setPersonality] = useState('pop')
+  const [humanizerPreset, setHumanizerPreset] = useState('natural')
+  const [effectsPreset, setEffectsPreset] = useState('acoustic')
+  const [isFingerstyle, setIsFingerstyle] = useState(false)
+  const [fingerstylePattern, setFingerstylePattern] = useState('travis')
 
   const getConfig = (): SessionConfig => {
     const fallbackPattern = STRUM_PRESETS[selectedPreset].pattern
@@ -84,6 +130,11 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
         ? parsedCustomPattern.map(stroke => stroke === 'D' ? '↓' : stroke === 'U' ? '↑' : stroke === 'X' ? '✕' : '•').join(' ')
         : STRUM_PRESETS[selectedPreset].display,
       fingerMapping,
+      personality,
+      humanizerPreset,
+      effectsPreset,
+      isFingerstyle,
+      fingerstylePattern,
     }
   }
 
@@ -256,6 +307,124 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
                 <p className="text-[9px] font-mono text-white/30 mt-0.5">Offline KS</p>
               </button>
             </div>
+          </div>
+
+          {/* ── Virtual Guitarist Personality ── */}
+          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-white">Guitarist Style</p>
+                <p className="text-[10px] text-white/30 font-mono mt-0.5">Virtual Guitarist Personality</p>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">AI</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {PERSONALITY_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => setPersonality(opt.id)}
+                  className={`p-2 rounded-xl border text-left transition-all ${
+                    personality === opt.id
+                      ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
+                      : 'bg-white/3 border-white/8 hover:bg-white/6'
+                  }`}
+                >
+                  <p className="text-xs">{opt.emoji}</p>
+                  <p className={`text-[10px] font-bold mt-0.5 ${personality === opt.id ? 'text-purple-200' : 'text-white/60'}`}>{opt.name}</p>
+                  <p className="text-[8px] font-mono text-white/30">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Humanizer ── */}
+          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
+            <div>
+              <p className="text-xs font-bold text-white">Human Feel</p>
+              <p className="text-[10px] text-white/30 font-mono mt-0.5">How "human" should the guitarist sound?</p>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {HUMANIZER_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => setHumanizerPreset(opt.id)}
+                  className={`p-2.5 rounded-xl border text-center transition-all ${
+                    humanizerPreset === opt.id
+                      ? 'bg-emerald-600/25 border-emerald-500/50 shadow-md shadow-emerald-600/20'
+                      : 'bg-white/3 border-white/8 hover:bg-white/6'
+                  }`}
+                >
+                  <p className="text-base">{opt.emoji}</p>
+                  <p className={`text-[10px] font-bold mt-0.5 ${humanizerPreset === opt.id ? 'text-emerald-200' : 'text-white/60'}`}>{opt.name}</p>
+                  <p className="text-[8px] font-mono text-white/30">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Effects ── */}
+          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
+            <div>
+              <p className="text-xs font-bold text-white">Room Tone</p>
+              <p className="text-[10px] text-white/30 font-mono mt-0.5">Reverb, EQ, and atmosphere</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {EFFECTS_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => setEffectsPreset(opt.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-left transition-all ${
+                    effectsPreset === opt.id
+                      ? 'bg-cyan-600/25 border-cyan-500/50 shadow-md shadow-cyan-600/20'
+                      : 'bg-white/3 border-white/8 hover:bg-white/6'
+                  }`}
+                >
+                  <span className="text-sm">{opt.emoji}</span>
+                  <div>
+                    <p className={`text-[10px] font-bold ${effectsPreset === opt.id ? 'text-cyan-200' : 'text-white/60'}`}>{opt.name}</p>
+                    <p className="text-[8px] font-mono text-white/30">{opt.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Fingerstyle Toggle ── */}
+          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-white">Fingerstyle Mode</p>
+                <p className="text-[10px] text-white/30 font-mono mt-0.5">P-I-M-A pattern engine</p>
+              </div>
+              <button
+                onClick={() => setIsFingerstyle(f => !f)}
+                className={`w-12 h-7 rounded-full transition-all relative ${
+                  isFingerstyle ? 'bg-purple-500' : 'bg-white/10 border border-white/20'
+                }`}
+              >
+                <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${
+                  isFingerstyle ? 'left-6' : 'left-1'
+                }`} />
+              </button>
+            </div>
+            {isFingerstyle && (
+              <div className="grid grid-cols-2 gap-1.5">
+                {FINGERSTYLE_PATTERNS.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => setFingerstylePattern(p.id)}
+                    className={`p-2 rounded-xl border text-left transition-all ${
+                      fingerstylePattern === p.id
+                        ? 'bg-purple-600/25 border-purple-500/50'
+                        : 'bg-white/3 border-white/8 hover:bg-white/6'
+                    }`}
+                  >
+                    <p className={`text-[10px] font-bold ${fingerstylePattern === p.id ? 'text-purple-200' : 'text-white/60'}`}>{p.name}</p>
+                    <p className="text-[8px] font-mono text-white/30">{p.desc}</p>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ── Capo ── */}

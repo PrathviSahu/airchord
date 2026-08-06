@@ -41,6 +41,7 @@ import { LyricsPanel } from '../components/LivePerformance/LyricsPanel'
 import { Timeline } from '../components/LivePerformance/Timeline'
 import { CountdownOverlay } from '../components/LivePerformance/CountdownOverlay'
 import { RecordingPreview } from '../components/LivePerformance/RecordingPreview'
+import { AdaptiveChordPreview } from '../components/LivePerformance/AdaptiveChordPreview'
 
 interface LivePerformanceScreenProps {
   config: SessionConfig
@@ -149,6 +150,15 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const guitaristRef = useRef(new GuitaristEngine(
     GuitaristEngine.styleFromCollections(song.collections)
   ))
+  // Apply personality from session config
+  useEffect(() => {
+    const personalityMap: Record<string, string> = {
+      campfire: 'campfire', pop: 'pop', bollywood: 'pop',
+      rock: 'campfire', worship: 'worship', indie: 'pop',
+    }
+    const style = (personalityMap[config.personality] || 'pop') as any
+    guitaristRef.current.setStyle(style)
+  }, [config.personality])
   const currentSectionRef = useRef<string>('Verse')
   const strumBeatIndexRef = useRef(-1)
   const transportPositionRef = useRef(0)
@@ -582,6 +592,16 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       {/* Bottom HUD */}
       {(isPlaying || activeBeat >= 0) && (
         <div className="absolute bottom-0 left-0 right-0 z-20 px-3 sm:px-6 pb-3 sm:pb-6 space-y-2 sm:space-y-3">
+
+          {/* Adaptive Chord Preview — shows next gesture before it arrives */}
+          <AdaptiveChordPreview
+            nextChord={nextLyric?.chord}
+            nextFingerCount={fingerMapping.indexOf(nextLyric?.chord ?? '')}
+            currentChord={detectedChord}
+            currentFingerCount={detectedFingers ?? -1}
+            visible={isPlaying}
+          />
+
           <LyricsPanel
             currentLyric={currentLyric}
             nextLyric={nextLyric}
