@@ -1,0 +1,53 @@
+{
+  "id": "kesariya",
+  "title": "Kesariya",
+  "artist": "Arijit Singh",
+  "bpm": 98,
+  "timeSignature": "4/4",
+  "key": "C Major",
+  "capo": 0,
+  "difficulty": "Easy",
+  "collections": ["Hindi", "Bollywood", "Pop"],
+  "duration": "4:28",
+  "defaultStrumPattern": ["D", "D", "U", "U", "D", "U"],
+  "displayPattern": "↓ ↓ ↑ ↑ ↓ ↑",
+  "chords": ["C", "Am", "F", "G"],
+  "sections": [
+    { "name": "Verse", "lyrics": [
+      { "text": "Kesariya tera ishq hai piya", "chord": "C", "time": 0 },
+      { "text": "Kesariya tera ishq hai piya", "chord": "Am", "time": 5 },
+      { "text": "Kesariya tera ishq hai piya", "chord": "F", "time": 10 },
+      { "text": "Kesariya", "chord": "G", "time": 15 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Dil mein chhupa ke pyaar ka ek dariya", "chord": "C", "time": 21 },
+      { "text": "Mera dil bhi kesariya", "chord": "Am", "time": 26 },
+      { "text": "Tera dil bhi kesariya", "chord": "F", "time": 31 },
+      { "text": "Ho kesariya, kesariya", "chord": "G", "time": 36 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Aakhaon mein teri ajab si, ajab si adaayein hain", "chord": "C", "time": 43 },
+      { "text": "Baahon mein teri wahi jo, mujhe chain aayen hain", "chord": "Am", "time": 49 },
+      { "text": "Tujhse hi tujhse hi roshan ye jahaan lagta hai", "chord": "F", "time": 55 },
+      { "text": "Dono ke dil ek, ek mein do jaan lagti hai", "chord": "G", "time": 61 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Kesariya tera ishq hai piya", "chord": "C", "time": 68 },
+      { "text": "Kesariya tera ishq hai piya", "chord": "Am", "time": 73 },
+      { "text": "Kesariya tera ishq hai piya", "chord": "F", "time": 78 },
+      { "text": "Kesariya", "chord": "G", "time": 83 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Main tujhe dhundhta hoon", "chord": "C", "time": 90 },
+      { "text": "Apni har neend mein, sapne mein", "chord": "Am", "time": 95 },
+      { "text": "Teri yaadein bhaari hain", "chord": "F", "time": 100 },
+      { "text": "Har ek lamhe mein", "chord": "G", "time": 105 }
+    ]},
+    { "name": "Outro", "lyrics": [
+      { "text": "Kesariya tera ishq hai piya", "chord": "C", "time": 153 },
+      { "text": "Kesariya tera ishq hai piya", "chord": "Am", "time": 158 },
+      { "text": "Kesariya tera ishq hai piya", "chord": "F", "time": 163 },
+      { "text": "Kesariya...", "chord": "G", "time": 168 }
+    ]}
+  ]
+}

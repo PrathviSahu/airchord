@@ -1,0 +1,52 @@
+{
+  "id": "apna-bana-le",
+  "title": "Apna Bana Le",
+  "artist": "Arijit Singh",
+  "bpm": 86,
+  "timeSignature": "4/4",
+  "key": "D Major",
+  "capo": 0,
+  "difficulty": "Easy",
+  "collections": ["Hindi", "Bollywood", "Romantic"],
+  "duration": "4:21",
+  "defaultStrumPattern": ["D", ".", "D", "U", ".", "U", "D", "U"],
+  "displayPattern": "↓ • ↓ ↑ • ↑ ↓ ↑",
+  "chords": ["D", "Bm", "G", "A"],
+  "sections": [
+    { "name": "Verse", "lyrics": [
+      { "text": "Aankhon se aankhein mili toh dil mein", "chord": "D", "time": 0 },
+      { "text": "Ek khamoshi si utar aayi", "chord": "Bm", "time": 6 },
+      { "text": "Jaise sham ke dhunde mein koi", "chord": "G", "time": 12 },
+      { "text": "Dheemi si roshan hua jaata ho", "chord": "A", "time": 18 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Tu mera koi na hoke bhi kuch lage", "chord": "D", "time": 23 },
+      { "text": "Apna bana le mujhe apna bana le piya", "chord": "Bm", "time": 29 },
+      { "text": "Dil ke makan mein tu mehmaan lagta hai", "chord": "G", "time": 35 },
+      { "text": "Aankhon se sunta hai baatein kahe bina", "chord": "A", "time": 41 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Subah ki chai mein jo mithaas hoti hai", "chord": "D", "time": 50 },
+      { "text": "Waisa hi lagta hai jab tu paas hoti hai", "chord": "Bm", "time": 56 },
+      { "text": "Meri khwaahishein tujhse hi poori hoti hain", "chord": "G", "time": 62 },
+      { "text": "Sab kuch ganwa ke bhi tujhko hi paana hai", "chord": "A", "time": 68 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Tu mera koi na hoke bhi kuch lage", "chord": "D", "time": 76 },
+      { "text": "Apna bana le mujhe apna bana le piya", "chord": "Bm", "time": 82 },
+      { "text": "Dil ke makan mein tu mehmaan lagta hai", "chord": "G", "time": 88 },
+      { "text": "Aankhon se sunta hai baatein kahe bina", "chord": "A", "time": 94 }
+    ]},
+    { "name": "Bridge", "lyrics": [
+      { "text": "Main chahta hoon tu chahti ho", "chord": "D", "time": 102 },
+      { "text": "Ke tum bhi chaaho apne aap ko", "chord": "Bm", "time": 108 },
+      { "text": "Mere dil ka dard dekho", "chord": "G", "time": 114 },
+      { "text": "Apna bana lo mujhe", "chord": "A", "time": 120 }
+    ]},
+    { "name": "Outro", "lyrics": [
+      { "text": "Tu mera koi na hoke bhi kuch lage", "chord": "D", "time": 128 },
+      { "text": "Apna bana le mujhe apna bana le piya", "chord": "Bm", "time": 134 },
+      { "text": "Apna bana le, apna bana le...", "chord": "G", "time": 140 }
+    ]}
+  ]
+}

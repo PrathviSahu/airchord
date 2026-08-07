@@ -1,0 +1,45 @@
+{
+  "id": "kabira",
+  "title": "Kabira",
+  "artist": "Tochi Raina & Rekha Bhardwaj",
+  "bpm": 88,
+  "timeSignature": "4/4",
+  "key": "D Major",
+  "capo": 0,
+  "difficulty": "Beginner",
+  "collections": ["Hindi", "Bollywood", "Campfire", "Beginner"],
+  "duration": "4:29",
+  "defaultStrumPattern": ["D", "D", "U", "U", "D", "U"],
+  "displayPattern": "↓ ↓ ↑ ↑ ↓ ↑",
+  "chords": ["D", "G", "Bm", "A"],
+  "sections": [
+    { "name": "Verse", "lyrics": [
+      { "text": "Tu kisi rail si guzarti hai", "chord": "D", "time": 0 },
+      { "text": "Main kisi pul sa thartharaata hoon", "chord": "G", "time": 6 },
+      { "text": "Main kinara tha, tu tha dariya", "chord": "Bm", "time": 12 },
+      { "text": "Main thama raha, tu badhti rahi", "chord": "A", "time": 18 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Re kabira maan jaa, re faqeera maan jaa", "chord": "D", "time": 24 },
+      { "text": "Aaja tujhko pukare teri parchhaiyan", "chord": "G", "time": 30 },
+      { "text": "Re kabira maan jaa, re faqeera maan jaa", "chord": "Bm", "time": 36 },
+      { "text": "Aaja tujhko pukare teri parchhaiyan", "chord": "A", "time": 42 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Kabhi jo baadal barse, main dekhu tujhe aankhe bhar ke", "chord": "D", "time": 52 },
+      { "text": "Main pyaasa hoon, tu hai saawan", "chord": "G", "time": 58 },
+      { "text": "Bheeg jaoon main, sookh jaaye tu", "chord": "Bm", "time": 64 },
+      { "text": "Kyun aisa hota hai", "chord": "A", "time": 70 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Re kabira maan jaa, re faqeera maan jaa", "chord": "D", "time": 76 },
+      { "text": "Aaja tujhko pukare teri parchhaiyan", "chord": "G", "time": 82 },
+      { "text": "Re kabira maan jaa, re faqeera maan jaa", "chord": "Bm", "time": 88 },
+      { "text": "Aaja tujhko pukare teri parchhaiyan", "chord": "A", "time": 94 }
+    ]},
+    { "name": "Outro", "lyrics": [
+      { "text": "Kabira...", "chord": "D", "time": 105 },
+      { "text": "Re kabira maan jaa...", "chord": "G", "time": 111 }
+    ]}
+  ]
+}

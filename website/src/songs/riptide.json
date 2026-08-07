@@ -1,0 +1,62 @@
+{
+  "id": "riptide",
+  "title": "Riptide",
+  "artist": "Vance Joy",
+  "bpm": 102,
+  "timeSignature": "4/4",
+  "key": "A Minor",
+  "capo": 1,
+  "difficulty": "Beginner",
+  "collections": ["English", "Pop", "Indie", "Beginner"],
+  "duration": "3:24",
+  "defaultStrumPattern": ["D", "D", "U", "U", "D", "U"],
+  "displayPattern": "↓ ↓ ↑ ↑ ↓ ↑",
+  "chords": ["Am", "G", "C"],
+  "sections": [
+    { "name": "Verse", "lyrics": [
+      { "text": "I was scared of dentists and the dark", "chord": "Am", "time": 0 },
+      { "text": "I was scared of pretty girls and starting conversations", "chord": "G", "time": 4 },
+      { "text": "Oh, all my friends are turning green", "chord": "C", "time": 8 },
+      { "text": "You're the magician's assistant in their dreams", "chord": "Am", "time": 12 },
+      { "text": "Oh, and they come unstuck", "chord": "G", "time": 16 },
+      { "text": "Lady, running down to the riptide", "chord": "Am", "time": 20 },
+      { "text": "Taken away to the dark side", "chord": "G", "time": 24 },
+      { "text": "I wanna be your left hand man", "chord": "C", "time": 27 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "I love you when you're singing that song", "chord": "Am", "time": 31 },
+      { "text": "And I got a lump in my throat", "chord": "G", "time": 35 },
+      { "text": "'Cause you're gonna sing the words wrong", "chord": "C", "time": 38 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "I just wanna, I just wanna know", "chord": "Am", "time": 44 },
+      { "text": "If you're gonna, if you're gonna stay", "chord": "G", "time": 48 },
+      { "text": "I just gotta, I just gotta know", "chord": "C", "time": 52 },
+      { "text": "I can't have it, I can't have it any other way", "chord": "Am", "time": 56 },
+      { "text": "Lady, running down to the riptide", "chord": "Am", "time": 60 },
+      { "text": "Taken away to the dark side", "chord": "G", "time": 64 },
+      { "text": "I wanna be your left hand man", "chord": "C", "time": 67 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "I love you when you're singing that song", "chord": "Am", "time": 71 },
+      { "text": "And I got a lump in my throat", "chord": "G", "time": 75 },
+      { "text": "'Cause you're gonna sing the words wrong", "chord": "C", "time": 78 },
+      { "text": "And I love you when you're singing that song", "chord": "Am", "time": 82 },
+      { "text": "And I got a lump in my throat", "chord": "G", "time": 86 },
+      { "text": "'Cause you're gonna sing the words wrong", "chord": "C", "time": 89 }
+    ]},
+    { "name": "Bridge", "lyrics": [
+      { "text": "I just wanna, I just wanna know", "chord": "Am", "time": 95 },
+      { "text": "If you're gonna, if you're gonna stay", "chord": "G", "time": 99 },
+      { "text": "I need somebody who can take my place", "chord": "C", "time": 103 },
+      { "text": "Lady, running down to the riptide", "chord": "Am", "time": 108 },
+      { "text": "Taken away to the dark side", "chord": "G", "time": 112 },
+      { "text": "I wanna be your left hand man", "chord": "C", "time": 115 }
+    ]},
+    { "name": "Outro", "lyrics": [
+      { "text": "I love you when you're singing that song", "chord": "Am", "time": 119 },
+      { "text": "And I got a lump in my throat", "chord": "G", "time": 123 },
+      { "text": "'Cause you're gonna sing the words wrong", "chord": "C", "time": 126 }
+    ]}
+  ]
+}

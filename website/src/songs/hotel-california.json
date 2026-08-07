@@ -1,0 +1,73 @@
+{
+  "id": "hotel-california",
+  "title": "Hotel California",
+  "artist": "Eagles",
+  "bpm": 75,
+  "timeSignature": "4/4",
+  "key": "B Minor",
+  "capo": 2,
+  "difficulty": "Intermediate",
+  "collections": ["English", "Rock", "Campfire"],
+  "duration": "6:30",
+  "defaultStrumPattern": ["D", ".", "D", "U", ".", "U", "D", "U"],
+  "displayPattern": "↓ • ↓ ↑ • ↑ ↓ ↑",
+  "chords": ["Bm", "F#7", "A", "E", "G", "D", "Em"],
+  "sections": [
+    { "name": "Verse", "lyrics": [
+      { "text": "On a dark desert highway, cool wind in my hair", "chord": "Bm", "time": 0 },
+      { "text": "Warm smell of colitas rising up through the air", "chord": "F#7", "time": 7 },
+      { "text": "Up ahead in the distance, I saw a shimmering light", "chord": "A", "time": 13 },
+      { "text": "My head grew heavy and my sight grew dim", "chord": "E", "time": 20 },
+      { "text": "I had to stop for the night", "chord": "G", "time": 26 },
+      { "text": "There she stood in the doorway", "chord": "D", "time": 32 },
+      { "text": "I heard the mission bell", "chord": "Em", "time": 38 },
+      { "text": "And I was thinking to myself", "chord": "F#7", "time": 43 },
+      { "text": "This could be Heaven or this could be Hell", "chord": "A", "time": 48 },
+      { "text": "Then she lit up a candle", "chord": "E", "time": 54 },
+      { "text": "And she showed me the way", "chord": "G", "time": 60 },
+      { "text": "There were voices down the corridor", "chord": "D", "time": 66 },
+      { "text": "I thought I heard them say", "chord": "Em", "time": 72 },
+      { "text": "Welcome to the Hotel California", "chord": "F#7", "time": 78 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Welcome to the Hotel California", "chord": "G", "time": 84 },
+      { "text": "Such a lovely place, such a lovely face", "chord": "D", "time": 91 },
+      { "text": "Plenty of room at the Hotel California", "chord": "Em", "time": 97 },
+      { "text": "Any time of year, you can find it here", "chord": "F#7", "time": 104 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Her mind is Tiffany-twisted", "chord": "Bm", "time": 112 },
+      { "text": "She got the Mercedes bends", "chord": "F#7", "time": 118 },
+      { "text": "She got a lot of pretty, pretty boys", "chord": "A", "time": 124 },
+      { "text": "That she calls friends", "chord": "E", "time": 130 },
+      { "text": "How they dance in the courtyard", "chord": "G", "time": 136 },
+      { "text": "Sweet summer sweat", "chord": "D", "time": 142 },
+      { "text": "Some dance to remember", "chord": "Em", "time": 148 },
+      { "text": "Some dance to forget", "chord": "F#7", "time": 154 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Welcome to the Hotel California", "chord": "G", "time": 161 },
+      { "text": "Such a lovely place, such a lovely face", "chord": "D", "time": 167 },
+      { "text": "They livin' it up at the Hotel California", "chord": "Em", "time": 173 },
+      { "text": "What a nice surprise, bring your alibis", "chord": "F#7", "time": 179 }
+    ]},
+    { "name": "Bridge", "lyrics": [
+      { "text": "Mirrors on the ceiling", "chord": "Bm", "time": 187 },
+      { "text": "The pink champagne on ice", "chord": "F#7", "time": 192 },
+      { "text": "And she said, we are all just prisoners here", "chord": "A", "time": 198 },
+      { "text": "Of our own device", "chord": "E", "time": 204 },
+      { "text": "And in the master's chambers", "chord": "G", "time": 210 },
+      { "text": "They gathered for the feast", "chord": "D", "time": 216 },
+      { "text": "They stab it with their steely knives", "chord": "Em", "time": 222 },
+      { "text": "But they just can't kill the beast", "chord": "F#7", "time": 228 }
+    ]},
+    { "name": "Outro", "lyrics": [
+      { "text": "Last thing I remember, I was running for the door", "chord": "Bm", "time": 234 },
+      { "text": "I had to find the passage back to the place I was before", "chord": "F#7", "time": 241 },
+      { "text": "Relax, said the night man", "chord": "A", "time": 247 },
+      { "text": "We are programmed to receive", "chord": "E", "time": 253 },
+      { "text": "You can check out any time you like", "chord": "G", "time": 259 },
+      { "text": "But you can never leave", "chord": "D", "time": 265 }
+    ]}
+  ]
+}

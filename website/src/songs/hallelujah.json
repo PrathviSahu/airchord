@@ -1,0 +1,55 @@
+{
+  "id": "hallelujah",
+  "title": "Hallelujah",
+  "artist": "Leonard Cohen",
+  "bpm": 56,
+  "timeSignature": "6/8",
+  "key": "C Major",
+  "capo": 0,
+  "difficulty": "Beginner",
+  "collections": ["English", "Worship", "Campfire", "Beginner"],
+  "duration": "4:39",
+  "defaultStrumPattern": ["D", ".", "U", "D", ".", "U"],
+  "displayPattern": "↓ • ↑ ↓ • ↑",
+  "chords": ["C", "Am", "F", "G", "E7"],
+  "sections": [
+    { "name": "Verse", "lyrics": [
+      { "text": "I've heard there was a secret chord", "chord": "C", "time": 0 },
+      { "text": "That David played and it pleased the Lord", "chord": "Am", "time": 7 },
+      { "text": "But you don't really care for music, do ya?", "chord": "C", "time": 13 },
+      { "text": "It goes like this, the fourth, the fifth", "chord": "F", "time": 20 },
+      { "text": "The minor fall, the major lift", "chord": "Am", "time": 26 },
+      { "text": "The baffled king composing Hallelujah", "chord": "G", "time": 32 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Hallelujah, Hallelujah", "chord": "F", "time": 39 },
+      { "text": "Hallelujah, Hallelujah", "chord": "C", "time": 47 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Your faith was strong but you needed proof", "chord": "C", "time": 59 },
+      { "text": "You saw her bathing on the roof", "chord": "Am", "time": 66 },
+      { "text": "Her beauty and the moonlight overthrew ya", "chord": "C", "time": 72 },
+      { "text": "She tied you to her kitchen chair", "chord": "F", "time": 79 },
+      { "text": "She broke your throne, she cut your hair", "chord": "Am", "time": 85 },
+      { "text": "And from your lips she drew the Hallelujah", "chord": "G", "time": 91 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Hallelujah, Hallelujah", "chord": "F", "time": 98 },
+      { "text": "Hallelujah, Hallelujah", "chord": "C", "time": 106 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Baby, I've been here before", "chord": "C", "time": 119 },
+      { "text": "I've seen this room and I've walked this floor", "chord": "Am", "time": 125 },
+      { "text": "I used to live alone before I knew ya", "chord": "C", "time": 132 },
+      { "text": "And I've seen your flag on the marble arch", "chord": "F", "time": 138 },
+      { "text": "And love is not a victory march", "chord": "Am", "time": 144 },
+      { "text": "It's a cold and it's a broken Hallelujah", "chord": "G", "time": 151 }
+    ]},
+    { "name": "Outro", "lyrics": [
+      { "text": "Hallelujah, Hallelujah", "chord": "F", "time": 157 },
+      { "text": "Hallelujah, Hallelujah", "chord": "C", "time": 165 },
+      { "text": "Hallelujah, Hallelujah", "chord": "F", "time": 174 },
+      { "text": "Hallelujah...", "chord": "C", "time": 182 }
+    ]}
+  ]
+}

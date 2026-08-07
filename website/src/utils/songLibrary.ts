@@ -1,40 +1,16 @@
 // ── Scalable Extensible Song Database Schema & Seed Data ──────────────────────
+//
+// NOTE: This file now re-exports types from core/types.ts for the new
+// architecture. The SEED_SONGS array is kept for backward compatibility
+// and initial page load. New songs should be added as JSON files in songs/.
+//
+// Songs know: Chord → Timing
+// Profiles know: Gesture → Chord
+// fingerMapping is derived at session setup time, not stored in songs.
 
-export interface TimestampedLyric {
-  text: string
-  chord: string
-  time: number // seconds from track start
-  fingerGesture: string
-}
-
-export interface SongSection {
-  name: 'Intro' | 'Verse' | 'Chorus' | 'Bridge' | 'Outro'
-  lyrics: TimestampedLyric[]
-}
-
-export interface Song {
-  id: string
-  title: string
-  artist: string
-  bpm: number
-  timeSignature: string
-  key: string
-  capo: number
-  difficulty: 'Beginner' | 'Easy' | 'Intermediate' | 'Advanced'
-  collections: string[]
-  duration: string
-  defaultStrumPattern: string[]
-  displayPattern: string
-  fingerstylePattern?: string[]
-  chords: string[]
-  fingerMapping: string[]
-  sections: SongSection[]
-}
-
-export const SONG_COLLECTIONS = [
-  'All','Hindi','English','Bollywood','Pop','Rock',
-  'Indie','Campfire','Romantic','Worship','Beginner','Advanced',
-]
+import type { Song, SongSection, TimestampedLyric } from '../core/types'
+export type { Song, SongSection, TimestampedLyric }
+export { SONG_COLLECTIONS } from '../core/types'
 
 export const SEED_SONGS: Song[] = [
 

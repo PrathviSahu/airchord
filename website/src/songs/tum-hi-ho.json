@@ -1,0 +1,60 @@
+{
+  "id": "tum-hi-ho",
+  "title": "Tum Hi Ho",
+  "artist": "Arijit Singh",
+  "bpm": 92,
+  "timeSignature": "4/4",
+  "key": "E Minor",
+  "capo": 1,
+  "difficulty": "Easy",
+  "collections": ["Hindi", "Bollywood", "Romantic", "Beginner"],
+  "duration": "4:22",
+  "defaultStrumPattern": ["D", ".", "D", "U", ".", "U", "D", "U"],
+  "displayPattern": "↓ • ↓ ↑ • ↑ ↓ ↑",
+  "chords": ["Em", "Am", "D", "C", "G"],
+  "sections": [
+    { "name": "Verse", "lyrics": [
+      { "text": "Hum tere bin ab reh nahi sakte", "chord": "Em", "time": 0 },
+      { "text": "Tere bina kya wajood mera", "chord": "Am", "time": 5 },
+      { "text": "Tujhse juda gar ho jaayenge", "chord": "D", "time": 10 },
+      { "text": "Toh khud se hi ho jaayenge judaa", "chord": "C", "time": 15 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Kyunki tum hi ho, ab tum hi ho", "chord": "Em", "time": 21 },
+      { "text": "Zindagi ab tum hi ho", "chord": "Am", "time": 26 },
+      { "text": "Chain bhi, mera dard bhi", "chord": "D", "time": 30 },
+      { "text": "Meri aashiqui ab tum hi ho", "chord": "G", "time": 34 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Tera mera rishta hai kaisa", "chord": "Em", "time": 42 },
+      { "text": "Ek pal door gawara nahi", "chord": "Am", "time": 47 },
+      { "text": "Tere liye har roz hain jeete", "chord": "D", "time": 52 },
+      { "text": "Tujhko diya mera waqt sabhi", "chord": "C", "time": 57 },
+      { "text": "Koi lamha mera na ho tere bina", "chord": "Am", "time": 62 },
+      { "text": "Har saans pe naam tera", "chord": "D", "time": 67 }
+    ]},
+    { "name": "Chorus", "lyrics": [
+      { "text": "Kyunki tum hi ho, ab tum hi ho", "chord": "Em", "time": 73 },
+      { "text": "Zindagi ab tum hi ho", "chord": "Am", "time": 78 },
+      { "text": "Chain bhi, mera dard bhi", "chord": "D", "time": 82 },
+      { "text": "Meri aashiqui ab tum hi ho", "chord": "G", "time": 86 }
+    ]},
+    { "name": "Bridge", "lyrics": [
+      { "text": "Tum hi ho, tum hi ho", "chord": "Em", "time": 95 },
+      { "text": "Tum hi ho, tum hi ho", "chord": "Am", "time": 99 }
+    ]},
+    { "name": "Verse", "lyrics": [
+      { "text": "Hum tere bin ab reh nahi sakte", "chord": "Em", "time": 107 },
+      { "text": "Tere bina kya wajood mera", "chord": "Am", "time": 112 },
+      { "text": "Tujhse juda gar ho jaayenge", "chord": "D", "time": 117 },
+      { "text": "Toh khud se hi ho jaayenge judaa", "chord": "C", "time": 122 }
+    ]},
+    { "name": "Outro", "lyrics": [
+      { "text": "Kyunki tum hi ho, ab tum hi ho", "chord": "Em", "time": 129 },
+      { "text": "Zindagi ab tum hi ho", "chord": "Am", "time": 134 },
+      { "text": "Chain bhi, mera dard bhi", "chord": "D", "time": 138 },
+      { "text": "Meri aashiqui ab tum hi ho", "chord": "G", "time": 142 },
+      { "text": "Tum hi ho...", "chord": "Em", "time": 148 }
+    ]}
+  ]
+}
