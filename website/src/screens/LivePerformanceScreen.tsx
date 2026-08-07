@@ -26,14 +26,19 @@ import {
   setEffectsConfig,
   createPerformanceRecordingStream,
   disconnectMicrophoneFromRecording,
+  CHORD_NOTES,
+  playPluckNote,
 } from '../utils/guitarSound'
 import { GuitaristEngine } from '../engines/GuitaristEngine'
+import { FingerstyleEngine } from '../engines/Fingerstyle/FingerstyleEngine'
 import { useHandTracking } from '../utils/useHandTracking'
+import { useWhisperFollower } from '../hooks/useWhisperFollower'
 import { GestureEngine } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
 import { drawHandSkeleton } from '../utils/handTracker'
 import { fetchSyncedLyrics, type SyncedLine } from '../utils/lrclib'
 import { eventBus } from '../core/EventBus'
+import type { HumanizerPreset } from '../core/types'
 
 // Decomposed components
 import { CameraPanel } from '../components/LivePerformance/CameraPanel'
@@ -151,6 +156,8 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   const guitaristRef = useRef(new GuitaristEngine(
     GuitaristEngine.styleFromCollections(song.collections)
   ))
+  const fingerstyleRef = useRef(new FingerstyleEngine(config?.fingerstylePattern || 'travis'))
+  const fingerstyleStartRef = useRef(0)
   // Apply personality from session config
   useEffect(() => {
     const personalityMap: Record<string, string> = {
@@ -160,6 +167,20 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     const style = (personalityMap[config.personality] || 'pop') as any
     guitaristRef.current.setStyle(style)
   }, [config.personality])
+
+  // Apply the explicit humanizer preset chosen in setup. This must run AFTER
+  // the personality effect above, since setStyle() also sets a style-derived
+  // humanizer preset and would otherwise override the user's choice.
+  useEffect(() => {
+    if (config.humanizerPreset) {
+      guitaristRef.current.getHumanizer().setPreset(config.humanizerPreset as HumanizerPreset)
+    }
+  }, [config.humanizerPreset])
+
+  // Keep the fingerstyle engine in sync with the selected pattern.
+  useEffect(() => {
+    fingerstyleRef.current.setPattern(config.fingerstylePattern || 'travis')
+  }, [config.fingerstylePattern])
   const currentSectionRef = useRef<string>('Verse')
   const strumBeatIndexRef = useRef(-1)
   const transportPositionRef = useRef(0)
@@ -172,7 +193,23 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
   currentLineRef.current = currentLine
   const allLyricsRef = useRef(allLyrics)
   allLyricsRef.current = allLyrics
-  const lastTriggerTimeRef = useRef(0)
+
+  // Whisper-based lyrics follower (replaces the browser SpeechRecognition API).
+  // On-device Whisper transcribes the mic (gated by a light VAD) and aligns
+  // recognized words to the lyric script to advance/correct the highlighted line.
+  const whisperLanguage = song.collections.includes('Hindi') || song.collections.includes('Bollywood')
+    ? 'hindi'
+    : 'english'
+  const getMicStream = useCallback(() => streamRef.current, [])
+  const { status: whisperStatus, progress: whisperProgress } = useWhisperFollower({
+    enabled: voiceFollower && isPlaying,
+    getStream: getMicStream,
+    language: whisperLanguage,
+    getCurrentLine: () => currentLineRef.current,
+    getLyrics: () => allLyricsRef.current,
+    onAdvance: (i) => setCurrentLine(l => Math.min(allLyricsRef.current.length - 1, Math.max(l, i))),
+    onTranscript: (t) => setLastSungWord(t),
+  })
 
   const { initialize, processFrame, setOnResults, dispose } = useHandTracking()
 
@@ -326,6 +363,21 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       setActiveBeat(beatIndex)
       const stroke = patterns[beatIndex]
       const chordName = detectedChordRef.current || 'Em'
+
+      // Fingerstyle mode: drive P-I-M-A plucks for the detected chord instead
+      // of strumming the pattern.
+      if (config.isFingerstyle) {
+        const voicing = CHORD_NOTES[chordName] ?? CHORD_NOTES['Em']!
+        const cycleMs = (fingerstyleRef.current.getPattern().cycleDuration * 60000) / (bpm || 90)
+        const elapsed = fingerstyleStartRef.current
+          ? (performance.now() - fingerstyleStartRef.current) % cycleMs
+          : 0
+        for (const note of fingerstyleRef.current.getNextNotes(voicing, bpm || 90, elapsed)) {
+          playPluckNote(note.note, note.velocity, note.stringIndex, note.delaySec)
+        }
+        return
+      }
+
       eventBus.emit('audio:beat', { stroke, chord: chordName, beatIdx: beatIndex, section: currentSectionRef.current })
       guitaristRef.current.playBeat(stroke, chordName, beatIndex, currentSectionRef.current, 0.35)
     }
@@ -340,7 +392,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
       timerId = window.setTimeout(scheduleNextBeat, Math.max(0, nextBeatAt - performance.now()))
     }
     return () => window.clearTimeout(timerId)
-  }, [isPlaying, isMuted, bpm, strumPattern])
+  }, [isPlaying, isMuted, bpm, strumPattern, config.isFingerstyle, config.fingerstylePattern])
 
   // ── Transport Clock ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -396,66 +448,10 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // ── Voice Recognition ─────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!voiceFollower || !isPlaying) return
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognition) return
-    let recognition: any = null
-    let active = true
-    let restartTimer: number | null = null
-    try {
-      recognition = new SpeechRecognition()
-      recognition.continuous = true
-      recognition.interimResults = true
-      recognition.lang = 'en-US'
-      recognition.onresult = (event: any) => {
-        if (!active) return
-        const rawTranscript = Array.from(event.results).map((r: any) => r[0]?.transcript || '').join(' ').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
-        if (!rawTranscript) return
-        const words = rawTranscript.split(/\s+/).filter(Boolean)
-        if (words.length === 0) return
-        const recentWords = words.slice(-6)
-        setLastSungWord(words.slice(-2).join(' '))
-        const now = Date.now()
-        if (now - lastTriggerTimeRef.current < 1000) return
-        const curIdx = currentLineRef.current
-        const lyrics = allLyricsRef.current
-        if (curIdx < lyrics.length) {
-          const currentText = (lyrics[curIdx]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
-          const currentWords = currentText.split(/\s+/).filter(Boolean)
-          if (currentWords.length > 0) {
-            const lastWord = currentWords[currentWords.length - 1]
-            const nextText = (lyrics[curIdx + 1]?.text || '').toLowerCase().replace(/[^\w\s]/g, ' ').trim()
-            const nextFirstWord = (nextText.split(/\s+/).filter(Boolean)[0]) || ''
-            const matchedLast = lastWord && lastWord.length >= 2 && recentWords.some(w => w.includes(lastWord) || lastWord.includes(w))
-            const matchedNextStart = nextFirstWord && nextFirstWord.length >= 3 && recentWords.includes(nextFirstWord)
-            if (matchedLast || matchedNextStart) {
-              lastTriggerTimeRef.current = now
-              setCurrentLine(l => Math.min(lyrics.length - 1, l + 1))
-            }
-          }
-        }
-      }
-      const restartRecognition = () => {
-        if (!active || !voiceFollowerRef.current || !isPlayingRef.current || restartTimer !== null) return
-        restartTimer = window.setTimeout(() => { restartTimer = null; try { recognition.start() } catch {} }, 250)
-      }
-      recognition.onend = restartRecognition
-      recognition.onerror = (event: { error?: string }) => {
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'audio-capture') {
-          active = false; setVoiceFollower(false); return
-        }
-        restartRecognition()
-      }
-      recognition.start()
-    } catch {}
-    return () => {
-      active = false
-      if (restartTimer !== null) window.clearTimeout(restartTimer)
-      try { recognition?.stop() } catch {}
-    }
-  }, [voiceFollower, isPlaying])
+  // ── Voice Recognition (Whisper) ──────────────────────────────────────────────
+  // Implemented by useWhisperFollower (declared above). It replaces the browser
+  // SpeechRecognition API with an on-device Whisper pipeline that aligns
+  // recognized words to the lyric script to advance the highlighted line.
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleStartWithCountdown = useCallback(() => {
@@ -474,6 +470,7 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         window.clearInterval(timerId)
         countdownTimerRef.current = null
         setCountdown(null)
+        fingerstyleStartRef.current = performance.now()
         setIsPlaying(true)
         setCurrentLine(0)
       } else {
@@ -623,6 +620,18 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
             currentFingerCount={detectedFingers ?? -1}
             visible={isPlaying}
           />
+
+          {voiceFollower && (
+            <div className="text-center text-[10px] font-mono tracking-wide text-white/45">
+              {whisperStatus === 'loading'
+                ? `Whisper loading ${whisperProgress}%`
+                : whisperStatus === 'unavailable'
+                ? 'Voice follow unavailable (Whisper)'
+                : whisperStatus === 'ready'
+                ? 'Listening · Whisper'
+                : ''}
+            </div>
+          )}
 
           <LyricsPanel
             currentLyric={currentLyric}

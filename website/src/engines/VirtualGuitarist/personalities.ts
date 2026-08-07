@@ -134,6 +134,6 @@ export function personalityFromCollections(collections: string[]): GuitaristPers
   if (collections.includes('Indie')) return PERSONALITIES.indie
   if (collections.includes('Bollywood')) return PERSONALITIES.bollywood
   if (collections.includes('Romantic') || collections.includes('Ballad')) return PERSONALITIES.worship
-  if (collections.includes('Pop')) return PERSONALITIES.pop
-  return PERSONALITIES.pop
-}
+    if (collections.includes('Pop')) return PERSONALITIES['pop']
+    return PERSONALITIES['pop']
+  }
