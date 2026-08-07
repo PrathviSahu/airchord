@@ -9,7 +9,10 @@ import type { Song } from '../utils/songLibrary'
 import {
   getEngineMode,
   setEngineMode,
+  getGuitarType,
+  setGuitarType,
   EngineMode,
+  GuitarType,
   initAudioEngine,
   triggerGuitarChord,
   playPatternBeat,
@@ -137,6 +140,7 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
   const [isCustom, setIsCustom]       = useState(songPresetIndex < 0)
   const [editingMapping, setEditingMapping] = useState(false)
   const [engineState, setEngineState] = useState<EngineMode>(getEngineMode())
+  const [guitarTypeState, setGuitarTypeState] = useState<GuitarType>(getGuitarType())
   const [personality, setPersonality] = useState('pop')
   const [humanizerPreset, setHumanizerPreset] = useState('natural')
   const [effectsPreset, setEffectsPreset] = useState('acoustic')
@@ -326,6 +330,31 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
                   <span className="block text-[9px] mt-0.5 opacity-50 font-mono uppercase tracking-wider">{opt.sub}</span>
                 </button>
               ))}
+            </div>
+
+            <div className="mt-4">
+              <p className="studio-label mb-2" style={{ fontSize: 8 }}>Guitar</p>
+              <div className="studio-seg" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                {([
+                  { id: 'steel', name: 'Steel' },
+                  { id: 'nylon', name: 'Nylon' },
+                  { id: 'electric', name: 'Electric' },
+                  { id: '12string', name: '12-String' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.id}
+                    className={guitarTypeState === opt.id ? 'seg-active' : ''}
+                    onClick={() => {
+                      setGuitarType(opt.id)
+                      setGuitarTypeState(opt.id)
+                      // Audition so the choice is heard, not guessed.
+                      window.setTimeout(() => previewChord(song.chords[0] ?? 'Em', 0.22), 30)
+                    }}
+                  >
+                    <span className="block">{opt.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-1.5 mt-4">

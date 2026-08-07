@@ -1047,15 +1047,17 @@ const physicalEngine = new PhysicalGuitarEngine()
 const sampledEngine = new SampledGuitarEngine()
 
 function getActiveEngine(): IGuitarEngine {
+  // The 'nylon' engine mode implies the nylon synth timbre; for sampled/synth
+  // the timbre follows the user's guitar type (setGuitarType), so we must NOT
+  // clobber currentGuitarType here — otherwise electric / 12-string are never
+  // reachable.
   if (currentEngineMode === 'nylon') {
     currentGuitarType = 'nylon'
     return physicalEngine
   }
   if (currentEngineMode === 'sampled') {
-    currentGuitarType = 'steel'
     return sampledEngine
   }
-  currentGuitarType = 'steel'
   return physicalEngine
 }
 

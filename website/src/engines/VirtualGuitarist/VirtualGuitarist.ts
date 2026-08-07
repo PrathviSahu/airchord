@@ -54,7 +54,7 @@ export class VirtualGuitarist {
 
   constructor(personality: GuitaristPersonality | string = 'pop') {
     if (typeof personality === 'string') {
-      this.personality = PERSONALITIES[personality] ?? PERSONALITIES.pop
+      this.personality = PERSONALITIES[personality] ?? PERSONALITIES['pop']
     } else {
       this.personality = personality
     }
@@ -73,7 +73,7 @@ export class VirtualGuitarist {
   /** Change personality at runtime. */
   setPersonality(personality: GuitaristPersonality | string) {
     if (typeof personality === 'string') {
-      this.personality = PERSONALITIES[personality] ?? PERSONALITIES.pop
+      this.personality = PERSONALITIES[personality] ?? PERSONALITIES['pop']
     } else {
       this.personality = personality
     }
