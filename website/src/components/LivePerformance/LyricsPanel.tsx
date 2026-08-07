@@ -1,11 +1,11 @@
 // ── Lyrics Panel ──────────────────────────────────────────────────────────────
-// Owns: current/next lyric display, chord badges, voice follower feedback, sync status
+// Current/next lyric, chord + gesture hint, voice follower feedback, sync status.
 
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-const FINGER_EMOJI = ['✊', '☝️', '✌️', '🤟', '🖐️', '✋']
+const GESTURE_LABELS = ['Fist', 'One', 'Two', 'Three', 'Four', 'Open']
 
 interface LyricLine {
   text: string
@@ -32,7 +32,6 @@ export function LyricsPanel({
   nextLyric,
   currentLine,
   totalLines,
-  detectedFingers,
   fingerMapping,
   voiceFollower,
   lastSungWord,
@@ -40,88 +39,70 @@ export function LyricsPanel({
   onPrevLine,
   onNextLine,
 }: LyricsPanelProps) {
+  const nextIdx = nextLyric ? fingerMapping.indexOf(nextLyric.chord) : -1
+  const currentIdx = fingerMapping.indexOf(currentLyric?.chord ?? '')
+
   return (
-    <div className="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-3">
-      {/* Current lyric card */}
-      <div className="flex-1 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-5 py-3 min-w-0">
-        {/* Next chord hint */}
+    <div className="flex items-stretch gap-2 sm:gap-2.5">
+      {/* Lyric card */}
+      <div className="flex-1 studio-glass px-5 sm:px-6 py-3.5 min-w-0">
+        {/* Next chord telegraph */}
         {nextLyric && (
-          <p className="text-[9px] font-mono text-white/30 mb-1">
-            Next: <span className="text-amber-300/70 font-bold">{nextLyric.chord}</span>
-            {(() => {
-              const idx = fingerMapping.indexOf(nextLyric.chord)
-              return idx >= 0 ? ` — ${FINGER_EMOJI[idx]} ${idx} fingers` : ''
-            })()}
+          <p className="text-[10px] font-mono text-white/30 mb-1.5 truncate">
+            NEXT&nbsp;
+            <span className="studio-num font-bold" style={{ color: 'rgba(227,200,120,0.75)' }}>{nextLyric.chord}</span>
+            {nextIdx >= 0 && (
+              <span className="text-white/25"> — {GESTURE_LABELS[nextIdx]} ({nextIdx})</span>
+            )}
           </p>
         )}
-        {/* Current lyric */}
+
+        {/* Current line */}
         <AnimatePresence mode="wait">
           <motion.p
             key={currentLine}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3 }}
-            className="text-lg font-black text-white leading-snug truncate"
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="text-white font-light truncate"
+            style={{ fontSize: 'clamp(17px, 2.4vw, 24px)', letterSpacing: '-0.01em', lineHeight: 1.25 }}
           >
-            "{currentLyric?.text}"
+            {currentLyric?.text}
           </motion.p>
         </AnimatePresence>
-        {/* Current chord badge + sync status */}
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          <span className="text-[10px] font-mono text-white/30">Chord now:</span>
-          <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black text-xs">
+
+        {/* Chord + status row */}
+        <div className="flex items-center gap-2.5 mt-2 flex-wrap">
+          <span className="studio-label" style={{ fontSize: 8 }}>Chord</span>
+          <span
+            className="studio-num px-2 py-0.5 rounded-[2px] border text-xs font-bold"
+            style={{ color: 'var(--gold-bright)', borderColor: 'rgba(201,168,76,0.4)', background: 'rgba(201,168,76,0.08)' }}
+          >
             {currentLyric?.chord}
           </span>
-          {(() => {
-            const idx = fingerMapping.indexOf(currentLyric?.chord ?? '')
-            return idx >= 0 ? (
-              <span className="text-[11px] font-mono text-white/40">
-                {FINGER_EMOJI[idx]} {idx} finger{idx !== 1 ? 's' : ''}
-              </span>
-            ) : null
-          })()}
+          {currentIdx >= 0 && (
+            <span className="text-[10px] font-mono text-white/35">
+              show {GESTURE_LABELS[currentIdx].toLowerCase()} ({currentIdx})
+            </span>
+          )}
 
-          {/* Live voice feedback */}
           {voiceFollower && lastSungWord && (
-            <span className="text-[10px] font-mono text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-              🎙️ Heard: "{lastSungWord}"
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-[2px] border" style={{ color: '#7FBF8E', borderColor: 'rgba(127,191,142,0.25)', background: 'rgba(127,191,142,0.06)' }}>
+              heard “{lastSungWord}”
             </span>
           )}
 
-          {/* Live sync pill */}
-          {lrcStatus === 'ok' && (
-            <span className="ml-auto px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold tracking-wide">
-              🎵 LIVE SYNC
-            </span>
-          )}
-          {lrcStatus === 'fallback' && (
-            <span className="ml-auto px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500/60 text-[9px] font-bold tracking-wide">
-              📋 LOCAL
-            </span>
-          )}
-          {lrcStatus === 'loading' && (
-            <span className="ml-auto px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/30 text-[9px] font-bold tracking-wide">
-              ⏳ SYNCING...
-            </span>
-          )}
+          <span className="ml-auto text-[9px] font-mono tracking-[0.18em] uppercase" style={{ color: lrcStatus === 'ok' ? '#7FBF8E' : 'rgba(255,255,255,0.25)' }}>
+            {lrcStatus === 'ok' ? 'Live sync' : lrcStatus === 'fallback' ? 'Local lyrics' : 'Syncing…'}
+          </span>
         </div>
       </div>
 
-      {/* Manual lyric nav buttons */}
-      <div className="flex flex-col gap-2 justify-center">
-        <button
-          onClick={onPrevLine}
-          className="w-9 h-9 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-black/70 transition-all"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onNextLine}
-          className="w-9 h-9 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-black/70 transition-all"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
+      {/* Manual nav */}
+      <div className="flex flex-col gap-1.5 justify-center shrink-0">
+        <button onClick={onPrevLine} aria-label="Previous lyric line" className="studio-icon !w-9 !h-8"><ChevronLeft className="w-3.5 h-3.5" /></button>
+        <button onClick={onNextLine} aria-label="Next lyric line" className="studio-icon !w-9 !h-8"><ChevronRight className="w-3.5 h-3.5" /></button>
       </div>
     </div>
   )

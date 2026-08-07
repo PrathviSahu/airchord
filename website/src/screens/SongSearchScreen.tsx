@@ -1,118 +1,139 @@
-import React, { useState, useMemo } from 'react'
+// ── Song Library ──────────────────────────────────────────────────────────────
+// Studio monochrome redesign: a cinematic tracklist instead of neon cards.
+// Pure black surface, hairline dividers, one gold accent.
+
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Music, ChevronRight, Zap, Clock } from 'lucide-react'
+import { Search, ArrowLeft, ArrowUpRight, Music2 } from 'lucide-react'
 import { SEED_SONGS, SONG_COLLECTIONS } from '../utils/songLibrary'
 import type { Song } from '../utils/songLibrary'
+import { initAudioEngine, triggerGuitarChord } from '../utils/guitarSound'
 
-const DIFFICULTY_COLOR: Record<string, string> = {
-  Beginner:     'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-  Easy:         'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  Intermediate: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  Advanced:     'bg-rose-500/20 text-rose-300 border-rose-500/30',
+// Difficulty shown as a quiet dot + word, not a rainbow pill.
+const DIFFICULTY_DOT: Record<string, string> = {
+  Beginner:     '#7FBF8E',
+  Easy:         '#8FB7E8',
+  Intermediate: '#C9A84C',
+  Advanced:     '#D98A8A',
 }
 
-function SongCard({ song, onSelect, index }: { song: Song; onSelect: (s: Song) => void; index: number }) {
+interface SongRowProps {
+  song: Song
+  index: number
+  auditioning: boolean
+  onSelect: (s: Song) => void
+  onHoverStart: (s: Song) => void
+  onHoverEnd: () => void
+}
+
+function SongRow({ song, index, auditioning, onSelect, onHoverStart, onHoverEnd }: SongRowProps) {
   const [hovered, setHovered] = useState(false)
 
   return (
     <motion.button
-      key={song.id}
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      onHoverStart={() => setHovered(true)}
-      onHoverEnd={() => setHovered(false)}
+      transition={{ delay: Math.min(index * 0.035, 0.4), duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      onHoverStart={() => { setHovered(true); onHoverStart(song) }}
+      onHoverEnd={() => { setHovered(false); onHoverEnd() }}
       onClick={() => onSelect(song)}
-      className="relative w-full text-left rounded-2xl border transition-all duration-300 overflow-hidden group"
+      className="w-full text-left group relative grid items-center gap-x-6 gap-y-2 px-5 sm:px-8 py-5 border-b transition-colors duration-300"
       style={{
-        background: hovered
-          ? 'linear-gradient(135deg, rgba(124,58,237,0.18) 0%, rgba(17,17,27,0.95) 100%)'
-          : 'rgba(12,12,20,0.85)',
-        borderColor: hovered ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.07)',
-        boxShadow: hovered ? '0 0 32px rgba(124,58,237,0.15)' : 'none',
+        borderColor: 'rgba(255,255,255,0.06)',
+        background: hovered ? 'rgba(255,255,255,0.028)' : 'transparent',
+        gridTemplateColumns: 'minmax(150px, 1.6fr) minmax(140px, 1fr) auto',
       }}
     >
-      {/* Left accent bar */}
-      <motion.div
-        className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l-full"
-        animate={{ opacity: hovered ? 1 : 0, scaleY: hovered ? 1 : 0.3 }}
-        style={{ background: 'linear-gradient(180deg, #7c3aed, #fbbf24)' }}
-        transition={{ duration: 0.2 }}
+      {/* Gold hover rule */}
+      <motion.span
+        className="absolute left-0 top-0 bottom-0 w-px"
+        animate={{ opacity: hovered ? 1 : 0, scaleY: hovered ? 1 : 0.2 }}
+        style={{ background: 'var(--gold)' }}
+        transition={{ duration: 0.22 }}
       />
 
-      <div className="p-5 pl-6">
-        <div className="flex items-start justify-between gap-4">
-          {/* Left: title + artist */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-black text-white text-base truncate">{song.title}</h3>
-              <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${DIFFICULTY_COLOR[song.difficulty]}`}>
-                {song.difficulty}
-              </span>
-            </div>
-            <p className="text-sm text-white/50 truncate">{song.artist}</p>
-
-            {/* Meta chips row */}
-            <div className="flex items-center gap-2 mt-3 flex-wrap">
-              {/* BPM */}
-              <span className="flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-1 rounded-lg bg-purple-500/15 text-purple-300 border border-purple-500/20">
-                <Zap className="w-3 h-3" />
-                {song.bpm} BPM
-              </span>
-              {/* Capo */}
-              {song.capo > 0 && (
-                <span className="flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/20">
-                  Capo {song.capo}
-                </span>
-              )}
-              {song.capo === 0 && (
-                <span className="flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-1 rounded-lg bg-white/5 text-white/40 border border-white/10">
-                  No Capo
-                </span>
-              )}
-              {/* Key */}
-              <span className="text-[11px] font-mono px-2 py-1 rounded-lg bg-white/5 text-white/40 border border-white/10">
-                {song.key.split(' ')[0]} {song.key.split(' ')[1]}
-              </span>
-              {/* Duration */}
-              <span className="flex items-center gap-1 text-[11px] font-mono text-white/30">
-                <Clock className="w-3 h-3" />
-                {song.duration}
-              </span>
-            </div>
-
-            {/* Chords preview */}
-            <div className="flex items-center gap-1.5 mt-3">
-              <span className="text-[10px] text-white/30 font-mono uppercase tracking-wider mr-1">Chords:</span>
-              {song.chords.map((c) => (
-                <span key={c} className="text-[11px] font-black font-mono px-1.5 py-0.5 rounded bg-white/8 text-white/70 border border-white/10">
-                  {c}
-                </span>
-              ))}
-            </div>
-
-            {/* Strum pattern */}
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-[10px] text-white/30 font-mono uppercase tracking-wider">Pattern:</span>
-              <span className="text-[12px] font-mono text-purple-300 tracking-widest">{song.displayPattern}</span>
-            </div>
-          </div>
-
-          {/* Right: arrow */}
-          <div className="shrink-0 flex items-center h-full pt-2">
-            <motion.div
-              animate={{ x: hovered ? 4 : 0 }}
-              transition={{ duration: 0.2 }}
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{
-                background: hovered ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.04)',
-                border: hovered ? '1px solid rgba(168,85,247,0.4)' : '1px solid rgba(255,255,255,0.08)',
-              }}
+      {/* Track: number + title + artist */}
+      <div className="flex items-center gap-5 min-w-0">
+        <span
+          className="studio-num hidden sm:block text-sm font-light w-7 shrink-0 text-right transition-colors"
+          style={{ color: hovered ? 'var(--gold)' : 'rgba(255,255,255,0.22)' }}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </span>
+        <div className="min-w-0 flex items-center gap-3">
+          <div className="min-w-0">
+            <h3
+              className="text-lg sm:text-xl font-light tracking-tight text-white truncate transition-colors"
+              style={{ letterSpacing: '-0.01em' }}
             >
-              <ChevronRight className="w-4 h-4 text-white/60" />
-            </motion.div>
+              {song.title}
+            </h3>
+            <p className="text-xs text-white/35 mt-0.5 truncate">{song.artist}</p>
+          </div>
+          {auditioning && (
+            <span className="eq-bars shrink-0" title="Auditioning…">
+              <span /><span /><span />
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Meta: key · tempo · chords */}
+      <div className="hidden md:flex items-center gap-5">
+        <div>
+          <p className="studio-label mb-1" style={{ fontSize: 8 }}>Key · Tempo</p>
+          <p className="studio-num text-xs text-white/70 font-mono">
+            {song.key.split(' ')[0]}
+            <span className="text-white/25 mx-1.5">/</span>
+            {song.bpm} BPM
+          </p>
+        </div>
+        <div className="w-px h-7 bg-white/6" />
+        <div>
+          <p className="studio-label mb-1" style={{ fontSize: 8 }}>Pattern</p>
+          <p className="text-xs font-mono tracking-[0.2em]" style={{ color: hovered ? 'var(--gold-bright)' : 'rgba(255,255,255,0.4)' }}>
+            {song.displayPattern}
+          </p>
+        </div>
+        <div className="w-px h-7 bg-white/6" />
+        <div>
+          <p className="studio-label mb-1" style={{ fontSize: 8 }}>Chords</p>
+          <div className="flex items-center gap-1">
+            {song.chords.slice(0, 5).map(c => (
+              <span
+                key={c}
+                className="studio-num text-[11px] px-1.5 py-0.5 border rounded-[2px] transition-colors"
+                style={{
+                  borderColor: hovered ? 'rgba(201,168,76,0.35)' : 'rgba(255,255,255,0.09)',
+                  color: hovered ? 'rgba(227,200,120,0.95)' : 'rgba(255,255,255,0.5)',
+                }}
+              >
+                {c}
+              </span>
+            ))}
           </div>
         </div>
+      </div>
+
+      {/* Right: difficulty + arrow */}
+      <div className="flex items-center justify-end gap-4">
+        <div className="hidden sm:flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: DIFFICULTY_DOT[song.difficulty] ?? '#888' }} />
+          <span className="text-[11px] text-white/40">{song.difficulty}</span>
+        </div>
+        <motion.div
+          animate={{ x: hovered ? 3 : 0, opacity: hovered ? 1 : 0.3 }}
+          transition={{ duration: 0.2 }}
+          className="shrink-0"
+        >
+          <ArrowUpRight className="w-4 h-4 text-white" />
+        </motion.div>
+      </div>
+
+      {/* Mobile meta row */}
+      <div className="md:hidden col-span-3 flex items-center gap-4 -mt-1">
+        <span className="studio-num text-[11px] font-mono text-white/35">{song.key.split(' ')[0]} · {song.bpm} BPM</span>
+        <span className="text-[11px] font-mono tracking-[0.2em] text-white/30">{song.displayPattern}</span>
       </div>
     </motion.button>
   )
@@ -127,6 +148,9 @@ interface SongSearchScreenProps {
 export default function SongSearchScreen({ onSelectSong, onBack, onOpenPractice }: SongSearchScreenProps) {
   const [query, setQuery] = useState('')
   const [activeCollection, setActiveCollection] = useState('All')
+  const [auditioningId, setAuditioningId] = useState<string | null>(null)
+  const auditionTimers = useRef<number[]>([])
+  const hoverTimer = useRef<number | null>(null)
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim()
@@ -141,133 +165,178 @@ export default function SongSearchScreen({ onSelectSong, onBack, onOpenPractice 
     })
   }, [query, activeCollection])
 
+  // ── Hover audition: play the song's chord progression softly ──────────
+  const stopAudition = useCallback(() => {
+    auditionTimers.current.forEach(t => window.clearTimeout(t))
+    auditionTimers.current = []
+    setAuditioningId(null)
+  }, [])
+
+  const startAudition = useCallback((song: Song) => {
+    stopAudition()
+    initAudioEngine()
+    setAuditioningId(song.id)
+    const chords = song.chords.slice(0, 4)
+    chords.forEach((chord, i) => {
+      auditionTimers.current.push(
+        window.setTimeout(() => triggerGuitarChord(chord, 0.15), i * 640)
+      )
+    })
+    auditionTimers.current.push(
+      window.setTimeout(() => setAuditioningId(null), chords.length * 640 + 300)
+    )
+  }, [stopAudition])
+
+  const handleHoverStart = useCallback((song: Song) => {
+    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current)
+    hoverTimer.current = window.setTimeout(() => startAudition(song), 320)
+  }, [startAudition])
+
+  const handleHoverEnd = useCallback(() => {
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current)
+      hoverTimer.current = null
+    }
+    stopAudition()
+  }, [stopAudition])
+
+  useEffect(() => () => {
+    auditionTimers.current.forEach(t => window.clearTimeout(t))
+    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current)
+  }, [])
+
   return (
-    <div
-      className="fixed inset-0 flex flex-col font-sans select-none"
-      style={{ background: 'linear-gradient(160deg, #070710 0%, #050508 60%, #080510 100%)' }}
-    >
+    <div className="studio-root fixed inset-0 flex flex-col select-none overflow-hidden">
+      {/* Depth layers */}
+      <div
+        className="ambient-orb"
+        style={{ width: 520, height: 520, top: '-18%', right: '-8%', background: 'rgba(201,168,76,0.055)' }}
+      />
+      <div
+        className="ambient-orb"
+        style={{ width: 420, height: 420, bottom: '-16%', left: '-6%', background: 'rgba(96,160,255,0.05)', animationDelay: '-12s' }}
+      />
+      <div className="film-grain" />
       {/* ── Header ── */}
-      <div className="shrink-0 px-8 pt-8 pb-5 border-b border-white/5">
-        <div className="flex items-center justify-between mb-6">
+      <header className="shrink-0 px-5 sm:px-10 pt-7 pb-6 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        {/* Top row */}
+        <div className="flex items-center justify-between mb-10">
           <button
             onClick={onBack}
-            className="text-[11px] font-mono text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5"
+            className="flex items-center gap-2.5 text-white/40 hover:text-white transition-colors group"
           >
-            ← Back
+            <span className="studio-icon !w-8 !h-8 group-hover:border-white/40">
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </span>
+            <span className="studio-label hidden sm:block">Back</span>
           </button>
-          <div className="flex items-center gap-2">
-            {onOpenPractice && (
-              <button
-                onClick={onOpenPractice}
-                className="px-3.5 py-1.5 rounded-xl bg-purple-600/90 hover:bg-purple-500 text-white font-mono text-xs font-bold flex items-center gap-2 shadow-lg shadow-purple-600/30 transition-all mr-2"
-              >
-                <span>🎤 Pro Practice Room</span>
-              </button>
-            )}
-            <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-            <span className="text-[11px] font-mono text-white/40 uppercase tracking-widest">AirChord</span>
-          </div>
+          <span className="studio-label">AirChord — Library</span>
+          {onOpenPractice ? (
+            <button onClick={onOpenPractice} className="studio-btn studio-btn-ghost !py-2 !px-4 !text-[11px]">
+              Freestyle Room
+            </button>
+          ) : <div className="w-24" />}
         </div>
 
-        {/* Title */}
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-5 flex items-end justify-between gap-4"
-        >
-          <div>
-            <h1 className="text-3xl font-black text-white mb-1">Choose a Song</h1>
-            <p className="text-sm text-white/40">Search by title, artist, or chord. Or enter Pro Practice Room to freestyle & record.</p>
-          </div>
-        </motion.div>
+        {/* Title + search */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <p className="studio-label-gold mb-3">Step 01 — Choose</p>
+            <h1 className="text-white font-light tracking-tight" style={{ fontSize: 'clamp(36px, 5vw, 64px)', letterSpacing: '-0.03em', lineHeight: 1 }}>
+              The <span className="font-bold">Library</span>
+            </h1>
+          </motion.div>
 
-        {/* Search bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.4 }}
-          className="relative mb-4"
-        >
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-          <input
-            autoFocus
-            type="text"
-            placeholder="Search songs, artists, chords…"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            className="w-full pl-11 pr-4 py-3.5 rounded-2xl text-sm text-white placeholder-white/25 outline-none transition-all"
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              fontFamily: 'inherit',
-            }}
-            onFocus={e => { e.currentTarget.style.borderColor = 'rgba(168,85,247,0.4)' }}
-            onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 text-xs font-mono"
-            >
-              ✕
-            </button>
-          )}
-        </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.5 }}
+            className="relative w-full lg:w-[380px]"
+          >
+            <Search className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search title, artist, chord…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              className="w-full bg-transparent border-none outline-none text-white text-sm font-light pl-8 pr-8 py-3"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', letterSpacing: '0.02em' }}
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute right-0 top-1/2 -translate-y-1/2 text-white/30 hover:text-white text-xs font-mono transition-colors"
+              >
+                ✕
+              </button>
+            )}
+          </motion.div>
+        </div>
 
-        {/* Collection filter pills */}
+        {/* Collections */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.15 }}
-          className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none"
+          transition={{ delay: 0.18 }}
+          className="flex items-center gap-2 mt-8 overflow-x-auto pb-1 scrollbar-none"
         >
           {SONG_COLLECTIONS.map(col => (
             <button
               key={col}
               onClick={() => setActiveCollection(col)}
-              className={`shrink-0 text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all duration-200 ${
-                activeCollection === col
-                  ? 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-600/30'
-                  : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80'
-              }`}
+              className={`studio-chip shrink-0 ${activeCollection === col ? 'studio-chip-active' : ''}`}
             >
               {col}
             </button>
           ))}
         </motion.div>
+      </header>
+
+      {/* ── Column headers ── */}
+      <div
+        className="hidden md:grid shrink-0 items-center gap-x-6 px-5 sm:px-8 py-3 border-b"
+        style={{ borderColor: 'rgba(255,255,255,0.06)', gridTemplateColumns: 'minmax(150px, 1.6fr) minmax(140px, 1fr) auto' }}
+      >
+        <span className="studio-label pl-12">Track</span>
+        <span className="studio-label">Details</span>
+        <span className="studio-label text-right pr-1">{filtered.length} song{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
-      {/* ── Song list ── */}
-      <div className="flex-1 overflow-y-auto px-8 py-5 space-y-3">
-        {/* Result count */}
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[11px] font-mono text-white/30">
-            {filtered.length} song{filtered.length !== 1 ? 's' : ''} found
-          </span>
-          <span className="text-[10px] text-white/20 font-mono">Click to setup & play →</span>
-        </div>
-
+      {/* ── Tracklist ── */}
+      <div className="flex-1 overflow-y-auto studio-scroll">
         <AnimatePresence mode="popLayout">
           {filtered.length === 0 ? (
             <motion.div
               key="empty"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center py-20 gap-4"
+              className="flex flex-col items-center justify-center py-28 gap-5"
             >
-              <Music className="w-12 h-12 text-white/10" />
-              <p className="text-sm text-white/30 font-mono">No songs match "{query}"</p>
+              <Music2 className="w-10 h-10 text-white/10" strokeWidth={1} />
+              <p className="text-sm text-white/35 font-light">Nothing matches “{query}”</p>
               <button
                 onClick={() => { setQuery(''); setActiveCollection('All') }}
-                className="text-xs text-purple-400 hover:text-purple-300 font-mono underline underline-offset-2"
+                className="studio-btn studio-btn-ghost !py-2 !px-5 !text-[11px]"
               >
                 Clear filters
               </button>
             </motion.div>
           ) : (
             filtered.map((song, i) => (
-              <SongCard key={song.id} song={song} onSelect={onSelectSong} index={i} />
+              <SongRow
+                key={song.id}
+                song={song}
+                index={i}
+                auditioning={auditioningId === song.id}
+                onSelect={(s) => { stopAudition(); onSelectSong(s) }}
+                onHoverStart={handleHoverStart}
+                onHoverEnd={handleHoverEnd}
+              />
             ))
           )}
         </AnimatePresence>

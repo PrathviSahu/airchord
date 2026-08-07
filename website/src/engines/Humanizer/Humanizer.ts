@@ -168,8 +168,11 @@ export class Humanizer {
       ? [0, 1, 2, 3, 4, 5]
       : [5, 4, 3, 2, 1, 0]
 
-    // Base strum spread: ~10ms between strings for down, ~8ms for up
-    const baseSpreadMs = direction === 'down' ? 10 : 8
+    // Base strum spread: ~10ms between strings for down, ~8ms for up.
+    // A hard stroke sweeps across the strings faster than a soft one, so the
+    // spread tightens as the stroke intensity grows.
+    const intensity = clamp(baseVolume / 0.5, 0, 1)
+    const baseSpreadMs = (direction === 'down' ? 10 : 8) * (1.25 - 0.45 * intensity)
     let activeStringCount = 0
 
     // First pass: compute timing for each active string
@@ -186,10 +189,15 @@ export class Humanizer {
       const globalJitter = randBetween(-p.timingJitterMs, p.timingJitterMs)
       const totalDelayMs = Math.max(0, timingMs + globalJitter)
 
-      // Velocity: base × string emphasis × random variation
+      // Velocity: base × string emphasis × direction emphasis × random variation
       const emphasis = p.stringEmphasis[stringIndex] ?? 1.0
+      // An upstroke's pick leaves the strings before reaching the bass side:
+      // low E and A barely ring, the treble strings carry the stroke.
+      const directionEmphasis = direction === 'up'
+        ? [0.40, 0.58, 0.84, 1.0, 1.0, 0.94][stringIndex] ?? 1.0
+        : 1.0
       const velVariation = randBetween(-p.velocityVariation, p.velocityVariation)
-      const volume = clamp(baseVolume * emphasis * (1 + velVariation), 0.01, 0.95)
+      const volume = clamp(baseVolume * emphasis * directionEmphasis * (1 + velVariation), 0.01, 0.95)
 
       // Pitch drift in cents → playback rate multiplier
       const cents = randBetween(-p.pitchDriftCents, p.pitchDriftCents)

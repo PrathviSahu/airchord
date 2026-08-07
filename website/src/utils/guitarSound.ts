@@ -9,6 +9,8 @@
 // is offline) we use a humanized Karplus-Strong string model. Both paths share
 // the same strum timing, pick transient, body EQ, reverb, and capture bus.
 
+import { Humanizer } from '../engines/Humanizer/Humanizer'
+
 export type GuitarType = 'steel' | 'nylon' | 'electric' | '12string'
 export type EngineMode = 'sampled' | 'nylon' | 'synth'
 
@@ -55,26 +57,65 @@ function randomBetween(min: number, max: number) {
   return min + Math.random() * (max - min)
 }
 
+/**
+ * Build a "small wooden room" impulse response.
+ *
+ * The previous 0.9s noise tail read as a generic digital reverb. A real room
+ * gives the ear three cues: a short pre-delay gap, a handful of discrete
+ * early reflections, then a smooth exponential tail that loses high
+ * frequencies as it decays. The two channels use different reflection timing
+ * so the tail decorrelates naturally instead of sounding mono.
+ */
 function buildReverbImpulse(ctx: AudioContext) {
   const sampleRate = ctx.sampleRate
-  const length = Math.floor(sampleRate * 0.9)
+  const duration = 1.35
+  const preDelay = 0.018
+  const length = Math.floor(sampleRate * duration)
   const impulse = ctx.createBuffer(2, length, sampleRate)
-  const earlyReflections = [0.013, 0.027, 0.043, 0.071, 0.11]
+  const earlyReflections = [0.021, 0.032, 0.047, 0.058, 0.073, 0.091, 0.118, 0.152]
 
   for (let channel = 0; channel < 2; channel += 1) {
     const data = impulse.getChannelData(channel)
-    for (let i = 0; i < length; i += 1) {
-      const time = i / sampleRate
-      const tail = (Math.random() * 2 - 1) * Math.pow(1 - time / 0.9, 3.4) * 0.24
-      const early = earlyReflections.some(reflection => Math.abs(time - reflection) < 1 / sampleRate)
-        ? (channel === 0 ? 0.24 : 0.20)
-        : 0
-      data[i] = tail + early
+    // Decorrelate: shift reflection positions slightly per channel.
+    const shift = channel === 0 ? 0 : 0.0035
+    const tailStart = Math.floor(preDelay * sampleRate)
+
+    for (let i = tailStart; i < length; i += 1) {
+      const time = (i - tailStart) / sampleRate
+      const decay = Math.exp(-time * 4.2)
+      data[i] = (Math.random() * 2 - 1) * decay * 0.26
     }
-    data[0] += channel === 0 ? 0.78 : 0.72
+
+    for (let r = 0; r < earlyReflections.length; r += 1) {
+      const reflectionTime = earlyReflections[r] + shift * ((r % 3) - 1)
+      const index = Math.floor((preDelay + reflectionTime) * sampleRate)
+      if (index > 0 && index < length) {
+        const amplitude = 0.30 * Math.exp(-reflectionTime * 7)
+        data[index] += channel === 0 ? amplitude : amplitude * 0.86
+      }
+    }
+
+    data[0] += channel === 0 ? 0.82 : 0.76
   }
 
   return impulse
+}
+
+/**
+ * Gentle tape-style saturation curve. Running the mix through a soft tanh
+ * adds low-order harmonics that glue six independent samples into one
+ * instrument and take the "digital edge" off SoundFont material.
+ */
+function buildSaturationCurve() {
+  const samples = 1024
+  const curve = new Float32Array(samples)
+  const drive = 1.5
+  const norm = Math.tanh(drive)
+  for (let i = 0; i < samples; i += 1) {
+    const x = (i / (samples - 1)) * 2 - 1
+    curve[i] = Math.tanh(x * drive) / norm
+  }
+  return curve
 }
 
 function buildMaster(ctx: AudioContext) {
@@ -93,7 +134,14 @@ function buildMaster(ctx: AudioContext) {
   dryBus = ctx.createGain()
   dryBus.gain.value = 0.86
   wetBus = ctx.createGain()
-  wetBus.gain.value = 0.12
+  wetBus.gain.value = 0.14
+
+  // Real rooms absorb highs: darkening the signal BEFORE the convolver keeps
+  // the tail from sounding like a bright digital wash over the dry guitar.
+  const wetLowpass = ctx.createBiquadFilter()
+  wetLowpass.type = 'lowpass'
+  wetLowpass.frequency.value = 6200
+  wetLowpass.Q.value = 0.4
 
   compressor = ctx.createDynamicsCompressor()
   compressor.threshold.value = -18
@@ -101,6 +149,11 @@ function buildMaster(ctx: AudioContext) {
   compressor.ratio.value = 3
   compressor.attack.value = 0.006
   compressor.release.value = 0.18
+
+  // Subtle harmonic glue between compression and limiting.
+  const saturator = ctx.createWaveShaper()
+  saturator.curve = buildSaturationCurve()
+  saturator.oversample = '2x'
 
   limiter = ctx.createDynamicsCompressor()
   limiter.threshold.value = -2.5
@@ -117,13 +170,22 @@ function buildMaster(ctx: AudioContext) {
   recordingDestination = ctx.createMediaStreamDestination()
 
   dryBus.connect(compressor)
-  wetBus.connect(reverbConv)
+  wetBus.connect(wetLowpass)
+  wetLowpass.connect(reverbConv)
   reverbConv.connect(compressor)
-  compressor.connect(limiter)
+  compressor.connect(saturator)
+  saturator.connect(limiter)
   limiter.connect(masterOut)
   masterOut.connect(ctx.destination)
   masterOut.connect(recordingDestination)
   masterBuilt = true
+
+  // Screens configure effects on mount, before any user gesture can create
+  // the AudioContext. Apply whatever was requested while we were waiting —
+  // or restore the last known configuration after a context rebuild.
+  const restore = pendingEffectsConfig ?? lastAppliedEffectsConfig
+  if (restore) applyEffectsConfig(restore)
+  pendingEffectsConfig = null
 }
 
 function getAudioContext(): AudioContext | null {
@@ -148,7 +210,15 @@ function getAudioContext(): AudioContext | null {
   if (!audioCtx) {
     const AudioContextConstructor = window.AudioContext
       || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (AudioContextConstructor) audioCtx = new AudioContextConstructor()
+    // 'interactive' asks the browser for its smallest output buffer. This is
+    // a camera-driven instrument, so latency matters more than CPU savings.
+    if (AudioContextConstructor) {
+      try {
+        audioCtx = new AudioContextConstructor({ latencyHint: 'interactive' })
+      } catch {
+        audioCtx = new AudioContextConstructor()
+      }
+    }
   }
 
   if (audioCtx?.state === 'suspended') {
@@ -522,6 +592,24 @@ interface BufferVoiceOptions {
   duration: number
   transientScale: number
   includePick: boolean
+  /**
+   * Multiplier on the amplitude attack ramp. Real recordings already contain
+   * their own pick attack, so sample playback uses a tiny value to avoid
+   * sanding the transient off; the physical model keeps the default 1.
+   */
+  attackScale?: number
+}
+
+/**
+ * Map a stroke volume to a 0..1 "how hard was this hit" level.
+ *
+ * Single-velocity samples cannot change tone by themselves, so the renderer
+ * fakes velocity layers: harder strokes open the low-pass filter, lift the
+ * air shelf, shorten the attack and decay, and push the pick transient —
+ * exactly what happens when a real pick digs into a string.
+ */
+function dynamicsLevel(volume: number) {
+  return clamp((volume - 0.05) / 0.45, 0, 1)
 }
 
 function playBufferVoice(
@@ -538,7 +626,9 @@ function playBufferVoice(
   const tone = GUITAR_TONES[currentGuitarType]
   const now = ctx.currentTime + Math.max(0, delaySec)
   const playbackRate = Math.max(0.05, options.playbackRate * centsRatio(randomBetween(-2.6, 2.6)))
-  const requestedDecay = clamp(options.duration, 0.16, 5.0)
+  const dyn = dynamicsLevel(volume)
+  // Soft strokes die away quicker than hard ones on a real string.
+  const requestedDecay = clamp(options.duration * (0.82 + 0.28 * dyn), 0.16, 5.0)
   const sourceDuration = buffer.duration / playbackRate
   // Capo/pitch playback shortens the buffer. Keep the envelope and source
   // lifetime aligned so a high capo cannot leave an envelope ramping after the
@@ -552,7 +642,8 @@ function playBufferVoice(
 
   const lowpass = ctx.createBiquadFilter()
   lowpass.type = 'lowpass'
-  lowpass.frequency.value = Math.min(ctx.sampleRate * 0.45, STRING_BRIGHTNESS[si] * randomBetween(0.96, 1.04))
+  const brightnessScale = (0.55 + 0.6 * dyn) * randomBetween(0.96, 1.04)
+  lowpass.frequency.value = Math.min(ctx.sampleRate * 0.45, STRING_BRIGHTNESS[si] * brightnessScale)
   lowpass.Q.value = 0.45
 
   const highpass = ctx.createBiquadFilter()
@@ -575,13 +666,16 @@ function playBufferVoice(
   const shelf = ctx.createBiquadFilter()
   shelf.type = 'highshelf'
   shelf.frequency.value = 3600
-  shelf.gain.value = tone.shelfGain + randomBetween(-0.45, 0.45)
+  // Hard strokes ring brighter; soft strokes sit warm and dark.
+  shelf.gain.value = tone.shelfGain + randomBetween(-0.45, 0.45) + (dyn - 0.45) * 3.6
 
   const envelope = ctx.createGain()
-  const attack = STRING_ATTACK[si] * randomBetween(0.86, 1.16)
+  const attackScale = options.attackScale ?? 1
+  // Hard hits snap in faster — a slow attack on a loud note reads as synth.
+  const attack = Math.max(0.0004, STRING_ATTACK[si] * randomBetween(0.86, 1.16) * (1.15 - 0.4 * dyn) * attackScale)
   envelope.gain.setValueAtTime(0.0001, now)
   envelope.gain.linearRampToValueAtTime(peak, now + attack)
-  envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.42), now + 0.075)
+  envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.42), now + Math.max(attack + 0.012, 0.075))
   envelope.gain.exponentialRampToValueAtTime(0.0001, now + decay)
 
   const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
@@ -598,7 +692,9 @@ function playBufferVoice(
   output.connect(wetBus)
 
   if (options.includePick) {
-    playPickTransient(ctx, now, peak * options.transientScale * tone.transient, si, tone)
+    // Pick noise grows faster than loudness: a hard stroke audibly scratches.
+    const transientGain = peak * options.transientScale * tone.transient * (0.55 + 0.75 * dyn)
+    playPickTransient(ctx, now, transientGain, si, tone)
   }
 
   source.start(now)
@@ -606,6 +702,11 @@ function playBufferVoice(
 }
 
 // ── Strum scheduling ─────────────────────────────────────────────────────────
+
+// An upstroke's pick leaves the strings before it ever reaches the bass side:
+// low E and A barely ring, the treble strings carry the stroke. Without this,
+// upstrokes sound like inverted downstrokes instead of a real wrist flick.
+const UPSTROKE_EMPHASIS = [0.40, 0.58, 0.84, 1.0, 1.0, 0.94]
 
 function scheduleStrum(
   voicing: GuitarVoicing,
@@ -616,7 +717,9 @@ function scheduleStrum(
   if (!voicing || voicing.length === 0 || !isStrummingEnabled) return
 
   const order = direction === 'down' ? [0, 1, 2, 3, 4, 5] : [5, 4, 3, 2, 1, 0]
-  const baseDelay = STRUM_DELAY_MS[direction]
+  // Hard strokes sweep across the strings faster than soft ones.
+  const intensity = clamp((volume - 0.05) / 0.45, 0, 1)
+  const baseDelay = STRUM_DELAY_MS[direction] * (1.25 - 0.45 * intensity)
   let hit = 0
 
   order.forEach(stringIndex => {
@@ -629,8 +732,9 @@ function scheduleStrum(
     const jitterMs = randomBetween(-1.2, 1.2)
     const delaySec = Math.max(0, (hit * baseDelay + jitterMs) / 1000)
     const directionScale = direction === 'down' ? 1 : 0.82
+    const emphasis = direction === 'down' ? 1 : UPSTROKE_EMPHASIS[stringIndex]
     const force = volume * STRING_GAIN[stringIndex]
-      * randomBetween(0.91, 1.09) * directionScale
+      * randomBetween(0.91, 1.09) * directionScale * emphasis
     playFn(note, force, stringIndex, delaySec)
     hit += 1
   })
@@ -709,7 +813,13 @@ class PhysicalGuitarEngine implements IGuitarEngine {
 
 const DEFAULT_SAMPLE_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/'
 let sampleBaseUrl = DEFAULT_SAMPLE_BASE_URL
-const COMMON_SAMPLE_NOTES = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4', 'C3', 'F#4']
+// Every pitch used by CHORD_NOTES, so common open chords never wait on the
+// network mid-song. ~28 small MP3s loaded in the background at startup.
+const COMMON_SAMPLE_NOTES = [
+  'E2', 'F2', 'F#2', 'G2', 'G#2', 'A2', 'A#2', 'B2',
+  'C3', 'C#3', 'D3', 'D#3', 'E3', 'F3', 'F#3', 'G3', 'G#3', 'A3', 'A#3', 'B3',
+  'C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4',
+]
 const sampleCache = new Map<string, AudioBuffer>()
 const sampleRequests = new Map<string, Promise<AudioBuffer | null>>()
 const unavailableSamples = new Set<string>()
@@ -719,6 +829,81 @@ let samplePreloadPromise: Promise<void> | null = null
 
 function sampleUrl(note: string) {
   return `${sampleBaseUrl}${note.replace('#', 's')}.mp3`
+}
+
+/**
+ * Corrective EQ for SoundFont material, rendered once per sample at load time.
+ *
+ * Generic GM guitar samples carry a "boxy" low-mid build-up around 300 Hz and
+ * a nasal honk near 900 Hz — the two cues that read as fake to listeners.
+ * Taming them, lifting a little presence, and normalizing the peak makes the
+ * same bytes sound noticeably more like a recorded guitar. Running this in an
+ * OfflineAudioContext means the cost is paid once, not on every strum.
+ */
+async function enhanceSampleBuffer(raw: AudioBuffer): Promise<AudioBuffer> {
+  if (typeof OfflineAudioContext === 'undefined') return raw
+
+  try {
+    const offline = new OfflineAudioContext(raw.numberOfChannels, raw.length, raw.sampleRate)
+    const source = offline.createBufferSource()
+    source.buffer = raw
+
+    const rumble = offline.createBiquadFilter()
+    rumble.type = 'highpass'
+    rumble.frequency.value = 55
+    rumble.Q.value = 0.6
+
+    const boxiness = offline.createBiquadFilter()
+    boxiness.type = 'peaking'
+    boxiness.frequency.value = 320
+    boxiness.Q.value = 1.0
+    boxiness.gain.value = -2.6
+
+    const honk = offline.createBiquadFilter()
+    honk.type = 'peaking'
+    honk.frequency.value = 900
+    honk.Q.value = 1.1
+    honk.gain.value = -1.6
+
+    const presence = offline.createBiquadFilter()
+    presence.type = 'peaking'
+    presence.frequency.value = 3400
+    presence.Q.value = 0.9
+    presence.gain.value = 1.8
+
+    source.connect(rumble)
+    rumble.connect(boxiness)
+    boxiness.connect(honk)
+    honk.connect(presence)
+    presence.connect(offline.destination)
+    source.start()
+
+    const rendered = await offline.startRendering()
+
+    // Normalize to a consistent peak so every note responds the same way to
+    // the dynamics mapping, regardless of how loud the source file was.
+    let peak = 0
+    for (let channel = 0; channel < rendered.numberOfChannels; channel += 1) {
+      const data = rendered.getChannelData(channel)
+      for (let i = 0; i < data.length; i += 1) {
+        const absolute = Math.abs(data[i])
+        if (absolute > peak) peak = absolute
+      }
+    }
+    if (peak > 0.001) {
+      const scale = Math.min(2.5, 0.86 / peak)
+      if (Math.abs(scale - 1) > 0.02) {
+        for (let channel = 0; channel < rendered.numberOfChannels; channel += 1) {
+          const data = rendered.getChannelData(channel)
+          for (let i = 0; i < data.length; i += 1) data[i] *= scale
+        }
+      }
+    }
+
+    return rendered
+  } catch {
+    return raw
+  }
 }
 
 /**
@@ -773,8 +958,10 @@ async function loadSample(ctx: AudioContext, note: string): Promise<AudioBuffer 
       const arrayBuffer = await response.arrayBuffer()
       const decoded = await ctx.decodeAudioData(arrayBuffer)
       if (requestGeneration !== sampleGeneration) return null
-      sampleCache.set(canonical, decoded)
-      return decoded
+      const enhanced = await enhanceSampleBuffer(decoded)
+      if (requestGeneration !== sampleGeneration) return null
+      sampleCache.set(canonical, enhanced)
+      return enhanced
     } catch {
       if (requestGeneration === sampleGeneration) unavailableSamples.add(canonical)
       return null
@@ -831,6 +1018,9 @@ class SampledGuitarEngine implements IGuitarEngine {
       duration,
       transientScale: 0.25,
       includePick: true,
+      // The sample already contains the pick attack; a long amplitude ramp
+      // would blur it into a synth-like swell.
+      attackScale: 0.15,
     })
   }
 
@@ -931,6 +1121,17 @@ function playFretScratchNoise(ctx: AudioContext) {
 
 // ── Public playback API ──────────────────────────────────────────────────────
 
+// Every raw strum call flows through a shared Humanizer. Screens that do not
+// run the full Virtual Guitarist pipeline (chord previews, practice beats,
+// pattern playback) still get micro-timing, velocity, and pitch variation —
+// so no code path ever sounds like a metronomic sample trigger.
+let sharedHumanizer: Humanizer | null = null
+
+function getSharedHumanizer() {
+  if (!sharedHumanizer) sharedHumanizer = new Humanizer('natural')
+  return sharedHumanizer
+}
+
 export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2, delaySec = 0) {
   initAudioEngine()
   getActiveEngine().playPluckNote(note, volume, stringIndex, delaySec)
@@ -939,11 +1140,12 @@ export function playPluckNote(note = 'E4', volume = 0.22, stringIndex = 2, delay
 export function triggerGuitarChord(chordName = 'Em', volume = 0.32) {
   if (!isStrummingEnabled) return
   initAudioEngine()
-  const ctx = getAudioContext()
-  if (ctx && lastPlayedChord && lastPlayedChord !== chordName) playFretScratchNoise(ctx)
+  const chordChanged = lastPlayedChord !== '' && lastPlayedChord !== chordName
   lastPlayedChord = chordName
   const voicing = CHORD_NOTES[chordName] ?? DEFAULT_VOICING
-  getActiveEngine().playDownStrum(voicing, volume)
+  // The humanizer emits the fret squeak itself on chord changes.
+  const strum = getSharedHumanizer().humanizeStrum(voicing, 'down', volume, chordChanged)
+  playHumanizedStrum(strum)
 }
 
 export function playGuitarChord(chordName = 'Em', volume = 0.32) {
@@ -953,18 +1155,21 @@ export function playGuitarChord(chordName = 'Em', volume = 0.32) {
 const DEFAULT_EM: GuitarVoicing = ['E2', 'B2', 'E3', 'G3', 'B3', 'E4']
 
 export function playStrum(voicing: GuitarVoicing = DEFAULT_EM, volume = 0.32) {
-  initAudioEngine()
-  getActiveEngine().playDownStrum(voicing, volume)
+  playDownStrum(voicing, volume)
 }
 
 export function playDownStrum(voicing: GuitarVoicing = DEFAULT_EM, volume = 0.32) {
+  if (!isStrummingEnabled) return
   initAudioEngine()
-  getActiveEngine().playDownStrum(voicing, volume)
+  const strum = getSharedHumanizer().humanizeStrum(voicing, 'down', volume, false)
+  playHumanizedStrum(strum)
 }
 
 export function playUpStrum(voicing: GuitarVoicing = DEFAULT_EM, volume = 0.28) {
+  if (!isStrummingEnabled) return
   initAudioEngine()
-  getActiveEngine().playUpStrum(voicing, volume)
+  const strum = getSharedHumanizer().humanizeStrum(voicing, 'up', volume, false)
+  playHumanizedStrum(strum)
 }
 
 export function playMuteStrum(voicing: GuitarVoicing = DEFAULT_EM, volume = 0.12) {
@@ -1036,10 +1241,12 @@ export function playHumanizedStrum(strum: HumanizedStrumInput) {
 
     // Get the buffer (sample or physical model)
     let buffer: AudioBuffer | null = null
+    let isSample = false
     if (currentEngineMode === 'sampled') {
       const sample = sampleCache.get(canonical)
       if (sample) {
         buffer = sample
+        isSample = true
       } else {
         void loadSample(ctx, canonical)
         // Fall through to physical model
@@ -1058,8 +1265,9 @@ export function playHumanizedStrum(strum: HumanizedStrumInput) {
     playBufferVoiceExact(ctx, buffer, note.volume, si, note.delaySec, {
       playbackRate: rate * note.playbackRate,
       duration,
-      transientScale: 0.8,
+      transientScale: isSample ? 0.3 : 0.8,
       includePick: true,
+      attackScale: isSample ? 0.15 : 1,
     })
   }
 }
@@ -1083,7 +1291,10 @@ function playBufferVoiceExact(
   const now = ctx.currentTime + Math.max(0, delaySec)
   // Use EXACT playback rate — no random cents drift (humanizer provides it)
   const playbackRate = Math.max(0.05, options.playbackRate)
-  const requestedDecay = clamp(options.duration, 0.16, 5.0)
+  // Dynamics still shape TONE even when timing/velocity are exact — this is
+  // not randomization, it is the physical response of the string to force.
+  const dyn = dynamicsLevel(volume)
+  const requestedDecay = clamp(options.duration * (0.82 + 0.28 * dyn), 0.16, 5.0)
   const sourceDuration = buffer.duration / playbackRate
   const decay = Math.min(requestedDecay, Math.max(0.16, sourceDuration - 0.04))
   // Use EXACT volume — no random variation (humanizer provides it)
@@ -1095,7 +1306,7 @@ function playBufferVoiceExact(
 
   const lowpass = ctx.createBiquadFilter()
   lowpass.type = 'lowpass'
-  lowpass.frequency.value = Math.min(ctx.sampleRate * 0.45, STRING_BRIGHTNESS[si])
+  lowpass.frequency.value = Math.min(ctx.sampleRate * 0.45, STRING_BRIGHTNESS[si] * (0.55 + 0.6 * dyn))
   lowpass.Q.value = 0.45
 
   const highpass = ctx.createBiquadFilter()
@@ -1118,13 +1329,14 @@ function playBufferVoiceExact(
   const shelf = ctx.createBiquadFilter()
   shelf.type = 'highshelf'
   shelf.frequency.value = 3600
-  shelf.gain.value = tone.shelfGain
+  shelf.gain.value = tone.shelfGain + (dyn - 0.45) * 3.6
 
   const envelope = ctx.createGain()
-  const attack = STRING_ATTACK[si]
+  const attackScale = options.attackScale ?? 1
+  const attack = Math.max(0.0004, STRING_ATTACK[si] * (1.15 - 0.4 * dyn) * attackScale)
   envelope.gain.setValueAtTime(0.0001, now)
   envelope.gain.linearRampToValueAtTime(peak, now + attack)
-  envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.42), now + 0.075)
+  envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.42), now + Math.max(attack + 0.012, 0.075))
   envelope.gain.exponentialRampToValueAtTime(0.0001, now + decay)
 
   const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
@@ -1141,7 +1353,8 @@ function playBufferVoiceExact(
   output.connect(wetBus)
 
   if (options.includePick) {
-    playPickTransient(ctx, now, peak * options.transientScale * tone.transient, si, tone)
+    const transientGain = peak * options.transientScale * tone.transient * (0.55 + 0.75 * dyn)
+    playPickTransient(ctx, now, transientGain, si, tone)
   }
 
   source.start(now)
@@ -1153,13 +1366,24 @@ function playBufferVoiceExact(
 /**
  * Update the master effects chain at runtime.
  * Allows changing reverb, compression, and EQ without rebuilding the graph.
+ *
+ * The AudioContext only exists after a user gesture, but screens apply their
+ * effects preset on mount. Requests made before the graph is built are
+ * buffered and applied the moment buildMaster() runs.
  */
-export function setEffectsConfig(config: {
+type EffectsConfig = {
   reverbMix?: number
   compressionThresholdDb?: number
   compressionRatio?: number
   masterLevel?: number
-}) {
+}
+
+let pendingEffectsConfig: EffectsConfig | null = null
+// Remembered so a rebuilt context (device change, hot reload) restores the
+// session's room tone instead of silently reverting to defaults.
+let lastAppliedEffectsConfig: EffectsConfig | null = null
+
+function applyEffectsConfig(config: EffectsConfig) {
   if (!audioCtx || !masterOut) return
   const now = audioCtx.currentTime
 
@@ -1185,6 +1409,16 @@ export function setEffectsConfig(config: {
       0.05,
     )
   }
+}
+
+export function setEffectsConfig(config: EffectsConfig) {
+  if (!audioCtx || !masterOut) {
+    pendingEffectsConfig = { ...pendingEffectsConfig, ...config }
+    lastAppliedEffectsConfig = { ...lastAppliedEffectsConfig, ...config }
+    return
+  }
+  applyEffectsConfig(config)
+  lastAppliedEffectsConfig = { ...lastAppliedEffectsConfig, ...config }
 }
 
 // Unlock audio after a real user gesture. Creating the context before the
