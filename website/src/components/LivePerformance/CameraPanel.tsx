@@ -40,18 +40,21 @@ export function CameraPanel({ videoRef, canvasRef, cameraReady, cameraError, onE
 
       {/* Camera offline fallback */}
       {!cameraReady && !cameraError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#06060a]">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#050505]">
           <div className="text-center">
-            <div className="w-16 h-16 border-2 border-purple-500/40 border-t-purple-400 rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-white/60 text-sm font-mono">Starting camera…</p>
+            <div
+              className="w-14 h-14 border rounded-full animate-spin mx-auto mb-5"
+              style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: 'var(--gold)' }}
+            />
+            <p className="studio-label">Starting camera</p>
           </div>
         </div>
       )}
       {cameraError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#06060a]">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#050505]">
           <div className="text-center max-w-xs px-6">
-            <p className="text-rose-400 text-sm font-mono mb-4">{cameraError}</p>
-            <button onClick={onEnd} className="text-white/60 text-xs font-mono underline">← Go back</button>
+            <p className="text-[#F0A3A6] text-sm font-light mb-5">{cameraError}</p>
+            <button onClick={onEnd} className="studio-btn studio-btn-ghost !text-[11px] mx-auto">← Go back</button>
           </div>
         </div>
       )}

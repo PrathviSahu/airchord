@@ -12,6 +12,8 @@
   --text:   #FFFFFF;
   --muted:  #A5A5A5;
   --gold:   #C9A84C;
+  --gold-bright: #E3C878;
+  --hairline: rgba(255,255,255,0.08);
   --blue-rim: rgba(96,160,255,0.15);
 }
 
@@ -311,3 +313,399 @@ nav {
 .gold { color: #C9A84C; }
 .gold-border { border-color: rgba(201,168,76,0.3); }
 .gold-bg { background: rgba(201,168,76,0.1); }
+
+/* ═══════════════════════════════════════════════════════════════
+   STUDIO UI — shared primitives for app screens (search, setup,
+   practice, live). Extends the landing page's cinematic monochrome:
+   black surfaces, hairline borders, micro labels, one gold accent.
+════════════════════════════════════════════════════════════════ */
+
+.studio-root {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(201,168,76,0.05), transparent 60%),
+    radial-gradient(900px 500px at 10% 110%, rgba(96,160,255,0.04), transparent 55%),
+    #050505;
+}
+
+.studio-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+}
+.studio-label-gold {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(201,168,76,0.85);
+}
+
+.studio-panel {
+  background: rgba(255,255,255,0.024);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 4px;
+}
+.studio-panel-hover { transition: border-color 0.25s ease, background 0.25s ease; }
+.studio-panel-hover:hover {
+  border-color: rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.04);
+}
+
+/* Glass panel for overlays on top of the camera feed */
+.studio-glass {
+  background: rgba(5,5,5,0.62);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 4px;
+}
+
+/* Buttons */
+.studio-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.studio-btn-primary {
+  background: #fff;
+  color: #050505;
+  padding: 12px 24px;
+}
+.studio-btn-primary:hover { background: rgba(255,255,255,0.88); transform: translateY(-1px); }
+.studio-btn-primary:active { transform: translateY(0); }
+.studio-btn-ghost {
+  background: transparent;
+  color: rgba(255,255,255,0.65);
+  border-color: rgba(255,255,255,0.16);
+  padding: 11px 22px;
+}
+.studio-btn-ghost:hover { border-color: rgba(255,255,255,0.4); color: #fff; }
+.studio-btn-gold {
+  background: var(--gold);
+  color: #0a0a0a;
+  padding: 12px 24px;
+}
+.studio-btn-gold:hover { background: var(--gold-bright); transform: translateY(-1px); }
+
+/* Square icon button */
+.studio-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(5,5,5,0.55);
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(12px);
+}
+.studio-icon:hover { border-color: rgba(255,255,255,0.35); color: #fff; }
+
+/* Chips */
+.studio-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 2px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: transparent;
+  color: rgba(255,255,255,0.5);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+.studio-chip:hover { border-color: rgba(255,255,255,0.28); color: rgba(255,255,255,0.85); }
+.studio-chip-active {
+  background: #fff;
+  border-color: #fff;
+  color: #050505;
+}
+.studio-chip-active:hover { color: #050505; }
+.studio-chip-gold-active {
+  background: rgba(201,168,76,0.12);
+  border-color: rgba(201,168,76,0.55);
+  color: var(--gold-bright);
+}
+
+/* Small mono metadata chip */
+.studio-meta {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.4);
+  padding: 4px 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+/* Hairline divider */
+.studio-hr {
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.09), transparent);
+}
+
+/* Thin scrollbar for studio lists */
+.studio-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
+.studio-scroll::-webkit-scrollbar { width: 3px; height: 3px; }
+.studio-scroll::-webkit-scrollbar-track { background: transparent; }
+.studio-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 2px; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { scrollbar-width: none; }
+
+/* Segmented control (engine / humanizer pickers) */
+.studio-seg {
+  display: grid;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.studio-seg > button {
+  padding: 12px 10px;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.45);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: center;
+}
+.studio-seg > button + button { border-left: 1px solid rgba(255,255,255,0.08); }
+.studio-seg > button:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.03); }
+.studio-seg > button.seg-active {
+  background: rgba(255,255,255,0.07);
+  color: #fff;
+  box-shadow: inset 0 -2px 0 var(--gold);
+}
+
+/* Gold tabular numerals (BPM, timers, capo) */
+.studio-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Range inputs inside studio panels */
+.studio-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1px;
+  background: rgba(255,255,255,0.18);
+  outline: none;
+  cursor: pointer;
+}
+.studio-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--gold);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(201,168,76,0.5);
+}
+.studio-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--gold);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Select */
+.studio-select {
+  appearance: none;
+  background: rgba(5,5,5,0.55);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  color: rgba(255,255,255,0.8);
+  font-size: 12px;
+  padding: 9px 12px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  backdrop-filter: blur(12px);
+}
+.studio-select:hover, .studio-select:focus { border-color: rgba(255,255,255,0.3); }
+
+/* Text input */
+.studio-input {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  color: #fff;
+  font-size: 13px;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  width: 100%;
+}
+.studio-input::placeholder { color: rgba(255,255,255,0.22); }
+.studio-input:focus { border-color: rgba(201,168,76,0.5); background: rgba(255,255,255,0.05); }
+
+/* Beat block (strum pattern cells) */
+.beat-cell {
+  flex: 1;
+  min-width: 30px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 2px;
+  color: rgba(255,255,255,0.45);
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.1s ease;
+  background: rgba(255,255,255,0.02);
+}
+.beat-cell-active {
+  background: #fff;
+  border-color: #fff;
+  color: #050505;
+  box-shadow: 0 0 24px rgba(255,255,255,0.25);
+}
+
+/* Recording dot */
+.rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #E5484D;
+  animation: slow-pulse 1.2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STUDIO UI — depth & motion layer
+════════════════════════════════════════════════════════════════ */
+
+/* Cinematic film grain */
+.film-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* Slow drifting ambient orbs (behind content, above bg) */
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  animation: orb-drift 26s ease-in-out infinite alternate;
+}
+@keyframes orb-drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(40px, -30px) scale(1.12); }
+  100% { transform: translate(-30px, 20px) scale(0.94); }
+}
+
+/* Audition EQ bars (song preview playing) */
+.eq-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.eq-bars span {
+  width: 2px;
+  background: var(--gold);
+  border-radius: 1px;
+  animation: waveform 0.7s ease-in-out infinite;
+}
+.eq-bars span:nth-child(1) { height: 12px; animation-delay: 0s; }
+.eq-bars span:nth-child(2) { height: 12px; animation-delay: 0.18s; }
+.eq-bars span:nth-child(3) { height: 12px; animation-delay: 0.36s; }
+
+/* Beat flash — gold radial pulse behind the performer's chord */
+@keyframes beat-flash {
+  0%   { opacity: 0.45; transform: scale(0.86); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+.beat-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 55% 45% at 50% 52%, rgba(201,168,76,0.16), transparent 70%);
+  animation: beat-flash 0.55s ease-out forwards;
+}
+
+/* Strum strings — six lines that vibrate and fade on every stroke */
+.strings-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, 68vw);
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  pointer-events: none;
+  animation: strings-fade 0.8s ease-out forwards;
+}
+.strings-burst span {
+  display: block;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(227,200,120,0.75) 30%, rgba(227,200,120,0.75) 70%, transparent);
+  animation: string-vibrate 0.09s linear infinite;
+}
+.strings-burst span:nth-child(1) { opacity: 0.9; }
+.strings-burst span:nth-child(2) { opacity: 0.75; animation-delay: 0.02s; }
+.strings-burst span:nth-child(3) { opacity: 0.62; animation-delay: 0.04s; }
+.strings-burst span:nth-child(4) { opacity: 0.5; animation-delay: 0.06s; }
+.strings-burst span:nth-child(5) { opacity: 0.4; animation-delay: 0.08s; }
+.strings-burst span:nth-child(6) { opacity: 0.32; animation-delay: 0.10s; }
+@keyframes strings-fade {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Gold shimmer sweep for primary CTAs */
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -70%;
+  width: 45%;
+  background: linear-gradient(105deg, transparent, rgba(201,168,76,0.35), transparent);
+  transform: skewX(-18deg);
+  animation: shimmer-sweep 3.2s ease-in-out infinite;
+}
+@keyframes shimmer-sweep {
+  0%, 55% { left: -70%; }
+  85%, 100% { left: 130%; }
+}
+
+/* Interactive chord chip in lyrics */
+.chord-hot {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.chord-hot:hover {
+  color: var(--gold-bright) !important;
+  text-shadow: 0 0 18px rgba(201,168,76,0.5);
+}

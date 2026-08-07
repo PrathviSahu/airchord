@@ -106,3 +106,110 @@ npm run lint
 ```
 
 The six website tests pass, website typecheck/build pass, `npm audit --omit=optional` reports zero vulnerabilities, and prototype build/lint pass. The website build still reports a Vite chunk-size warning, which is an optimization task rather than a build failure.
+
+---
+
+# Deep review — 2026-08-07 (post sound-engine + UI redesign)
+
+**Scope:** the audio realism upgrade (`guitarSound.ts`, `Humanizer.ts`), the new
+Studio-monochrome UI (SongSearch/SongSetup/Practice/Live + components), and a
+fresh sweep of the whole `website/` app.
+
+## Executive summary
+
+The redesign is structurally sound: strict TypeScript passes, all 38 engine
+tests pass, the production build succeeds, and every redesigned module
+transforms cleanly through Vite. The gesture → guitarist → humanizer → audio
+pipeline is now coherent and there is exactly **one** audio implementation
+(`utils/guitarSound.ts`) with a re-export shim. I found and fixed one real
+functional bug (effects preset silently dropped) plus small accessibility
+gaps. The remaining issues are payload weight, dead code, and test coverage —
+not correctness.
+
+## Fixed in this pass
+
+| Priority | Finding | Resolution |
+|---|---|---|
+| P1 | `setEffectsConfig()` was called by `LivePerformanceScreen` at mount, **before** any user gesture could create the `AudioContext`. The function early-returned when the master bus was absent, so the session's Room Tone preset (reverb mix / compression) was **never applied** during live play. | Buffered effect requests made before the graph exists (`pendingEffectsConfig`) and applied them in `buildMaster()`. Also remembered the last-applied config (`lastAppliedEffectsConfig`) so a rebuilt context (device change, hot reload) restores the room tone instead of reverting to defaults. |
+| P2 | Icon-only buttons (mute, exit, pause, lyric prev/next, back) had no accessible names. | Added `aria-label`s across `StageHUD`, `Timeline`, `LyricsPanel`, and `PracticeRoomScreen`. |
+
+## Verified correct (no change needed)
+
+- **Audio renderer math.** `dynamicsLevel()` maps the real volume range
+  (landing 0.13 → session 0.38) to 0.2–0.73, which is a sensible spread for
+  the low-pass/shelf/attack scaling. Envelope timing is safe: minimum decay
+  (0.16s) always exceeds attack+hold (≤0.075s), so no envelope can ramp after
+  the source stops. `enhanceSampleBuffer` caps normalization gain at 2.5× and
+  falls back to the raw buffer if `OfflineAudioContext` is unavailable.
+- **Humanizer wiring.** Every raw strum API (`playDownStrum`, `playUpStrum`,
+  `playStrum`, `triggerGuitarChord`) now routes through the shared
+  `Humanizer`, and `GuitaristEngine` already used `playHumanizedStrum`
+  directly — there is **no double-humanization** on any path, and no circular
+  import (`Humanizer.ts` imports nothing).
+- **Upstroke physics** is applied once (in the Humanizer's
+  `directionEmphasis`); the duplicate `UPSTROKE_EMPHASIS` in `scheduleStrum`
+  is now effectively legacy but harmless.
+- **Gesture pipeline.** `useHandTracking` caps inference at 30 FPS, skips
+  duplicate video frames, guards against disposed/stale lifecycles, passes
+  MediaPipe confidence through, and does GPU→CPU delegate fallback. Cleanup
+  closes the landmarker and resets all refs.
+- **Recording lifecycle.** Blob URLs are revoked, timers cleared, late camera
+  streams cancelled, and the recorder stopped on unmount in both practice and
+  live screens.
+- **Transport clock.** Beat timers are drift-corrected; elapsed time and
+  pattern index survive pause/resume.
+
+## Remaining issues (ranked)
+
+### P1 — payload & external dependencies
+1. **`public/models/guitar.glb` is 59 MB** and is fetched for the landing
+   scene (`RealGuitar3D` → `useGLTF`). This dominates first load and dwarfs
+   everything else. Compress with Draco/Meshopt (target <5 MB) or move to a
+   streamed/proxied asset.
+2. **Runtime external dependencies** remain: MediaPipe WASM + hand model
+   (jsdelivr / storage.googleapis.com), FluidR3 SoundFont notes
+   (gleitz.github.io), and LRCLIB lyrics. In this environment
+   `gleitz.github.io` was **unreachable**, meaning sampled audio silently fell
+   back to the Karplus-Strong model. The `setGuitarSampleBaseUrl()` hook
+   exists precisely to vendor samples locally — doing so removes the biggest
+   sound-quality and availability risk.
+
+### P2 — dead code (parallel architecture)
+3. Large modules are referenced by **nothing** in the live app:
+   `core/PerformanceEngine.ts`, `core/TransportEngine.ts` (+ `useTransport`),
+   `hooks/useRecording.ts`, and `engines/Effects/EffectsChain.ts`. They are a
+   second "conductor" design alongside the live `GuitaristEngine`. Either
+   delete them or explicitly mark them as a frozen experiment, so future work
+   doesn't build on the wrong branch. (Recording is implemented inline in both
+   screens, not via `useRecording`.)
+4. The `website` and `prototype` apps still duplicate gesture/audio code
+   (carried from the previous review).
+
+### P2 — test coverage
+5. No tests exercise the audio renderer itself: dynamics mapping, sample
+   enhancement, and the humanized strum paths are untested (needs a Web Audio
+   mock). No Playwright coverage for permission-denied or record/download
+   flows (carried).
+
+### P3 — polish
+6. `PracticeRoomScreen`'s `isMuted` state is now constant `false` (the mute
+   toggle is not surfaced in the redesigned HUD). Either re-add the control or
+   drop the dead state.
+7. Emoji `console.log`s remain in `useHandTracking` (fine for dev, gate them
+   behind an env flag for production).
+8. Vite still warns about >500 kB chunks (optimization task, not a failure).
+9. Hover-audition in the Library calls `initAudioEngine()` and mutates the
+   global `lastPlayedChord`. Harmless, but it is a global side effect from a
+   hover; acceptable for now.
+
+## Validation performed
+
+```bash
+cd website
+npx tsc --noEmit        # pass
+npx vitest run          # 4 files / 38 tests pass
+npm run build           # pass (chunk-size warning only)
+```
+
+All redesigned modules were also fetched through the running Vite dev server
+and transformed with HTTP 200 (no runtime syntax/import errors).

@@ -23,19 +23,58 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="fixed inset-0 bg-[#050508] flex flex-col items-center justify-center z-[9999] select-none font-sans">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.8 }}
-        className="text-center"
-      >
-        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500/20 to-amber-500/20 border border-purple-500/30 flex items-center justify-center text-2xl text-amber-300 shadow-[0_0_30px_rgba(168,85,247,0.3)]">
-          ✨
+      <div className="text-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="w-14 h-14 mx-auto mb-7 rounded-[3px] border flex items-center justify-center"
+          style={{ borderColor: 'rgba(201,168,76,0.45)', boxShadow: '0 0 40px rgba(201,168,76,0.12)' }}
+        >
+          <span className="text-xl font-light" style={{ color: 'var(--gold)' }}>A</span>
+        </motion.div>
+
+        <h1 className="text-xl font-light text-white uppercase flex justify-center pl-[0.4em]">
+          {'AIRCHORD'.split('').map((c, i) => (
+            <motion.span
+              key={i}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 + i * 0.05, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+              style={{ letterSpacing: '0.4em' }}
+            >
+              {c}
+            </motion.span>
+          ))}
+        </h1>
+
+        {/* Gold waveform */}
+        <div className="flex items-end justify-center gap-[3px] h-4 mt-5">
+          {Array.from({ length: 16 }, (_, i) => (
+            <span
+              key={i}
+              className="anim-waveform w-[2px] rounded-full"
+              style={{
+                height: 14,
+                background: 'rgba(201,168,76,0.65)',
+                animationDelay: `${i * 0.06}s`,
+                animationDuration: `${0.6 + (i % 4) * 0.12}s`,
+              }}
+            />
+          ))}
         </div>
-        <h1 className="text-2xl font-black tracking-widest text-white uppercase">AIRCHORD</h1>
-        <p className="text-xs font-mono text-purple-400 mt-1">AI GUITAR PERFORMANCE STUDIO</p>
-      </motion.div>
-      <div className="absolute bottom-10 text-[10px] font-mono text-white/30">Loading Audio Engine & 3D Stage...</div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.55, duration: 0.7 }}
+          className="text-[10px] font-mono tracking-[0.22em] mt-4 uppercase"
+          style={{ color: 'rgba(201,168,76,0.7)' }}
+        >
+          AI Guitar Performance Studio
+        </motion.p>
+      </div>
+      <div className="absolute bottom-10 text-[9px] font-mono tracking-[0.25em] text-white/25 uppercase">Loading audio engine</div>
     </div>
   )
 }

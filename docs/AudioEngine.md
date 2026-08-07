@@ -6,6 +6,17 @@ The current website engine is implemented in `website/src/utils/guitarSound.ts` 
 
 This document contains the target architecture as well as the current browser implementation. Claims about a studio-quality multi-sample bank, fixed 48 kHz output, Tone.Transport scheduling, and all-instrument preloading are future targets—not guarantees of the current website build. For the implementation audit and remaining work, see [`CodeReview.md`](./CodeReview.md).
 
+### Realism Upgrade (August 2026)
+
+The renderer was reworked to sound less "MIDI" without changing any sound source:
+
+- **Faked velocity layers** — single-velocity samples cannot change tone by themselves, so every voice now maps stroke intensity to timbre: harder strokes open the low-pass cutoff, lift the air shelf, shorten the attack/decay, and push the pick transient; soft strokes sit dark and warm.
+- **Preserved sample transients** — sample playback uses a near-zero amplitude attack (`attackScale`) so the recorded pick attack is not sanded off by an envelope swell.
+- **Corrective sample EQ** — each SoundFont note is rendered once through an `OfflineAudioContext` (boxy 320 Hz and nasal 900 Hz cuts, presence lift, peak normalization) before caching.
+- **Humanizer on every path** — `playDownStrum`/`playUpStrum`/`playStrum`/`triggerGuitarChord` now route through the Humanizer, so previews, practice beats, and pattern playback all get micro-timing, velocity, and pitch variation.
+- **Upstroke physics** — bass strings are de-emphasized on upstrokes (the pick leaves the strings before reaching them) and the sweep speed scales with stroke intensity.
+- **Improved master chain** — small-room IR with pre-delay and discrete early reflections, high-cut before the convolver, gentle tanh saturation for harmonic glue, and `latencyHint: 'interactive'` for minimum output latency.
+
 ---
 
 ## 2. Architecture

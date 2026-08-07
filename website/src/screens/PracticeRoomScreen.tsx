@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+// ── Freestyle Practice Room ───────────────────────────────────────────────────
+// Studio monochrome redesign. All camera/tracking/recording logic unchanged —
+// only the HUD language changed: black glass, hairlines, gold on live values.
+
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Play, Pause, Download, RotateCcw, Volume2, VolumeX, Mic } from 'lucide-react'
+import { ArrowLeft, Play, Pause, Download, RotateCcw, Mic, Plus, Minus, X } from 'lucide-react'
 import type { SessionConfig } from './SongSetupScreen'
 import {
   initAudioEngine,
@@ -20,13 +24,13 @@ import { GestureEngine } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
 import { drawHandSkeleton } from '../utils/handTracker'
 
-const FINGER_EMOJI = ['✊', '☝️', '✌️', '🤟', '🖐️', '✋']
+const GESTURE_LABELS = ['Fist', 'One', 'Two', 'Three', 'Four', 'Open']
 
 const STRUM_PRESETS: { name: string; pattern: string[]; display: string; style: PlayStyle }[] = [
   { name: '8-Stroke Ballad', pattern: ['D', '.', 'D', 'U', '.', 'U', 'D', 'U'], display: '↓ • ↓ ↑ • ↑ ↓ ↑', style: 'ballad' },
   { name: 'Pop Strum',       pattern: ['D', 'D', 'U', 'U', 'D', 'U'],            display: '↓ ↓ ↑ ↑ ↓ ↑',     style: 'pop' },
   { name: 'Campfire Folk',   pattern: ['D', '.', 'D', 'U', 'D', 'U'],            display: '↓ • ↓ ↑ ↓ ↑',     style: 'campfire' },
-  { name: 'Driving Rock',    pattern: ['D', 'D', 'D', 'D', 'D', 'D', 'D', 'D'],   display: '↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓', style: 'pop' },
+  { name: 'Driving Rock',   pattern: ['D', 'D', 'D', 'D', 'D', 'D', 'D', 'D'],   display: '↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓', style: 'pop' },
 ]
 
 interface PracticeRoomScreenProps {
@@ -39,6 +43,8 @@ const AVAILABLE_CHORDS = [
   'Bm', 'B7', 'F#m', 'C#m', 'Cadd9', 'Dsus2', 'Dsus4',
   'Am7', 'E', 'A', 'B', 'G7', 'E7', 'A7', 'D7', 'Dm'
 ]
+
+const STROKE_GLYPH = (s: string) => s === 'D' || s === '↓' ? '↓' : s === 'U' || s === '↑' ? '↑' : s === 'X' || s === '✕' ? '✕' : '•'
 
 export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScreenProps) {
   // Config defaults for Pro Jam Room & Editable Finger Mapping
@@ -90,7 +96,7 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
 
   // Audio & Playback state
   const [isPlaying, setIsPlaying] = useState(false)
-  const [isMuted, setIsMuted]     = useState(false)
+  const [isMuted] = useState(false)
   const [activeBeat, setActiveBeat] = useState(-1)
 
   // Camera & Tracking State
@@ -134,13 +140,9 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
     if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current)
   }, [])
 
-  // ── Apply Capo ───────────────────────────────────────────────────────
-  useEffect(() => {
-    setCapoFret(capo)
-  }, [capo])
+  // ── Apply Capo ────────────────────────────────────────────────────────
+  useEffect(() => { setCapoFret(capo) }, [capo])
 
-  // Mute the actual audio bus as well as stopping future beat triggers. This
-  // prevents a strum tail from continuing after the HUD mute button is pressed.
   useEffect(() => {
     setAudioMuted(isMuted)
     return () => setAudioMuted(false)
@@ -165,12 +167,9 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
           })
         } catch {
-          // Camera practice should still work if the user declines the mic.
           stream = await navigator.mediaDevices.getUserMedia({ video })
         }
 
-        // Navigation can unmount the screen while getUserMedia is pending.
-        // Stop the late stream instead of attaching it to a dead component.
         if (cancelled) {
           stream.getTracks().forEach(track => track.stop())
           return
@@ -278,8 +277,6 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
       )
     }
 
-    // Put the downbeat on the musical start instead of waiting a full beat.
-    // Drift-correct the timer so a long jam does not gradually move off tempo.
     playNextBeat()
     let nextBeatAt = performance.now() + beatMs
     let timerId = window.setTimeout(scheduleNextBeat, beatMs)
@@ -376,304 +373,257 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
   }
 
   return (
-    <div className="relative w-full h-screen bg-[#050508] overflow-hidden select-none font-sans text-white">
+    <div className="relative w-full h-screen bg-[#050505] overflow-hidden select-none text-white">
 
-      {/* ── Background Video / Canvas Feed ── */}
+      {/* ── Camera feed + skeleton ── */}
       <video
         ref={videoRef}
         playsInline
         muted
-        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-75"
+        className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+        style={{ opacity: 0.85 }}
       />
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1] pointer-events-none z-10"
       />
 
-      {/* Subtle vignette gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 pointer-events-none z-10" />
+      {/* Cinematic vignette */}
+      <div
+        className="absolute inset-0 pointer-events-none z-10"
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.12) 30%, rgba(0,0,0,0.12) 60%, rgba(0,0,0,0.85) 100%)' }}
+      />
+      <div className="film-grain z-10" />
 
-      {/* ── Top Header Controls Bar ── */}
-      <div className="absolute top-0 left-0 right-0 z-20 p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap">
-
-        {/* Back Button & Title */}
+      {/* ═══ TOP BAR ═══ */}
+      <div className="absolute top-0 left-0 right-0 z-20 px-4 sm:px-8 py-4 flex items-center justify-between gap-3 flex-wrap">
+        {/* Left: identity */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="w-10 h-10 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/80 transition-all"
-          >
-            <ArrowLeft className="w-5 h-5" />
+          <button onClick={onBack} className="studio-icon" aria-label="Back">
+            <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-500/30 text-purple-300 font-mono text-[10px] font-bold uppercase tracking-wider">
-                PRO PRACTICE ROOM
+            <p className="studio-label-gold" style={{ fontSize: 9 }}>Freestyle Room</p>
+            <p className="text-[13px] font-light text-white/90 flex items-center gap-2.5 mt-0.5">
+              Practice &amp; Record
+              <span className="flex items-center gap-1.5 text-[10px] font-mono" style={{ color: micReady ? '#7FBF8E' : 'rgba(255,255,255,0.3)' }}>
+                <Mic className="w-3 h-3" strokeWidth={1.5} /> {micReady ? 'Mic live' : 'No mic'}
               </span>
-              <span className={`text-xs font-mono flex items-center gap-1 ${micReady ? 'text-emerald-400' : 'text-white/35'}`}>
-                <Mic className="w-3 h-3" /> {micReady ? 'Live Mic On' : 'Mic Optional'}
-              </span>
-            </div>
-            <h1 className="text-lg font-black tracking-tight text-white mt-0.5">Freestyle Jam & Record</h1>
+            </p>
           </div>
         </div>
 
-        {/* Pro Controls: Capo + BPM + Strum Pattern */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-
-          {/* Capo Selector */}
-          <div className="flex items-center gap-1 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-3 py-1.5">
-            <span className="text-[10px] font-mono text-white/40 uppercase mr-1">Capo</span>
+        {/* Right: session controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Capo */}
+          <div className="studio-glass flex items-center gap-1 px-3 py-2">
+            <span className="studio-label mr-1" style={{ fontSize: 8 }}>Capo</span>
             {[0, 1, 2, 3, 4, 5, 6, 7].map(fret => (
               <button
                 key={fret}
-                onClick={() => {
-                  initAudioEngine()
-                  setCapo(fret)
-                }}
-                className={`w-6 h-6 rounded-lg font-mono text-xs font-bold transition-all ${
-                  capo === fret
-                    ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20 scale-105'
-                    : 'text-white/40 hover:text-white hover:bg-white/10'
-                }`}
+                onClick={() => { initAudioEngine(); setCapo(fret) }}
+                className="studio-num w-6 h-6 rounded-[2px] text-[11px] font-semibold transition-all"
+                style={capo === fret
+                  ? { background: 'var(--gold)', color: '#0a0a0a' }
+                  : { color: 'rgba(255,255,255,0.4)' }}
               >
                 {fret}
               </button>
             ))}
           </div>
 
-          {/* BPM Controls */}
-          <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-3 py-1.5">
-            <span className="text-[10px] font-mono text-white/40 uppercase">BPM</span>
-            <button
-              onClick={() => setBpm(b => Math.max(40, b - 5))}
-              className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/70 font-mono text-xs"
-            >
-              -
+          {/* BPM */}
+          <div className="studio-glass flex items-center gap-2 px-3 py-2">
+            <span className="studio-label" style={{ fontSize: 8 }}>BPM</span>
+            <button onClick={() => setBpm(b => Math.max(40, b - 5))} className="text-white/50 hover:text-white transition-colors">
+              <Minus className="w-3.5 h-3.5" />
             </button>
-            <span className="font-mono text-sm font-black text-amber-300 min-w-[32px] text-center">
-              {bpm}
-            </span>
-            <button
-              onClick={() => setBpm(b => Math.min(200, b + 5))}
-              className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/70 font-mono text-xs"
-            >
-              +
+            <span className="studio-num text-sm font-semibold min-w-[30px] text-center" style={{ color: 'var(--gold-bright)' }}>{bpm}</span>
+            <button onClick={() => setBpm(b => Math.min(200, b + 5))} className="text-white/50 hover:text-white transition-colors">
+              <Plus className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* Strum Pattern Selector */}
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedPresetIdx}
-              onChange={e => {
-                setSelectedPresetIdx(Number(e.target.value))
-                setCustomPattern(null)
-              }}
-              className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-3 py-2 text-xs font-mono text-white/80 outline-none cursor-pointer hover:border-white/20 transition-all"
-            >
-              {STRUM_PRESETS.map((p, idx) => (
-                <option key={idx} value={idx} className="bg-neutral-900 text-white">
-                  {p.name} ({p.display})
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => setShowPatternModal(true)}
-              className="px-3 py-2 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 hover:border-amber-400/40 text-amber-300 font-mono text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer hover:bg-black/80"
-            >
-              <span>✏️ Edit Pattern</span>
-            </button>
-          </div>
-
-          {/* Recording Button */}
-          {!isRecording ? (
-            <button
-              onClick={handleStartRecording}
-              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-600/90 hover:bg-red-500 text-white font-mono text-xs font-bold shadow-lg shadow-red-600/30 transition-all active:scale-95"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
-              Record Performance
-            </button>
-          ) : (
-            <button
-              onClick={handleStopRecording}
-              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-600 text-white font-mono text-xs font-bold border border-white/30 animate-pulse shadow-lg shadow-red-600/40 transition-all"
-            >
-              <span className="w-2.5 h-2.5 rounded-sm bg-white" />
-              Recording {formatRecTime(recordingTime)} (Stop)
-            </button>
-          )}
-
-          {/* Play / Pause Metronome Strum Toggle */}
-          <button
-            onClick={() => {
-              initAudioEngine()
-              setIsPlaying(p => !p)
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-mono text-xs font-bold transition-all shadow-lg ${
-              isPlaying
-                ? 'bg-amber-400 text-black shadow-amber-400/20 hover:bg-amber-300'
-                : 'bg-purple-600 text-white shadow-purple-600/30 hover:bg-purple-500'
-            }`}
+          {/* Pattern */}
+          <select
+            value={selectedPresetIdx}
+            onChange={e => { setSelectedPresetIdx(Number(e.target.value)); setCustomPattern(null) }}
+            className="studio-select hidden sm:block"
           >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-            {isPlaying ? 'Pause Metronome' : 'Start Strumming'}
+            {STRUM_PRESETS.map((p, idx) => (
+              <option key={idx} value={idx} className="bg-[#0a0a0a]">{p.name}</option>
+            ))}
+          </select>
+          <button onClick={() => setShowPatternModal(true)} className="studio-btn studio-btn-ghost !py-2 !px-3.5 !text-[10px]">
+            Edit Pattern
+          </button>
+
+          {/* Record */}
+          <button
+            onClick={isRecording ? handleStopRecording : handleStartRecording}
+            className="studio-btn !py-2 !px-4 !text-[11px] transition-all"
+            style={isRecording
+              ? { background: '#E5484D', color: '#fff', border: '1px solid rgba(255,255,255,0.3)' }
+              : { background: 'rgba(229,72,77,0.12)', color: '#F0A3A6', border: '1px solid rgba(229,72,77,0.45)' }}
+          >
+            <span className={isRecording ? 'w-2 h-2 bg-white rounded-[1px]' : 'rec-dot'} />
+            {isRecording ? `Stop · ${formatRecTime(recordingTime)}` : 'Record'}
+          </button>
+
+          {/* Play */}
+          <button
+            onClick={() => { initAudioEngine(); setIsPlaying(p => !p) }}
+            className="studio-btn !py-2 !px-5 !text-[11px]"
+            style={isPlaying
+              ? { background: 'var(--gold)', color: '#0a0a0a' }
+              : { background: '#fff', color: '#050505' }}
+          >
+            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+            {isPlaying ? 'Pause' : 'Start Strumming'}
           </button>
         </div>
       </div>
 
-      {/* ── Main Pro HUD Display ── */}
-      <div className="absolute inset-0 z-10 flex flex-col justify-between p-6 pointer-events-none pt-24 pb-28">
-
-        {/* Top Floating Key / Chord Status */}
-        <div className="flex justify-between items-start">
-          <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-5 py-3">
-            <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Active Tuning</p>
-            <p className="text-sm font-bold text-amber-300 font-mono mt-0.5">
-              Standard E {capo > 0 ? `(Capo ${capo})` : '(No Capo)'}
-            </p>
+      {/* ═══ CENTER — detected chord ═══ */}
+      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
+        {/* Gold pulse + vibrating strings on every strummed beat */}
+        {isPlaying && activeBeat >= 0 && (
+          <div key={`fx-${activeBeat}`} className="absolute inset-0 flex items-center justify-center">
+            <div className="beat-flash" />
+            <div className="strings-burst">
+              <span /><span /><span /><span /><span /><span />
+            </div>
           </div>
+        )}
 
-          <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-5 py-3 text-right">
-            <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Selected Groove</p>
-            <p className="text-sm font-mono font-bold text-white mt-0.5">{activePreset.name}</p>
-            <p className="text-xs font-mono text-amber-400 tracking-wider mt-0.5">{activePreset.display}</p>
-          </div>
-        </div>
-
-        {/* Center Detected Chord Badge */}
-        <div className="flex flex-col items-center justify-center text-center">
+        <AnimatePresence mode="wait">
           <motion.div
             key={detectedChord}
-            initial={{ scale: 0.85, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="relative"
+            initial={{ opacity: 0, scale: 0.94, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 1.02, y: -6 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="text-center relative"
           >
-            <div className="text-7xl mb-2">
-              {FINGER_EMOJI[detectedFingers] || '🎸'}
-            </div>
+            <p className="studio-label mb-3">Now sounding</p>
             <div
-              className="font-black text-amber-300 tracking-tight leading-none drop-shadow-[0_0_40px_rgba(251,191,36,0.5)]"
-              style={{ fontSize: 110 }}
+              className="font-light text-white leading-none"
+              style={{ fontSize: 'clamp(90px, 16vh, 150px)', letterSpacing: '-0.04em', textShadow: '0 4px 60px rgba(0,0,0,0.6)' }}
             >
               {detectedChord}
             </div>
-            <p className="text-xs font-mono text-white/50 uppercase tracking-widest mt-2">
-              Detected ({detectedFingers} finger{detectedFingers !== 1 ? 's' : ''})
+            <div className="mx-auto mt-4 w-16 h-px" style={{ background: 'var(--gold)' }} />
+            <p className="text-[11px] font-mono text-white/45 mt-3 uppercase tracking-[0.25em]">
+              {GESTURE_LABELS[detectedFingers] ?? '—'} · {detectedFingers} finger{detectedFingers !== 1 ? 's' : ''}
             </p>
           </motion.div>
-        </div>
+        </AnimatePresence>
+      </div>
 
-        {/* Bottom Finger Reference Bar — Click any finger card to edit its mapped chord! */}
-        <div className="flex items-center justify-center gap-2 flex-wrap pointer-events-auto">
+      {/* ═══ BOTTOM — gesture map + metronome ═══ */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-8 pb-4 sm:pb-6 space-y-2.5">
+        {/* Beat visualizer */}
+        {isPlaying && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="studio-glass px-4 sm:px-5 py-3 flex items-center gap-4"
+          >
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
+              <span className="rec-dot" style={{ background: 'var(--gold)' }} />
+              <span className="studio-num text-[11px] font-mono text-white/50">{bpm} BPM</span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-1 max-w-2xl mx-auto">
+              {strumPattern.map((stroke, i) => (
+                <button
+                  key={i}
+                  onClick={() => toggleBeat(i)}
+                  title="Click to cycle stroke"
+                  className={`beat-cell cursor-pointer ${activeBeat === i ? 'beat-cell-active' : 'hover:border-white/30'}`}
+                >
+                  {STROKE_GLYPH(stroke)}
+                </button>
+              ))}
+            </div>
+            <span className="studio-num hidden sm:block text-[11px] font-mono text-white/35 shrink-0">
+              {activeBeat >= 0 ? activeBeat + 1 : '–'}/{strumPattern.length}
+            </span>
+          </motion.div>
+        )}
+
+        {/* Gesture map */}
+        <div className="flex items-center justify-center gap-1.5 flex-wrap">
           {fingerMapping.map((chord, idx) => (
             <button
               key={idx}
-              onClick={() => {
-                initAudioEngine()
-                setEditingFingerIdx(idx)
-                setCustomInput(chord)
-                setCustomChordError('')
-              }}
-              title="Click to edit chord for this finger count"
-              className={`px-3.5 py-2 rounded-xl border font-mono text-xs flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                detectedFingers === idx
-                  ? 'bg-amber-400 text-black border-amber-400 font-black scale-110 shadow-lg shadow-amber-400/30'
-                  : 'bg-black/70 text-white/80 border-white/15 hover:border-amber-400/40 hover:bg-black/90'
-              }`}
+              onClick={() => { initAudioEngine(); setEditingFingerIdx(idx); setCustomInput(chord); setCustomChordError('') }}
+              title="Edit chord for this gesture"
+              className="studio-glass flex items-center gap-2.5 px-3.5 py-2.5 transition-all hover:border-white/25"
+              style={detectedFingers === idx ? { borderColor: 'rgba(201,168,76,0.6)', background: 'rgba(201,168,76,0.1)' } : {}}
             >
-              <span>{FINGER_EMOJI[idx]}</span>
-              <span className="font-bold text-amber-300">{chord}</span>
-              <span className="text-[10px] opacity-60">({idx}f)</span>
-              <span className="text-[10px] text-amber-400/80 ml-1">✏️</span>
+              <span
+                className="studio-num w-5 h-5 flex items-center justify-center text-[10px] font-bold border rounded-[2px]"
+                style={detectedFingers === idx
+                  ? { background: 'var(--gold)', borderColor: 'var(--gold)', color: '#0a0a0a' }
+                  : { borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.5)' }}
+              >
+                {idx}
+              </span>
+              <span
+                className="studio-num text-xs font-bold"
+                style={{ color: detectedFingers === idx ? 'var(--gold-bright)' : 'rgba(255,255,255,0.7)' }}
+              >
+                {chord}
+              </span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Bottom Strumming Beat Visualizer ── */}
-      {isPlaying && (
-        <div className="absolute bottom-4 left-6 right-6 z-20 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-            <span className="text-xs font-mono text-white/60">Metronome: {bpm} BPM</span>
-          </div>
-
-          <div className="flex items-center gap-2 flex-1 justify-center max-w-xl pointer-events-auto">
-            {strumPattern.map((stroke, i) => (
-              <motion.button
-                key={i}
-                onClick={() => toggleBeat(i)}
-                title="Click to toggle beat stroke (↓ / ↑ / ✕ / •)"
-                animate={{
-                  scale: activeBeat === i ? 1.25 : 1,
-                  backgroundColor: activeBeat === i ? '#fbbf24' : 'rgba(255,255,255,0.08)',
-                  borderColor: activeBeat === i ? '#f59e0b' : 'rgba(255,255,255,0.1)',
-                }}
-                className={`flex-1 h-9 rounded-xl border flex items-center justify-center font-mono font-black text-sm transition-all cursor-pointer hover:scale-110 active:scale-95 ${
-                  activeBeat === i ? 'text-black shadow-lg shadow-amber-400/30' : 'text-white/70 hover:text-white hover:border-amber-400/50'
-                }`}
-              >
-                {stroke === 'D' || stroke === '↓' ? '↓' : stroke === 'U' || stroke === '↑' ? '↑' : stroke === 'X' || stroke === '✕' ? '✕' : '•'}
-              </motion.button>
-            ))}
-          </div>
-
-          <div className="text-xs font-mono text-white/40">
-            Beat {activeBeat >= 0 ? activeBeat + 1 : '-'}/{strumPattern.length}
-          </div>
-        </div>
-      )}
-
-      {/* ── Recording Preview Modal ── */}
+      {/* ═══ Recording preview modal ═══ */}
       <AnimatePresence>
         {recordedUrl && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-6"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6"
           >
-            <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 max-w-2xl w-full shadow-2xl space-y-4">
-              <div className="flex items-center justify-between">
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12 }}
+              className="bg-[#0a0a0a] border rounded-[4px] p-6 max-w-2xl w-full space-y-5"
+              style={{ borderColor: 'rgba(255,255,255,0.1)' }}
+            >
+              <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-xl font-black text-white">Performance Recorded! 🎬</h2>
-                  <p className="text-xs font-mono text-white/50">Preview your jam recording below</p>
+                  <p className="studio-label-gold mb-1.5">Take complete</p>
+                  <h2 className="text-xl font-light text-white">Performance Recorded</h2>
                 </div>
-                <button
-                  onClick={() => updateRecordedUrl(null)}
-                  className="text-white/40 hover:text-white text-sm font-mono"
-                >
-                  ✕ Close
+                <button onClick={() => updateRecordedUrl(null)} className="studio-icon !w-8 !h-8">
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              <div className="relative aspect-video rounded-2xl overflow-hidden bg-black border border-white/10">
+              <div className="relative aspect-video rounded-[3px] overflow-hidden bg-black border" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
                 <video src={recordedUrl} controls autoPlay className="w-full h-full object-cover" />
               </div>
 
-              <div className="flex items-center justify-between gap-3 pt-2">
-                <button
-                  onClick={() => updateRecordedUrl(null)}
-                  className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-mono text-xs flex items-center gap-2 transition-all"
-                >
-                  <RotateCcw className="w-4 h-4" /> Re-record
+              <div className="flex items-center justify-between gap-3">
+                <button onClick={() => updateRecordedUrl(null)} className="studio-btn studio-btn-ghost !text-[11px]">
+                  <RotateCcw className="w-3.5 h-3.5" /> Re-record
                 </button>
-
-                <a
-                  href={recordedUrl}
-                  download="airchord-jam-session.webm"
-                  className="px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-mono text-xs font-bold flex items-center gap-2 shadow-lg shadow-amber-400/20 transition-all"
-                >
-                  <Download className="w-4 h-4" /> Download Video
+                <a href={recordedUrl} download="airchord-jam-session.webm" className="studio-btn studio-btn-primary !text-[11px]">
+                  <Download className="w-3.5 h-3.5" /> Download Video
                 </a>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Chord Map Editor Modal ── */}
+      {/* ═══ Chord map editor modal ═══ */}
       <AnimatePresence>
         {editingFingerIdx !== null && (
           <motion.div
@@ -683,34 +633,29 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 12 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 12 }}
-              className="bg-neutral-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12 }}
+              className="bg-[#0a0a0a] border rounded-[4px] p-6 max-w-lg w-full space-y-5"
+              style={{ borderColor: 'rgba(255,255,255,0.1)' }}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2">
-                    <span>{FINGER_EMOJI[editingFingerIdx]}</span> Edit Chord for {editingFingerIdx} Finger{editingFingerIdx !== 1 ? 's' : ''}
-                  </h2>
-                  <p className="text-xs font-mono text-white/50">Pick a chord from the preset list or type any custom chord</p>
+                  <p className="studio-label-gold mb-1.5">Gesture {editingFingerIdx} — {GESTURE_LABELS[editingFingerIdx]}</p>
+                  <h2 className="text-lg font-light text-white">Map a chord to this hand shape</h2>
                 </div>
-                <button
-                  onClick={() => setEditingFingerIdx(null)}
-                  className="text-white/40 hover:text-white text-sm font-mono px-2 py-1"
-                >
-                  ✕ Close
+                <button onClick={() => setEditingFingerIdx(null)} className="studio-icon !w-8 !h-8">
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              {/* Custom Input */}
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={customInput}
                   onChange={e => setCustomInput(e.target.value)}
-                  placeholder="e.g. Dsus2, F#m, Cadd9..."
-                  className="flex-1 bg-black/50 border border-white/15 rounded-xl px-4 py-2.5 text-sm font-mono text-white outline-none focus:border-amber-400"
+                  placeholder="Dsus2, F#m, Cadd9…"
+                  className="studio-input font-mono !text-sm"
                 />
                 <button
                   onClick={() => {
@@ -729,17 +674,16 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
                     setCustomChordError('')
                     setEditingFingerIdx(null)
                   }}
-                  className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-black font-mono text-xs font-bold rounded-xl shadow-lg shadow-amber-400/20 transition-all"
+                  className="studio-btn studio-btn-gold !text-[11px] shrink-0"
                 >
-                  Apply Chord
+                  Apply
                 </button>
               </div>
               {customChordError && (
-                <p className="text-xs font-mono text-rose-300" role="alert">{customChordError}</p>
+                <p className="text-xs font-mono text-[#F0A3A6]" role="alert">{customChordError}</p>
               )}
 
-              {/* Available Chords Grid */}
-              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-60 overflow-y-auto pr-1">
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 max-h-60 overflow-y-auto studio-scroll pr-1">
                 {AVAILABLE_CHORDS.map(c => (
                   <button
                     key={c}
@@ -750,11 +694,10 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
                       triggerGuitarChord(c, 0.35)
                       setEditingFingerIdx(null)
                     }}
-                    className={`py-2.5 px-3 rounded-xl border font-mono text-xs font-bold transition-all ${
-                      fingerMapping[editingFingerIdx] === c
-                        ? 'bg-amber-400 text-black border-amber-400 shadow-md shadow-amber-400/30 font-black scale-105'
-                        : 'bg-black/50 text-white/80 border-white/10 hover:border-amber-400/50 hover:bg-white/10'
-                    }`}
+                    className="studio-num py-2.5 rounded-[3px] border text-xs font-bold transition-all hover:bg-white/[0.06]"
+                    style={fingerMapping[editingFingerIdx] === c
+                      ? { background: 'var(--gold)', borderColor: 'var(--gold)', color: '#0a0a0a' }
+                      : { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}
                   >
                     {c}
                   </button>
@@ -765,7 +708,7 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
         )}
       </AnimatePresence>
 
-      {/* ── Pattern Editor Modal ── */}
+      {/* ═══ Pattern editor modal ═══ */}
       <AnimatePresence>
         {showPatternModal && (
           <motion.div
@@ -775,70 +718,57 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 12 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 12 }}
-              className="bg-neutral-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12 }}
+              className="bg-[#0a0a0a] border rounded-[4px] p-6 max-w-lg w-full space-y-5"
+              style={{ borderColor: 'rgba(255,255,255,0.1)' }}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2">
-                    <span>🥁</span> Edit Strumming Pattern
-                  </h2>
-                  <p className="text-xs font-mono text-white/50">Click any beat block to cycle stroke (Down ↓ / Up ↑ / Mute ✕ / Rest •)</p>
+                  <p className="studio-label-gold mb-1.5">Rhythm</p>
+                  <h2 className="text-lg font-light text-white">Edit strum pattern</h2>
+                  <p className="text-[11px] font-mono text-white/30 mt-1">Click any beat to cycle ↓ / ↑ / ✕ / •</p>
                 </div>
-                <button
-                  onClick={() => setShowPatternModal(false)}
-                  className="text-white/40 hover:text-white text-sm font-mono px-2 py-1"
-                >
-                  ✕ Close
+                <button onClick={() => setShowPatternModal(false)} className="studio-icon !w-8 !h-8">
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              {/* Beat Blocks Editor Grid */}
-              <div className="flex items-center justify-center gap-2 flex-wrap bg-black/50 p-4 rounded-2xl border border-white/10">
+              <div className="flex items-center justify-center gap-1.5 flex-wrap bg-white/[0.02] p-4 rounded-[3px] border" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
                 {strumPattern.map((stroke, i) => (
                   <button
                     key={i}
                     onClick={() => toggleBeat(i)}
-                    className="w-12 h-14 rounded-xl bg-amber-400/10 border border-amber-400/30 hover:border-amber-400 hover:bg-amber-400/20 text-amber-300 font-mono font-black text-lg flex flex-col items-center justify-center transition-all scale-100 hover:scale-105 active:scale-95 cursor-pointer"
+                    className="w-12 h-14 rounded-[3px] border flex flex-col items-center justify-center gap-1 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                    style={{ borderColor: 'rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.06)' }}
                   >
-                    <span>{stroke === 'D' || stroke === '↓' ? '↓' : stroke === 'U' || stroke === '↑' ? '↑' : stroke === 'X' || stroke === '✕' ? '✕' : '•'}</span>
-                    <span className="text-[9px] text-white/40 font-normal">B{i + 1}</span>
+                    <span className="text-lg font-bold" style={{ color: 'var(--gold-bright)' }}>{STROKE_GLYPH(stroke)}</span>
+                    <span className="studio-num text-[9px] font-mono text-white/30">B{i + 1}</span>
                   </button>
                 ))}
               </div>
 
-              {/* Pattern Controls: Add / Remove / Reset */}
-              <div className="flex items-center justify-between gap-3 pt-2">
+              <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => {
-                      if (strumPattern.length > 2) {
-                        setCustomPattern(strumPattern.slice(0, -1))
-                      }
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-mono text-xs border border-white/10"
+                    onClick={() => { if (strumPattern.length > 2) setCustomPattern(strumPattern.slice(0, -1)) }}
+                    className="studio-btn studio-btn-ghost !py-2 !px-3.5 !text-[10px]"
                   >
-                    − Beat
+                    <Minus className="w-3 h-3" /> Beat
                   </button>
                   <button
-                    onClick={() => {
-                      if (strumPattern.length < 16) {
-                        setCustomPattern([...strumPattern, 'D'])
-                      }
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-mono text-xs border border-white/10"
+                    onClick={() => { if (strumPattern.length < 16) setCustomPattern([...strumPattern, 'D']) }}
+                    className="studio-btn studio-btn-ghost !py-2 !px-3.5 !text-[10px]"
                   >
-                    + Beat
+                    <Plus className="w-3 h-3" /> Beat
                   </button>
                 </div>
-
                 <button
                   onClick={() => setCustomPattern(null)}
-                  className="px-4 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-mono text-xs font-bold border border-purple-500/30"
+                  className="studio-btn studio-btn-ghost !py-2 !px-4 !text-[10px]"
                 >
-                  Reset Preset
+                  <RotateCcw className="w-3 h-3" /> Reset preset
                 </button>
               </div>
             </motion.div>
@@ -846,6 +776,25 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
         )}
       </AnimatePresence>
 
+      {/* Camera status states */}
+      {!cameraReady && !cameraError && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#050505]">
+          <div className="text-center">
+            <div className="w-14 h-14 border rounded-full animate-spin mx-auto mb-5" style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: 'var(--gold)' }} />
+            <p className="studio-label">Starting camera</p>
+          </div>
+        </div>
+      )}
+      {cameraError && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#050505]">
+          <div className="text-center max-w-xs px-6">
+            <p className="text-sm font-light text-[#F0A3A6] mb-5">{cameraError}</p>
+            <button onClick={onBack} className="studio-btn studio-btn-ghost !text-[11px] mx-auto">
+              <ArrowLeft className="w-3.5 h-3.5" /> Go back
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -601,6 +601,13 @@ export default function LivePerformanceScreen({ config, onEnd }: LivePerformance
         onEnd={onEnd}
       />
 
+      {/* Gold pulse on every strummed beat — the screen breathes with the music */}
+      {isPlaying && activeBeat >= 0 && (
+        <div key={`beat-flash-${activeBeat}`} className="absolute inset-0 z-10 pointer-events-none">
+          <div className="beat-flash" />
+        </div>
+      )}
+
       {/* Countdown */}
       <CountdownOverlay countdown={countdown} chords={song.chords} />
 

@@ -1,5 +1,5 @@
 // ── Countdown Overlay ─────────────────────────────────────────────────────────
-// Shows the 3-2-1 countdown before performance starts
+// Cinematic 3-2-1 before the performance starts.
 
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -16,24 +16,32 @@ export function CountdownOverlay({ countdown, chords }: CountdownOverlayProps) {
         <motion.div
           key={countdown}
           className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none"
-          initial={{ opacity: 0, scale: 1.4 }}
+          initial={{ opacity: 0, scale: 1.25 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.7 }}
-          transition={{ duration: 0.35 }}
+          exit={{ opacity: 0, scale: 0.75 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
         >
-          <p className="text-white/50 text-sm font-mono mb-4 tracking-widest uppercase">Get Ready…</p>
-          <span
-            className="font-black tabular-nums"
-            style={{
-              fontSize: 140,
-              color: 'white',
-              textShadow: '0 0 60px rgba(168,85,247,0.8), 0 0 120px rgba(168,85,247,0.4)',
-            }}
-          >
-            {countdown}
-          </span>
-          <p className="text-white/30 text-xs font-mono mt-4">
-            🎸 {chords.join('  ·  ')}
+          <p className="studio-label mb-6">Get ready</p>
+          <div className="relative flex items-center justify-center">
+            {/* Hairline ring */}
+            <div
+              className="absolute w-56 h-56 rounded-full border anim-slow-pulse"
+              style={{ borderColor: 'rgba(201,168,76,0.25)' }}
+            />
+            <span
+              className="studio-num font-light"
+              style={{
+                fontSize: 150,
+                letterSpacing: '-0.04em',
+                color: '#fff',
+                textShadow: '0 0 80px rgba(201,168,76,0.35)',
+              }}
+            >
+              {countdown}
+            </span>
+          </div>
+          <p className="studio-num text-[11px] font-mono text-white/35 mt-6 tracking-[0.3em]">
+            {chords.join('  ·  ')}
           </p>
         </motion.div>
       )}

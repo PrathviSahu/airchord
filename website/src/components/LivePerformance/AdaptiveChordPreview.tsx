@@ -1,42 +1,26 @@
 // ── Adaptive Chord Preview ────────────────────────────────────────────────────
 //
-// Shows the upcoming hand shape BEFORE the chord arrives.
-//
-//   Current: G
-//     ↓
-//   Next: Em
-//     ↓
-//   [Animated hand showing Em shape fading in]
-//
-// The performer sees the next gesture before it arrives.
-// This is genuinely useful on stage.
+// Telegraphs the next hand shape before the chord arrives:
+//   Current chord → arrow → next chord + gesture number.
 
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-const FINGER_EMOJI = ['✊', '☝️', '✌️', '🤟', '🖐️', '✋']
-const FINGER_NAMES = ['Fist', 'One', 'Peace', 'Three', 'Four', 'Open']
-
-/** Visual representation of a hand shape for a given finger count. */
-const HAND_SHAPES: Record<number, { emoji: string; label: string; description: string }> = {
-  0: { emoji: '✊', label: 'Fist', description: '0 fingers → closed fist' },
-  1: { emoji: '☝️', label: 'Point', description: '1 finger → index up' },
-  2: { emoji: '✌️', label: 'Peace', description: '2 fingers → peace sign' },
-  3: { emoji: '🤟', label: 'Three', description: '3 fingers → ILY sign' },
-  4: { emoji: '🖐️', label: 'Four', description: '4 fingers → four up' },
-  5: { emoji: '✋', label: 'Open', description: '5 fingers → open palm' },
+const GESTURE_LABELS = ['Fist', 'One', 'Two', 'Three', 'Four', 'Open']
+const GESTURE_DESC: Record<number, string> = {
+  0: 'closed fist',
+  1: 'index finger up',
+  2: 'two fingers up',
+  3: 'three fingers up',
+  4: 'four fingers up',
+  5: 'open palm',
 }
 
 interface AdaptiveChordPreviewProps {
-  /** The chord coming up next */
   nextChord: string | undefined
-  /** The finger count needed for the next chord */
   nextFingerCount: number
-  /** Current chord (for contrast) */
   currentChord: string
-  /** Current finger count */
   currentFingerCount: number
-  /** Whether to show the preview */
   visible: boolean
 }
 
@@ -49,89 +33,71 @@ export function AdaptiveChordPreview({
 }: AdaptiveChordPreviewProps) {
   if (!visible || !nextChord || nextFingerCount < 0) return null
 
-  const currentShape = HAND_SHAPES[Math.min(5, Math.max(0, currentFingerCount))] ?? HAND_SHAPES[0]
-  const nextShape = HAND_SHAPES[Math.min(5, Math.max(0, nextFingerCount))] ?? HAND_SHAPES[0]
+  const nextCount = Math.min(5, Math.max(0, nextFingerCount))
   const isChanging = nextChord !== currentChord
 
   return (
     <AnimatePresence>
       {isChanging && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.8, y: 10 }}
+          initial={{ opacity: 0, scale: 0.92, y: 8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.8, y: -10 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          exit={{ opacity: 0, scale: 0.94, y: -6 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           className="relative"
         >
-          {/* Preview card */}
-          <div
-            className="rounded-2xl border px-4 py-2.5 flex items-center gap-3 overflow-hidden"
-            style={{
-              background: 'rgba(168, 85, 247, 0.08)',
-              borderColor: 'rgba(168, 85, 247, 0.25)',
-              backdropFilter: 'blur(16px)',
-            }}
+          <div className="studio-glass px-4 py-2.5 flex items-center gap-4 overflow-hidden"
+            style={{ borderColor: 'rgba(201,168,76,0.3)' }}
           >
-            {/* Current → Next transition */}
-            <div className="flex items-center gap-2">
-              {/* Current shape (fading out) */}
-              <motion.div
-                key={`current-${currentChord}`}
-                initial={{ opacity: 0.5 }}
-                animate={{ opacity: 0.4 }}
-                className="text-center"
-              >
-                <span className="text-xl opacity-50">{currentShape.emoji}</span>
-                <p className="text-[8px] font-mono text-white/30 mt-0.5">{currentChord}</p>
-              </motion.div>
+            {/* Current → Next */}
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="text-center opacity-40">
+                <p className="studio-num text-sm font-bold text-white">{currentChord}</p>
+                <p className="text-[8px] font-mono text-white/30 uppercase tracking-wider mt-0.5">now</p>
+              </div>
 
-              {/* Arrow */}
               <motion.span
                 animate={{ x: [0, 4, 0] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                className="text-purple-400/60 text-sm"
+                transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+                className="text-xs"
+                style={{ color: 'var(--gold)' }}
               >
                 →
               </motion.span>
 
-              {/* Next shape (pulsing in) */}
               <motion.div
                 key={`next-${nextChord}`}
                 initial={{ scale: 0.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
+                transition={{ duration: 0.45, ease: 'easeOut' }}
                 className="text-center"
               >
-                <motion.span
-                  animate={{ scale: [1, 1.08, 1] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="text-2xl inline-block"
-                >
-                  {nextShape.emoji}
-                </motion.span>
-                <p className="text-[9px] font-black text-purple-300 mt-0.5">{nextChord}</p>
+                <p className="studio-num text-base font-bold" style={{ color: 'var(--gold-bright)' }}>{nextChord}</p>
+                <p className="text-[8px] font-mono uppercase tracking-wider mt-0.5" style={{ color: 'rgba(201,168,76,0.6)' }}>next</p>
               </motion.div>
             </div>
 
-            {/* Instruction text */}
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-mono text-purple-300/70 uppercase tracking-wider">
-                Get ready
-              </p>
-              <p className="text-xs font-bold text-white/80 truncate">
-                {nextShape.description}
+            {/* Instruction */}
+            <div className="flex-1 min-w-0 border-l pl-4" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+              <p className="studio-label-gold" style={{ fontSize: 8 }}>Get ready</p>
+              <p className="text-[11px] font-light text-white/75 truncate mt-0.5">
+                {GESTURE_LABELS[nextCount]} hand — {GESTURE_DESC[nextCount]}
               </p>
             </div>
 
             {/* Finger count badge */}
-            <div className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/20 border border-purple-500/30">
-              <span className="text-sm font-black text-purple-300">{nextFingerCount}</span>
+            <div
+              className="studio-num shrink-0 w-9 h-9 rounded-[3px] border flex items-center justify-center text-sm font-bold"
+              style={{ borderColor: 'rgba(201,168,76,0.55)', color: 'var(--gold-bright)', background: 'rgba(201,168,76,0.08)' }}
+            >
+              {nextFingerCount}
             </div>
           </div>
 
-          {/* Progress indicator line (animated) */}
+          {/* Sweep progress line */}
           <motion.div
-            className="absolute bottom-0 left-0 h-0.5 rounded-full bg-gradient-to-r from-purple-500 to-amber-400"
+            className="absolute bottom-0 left-0 h-px"
+            style={{ background: 'var(--gold)' }}
             initial={{ width: '0%' }}
             animate={{ width: '100%' }}
             transition={{ duration: 3, ease: 'linear' }}

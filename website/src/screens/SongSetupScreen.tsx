@@ -1,8 +1,20 @@
-import React, { useState } from 'react'
+// ── Session Setup ─────────────────────────────────────────────────────────────
+// Studio monochrome redesign. Same functionality, calmer hierarchy:
+// lyrics + chord map on the left, grouped session controls on the right.
+
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Play, RotateCcw, Check } from 'lucide-react'
+import { ArrowLeft, Play, RotateCcw, Check, SlidersHorizontal } from 'lucide-react'
 import type { Song } from '../utils/songLibrary'
-import { getEngineMode, setEngineMode, EngineMode } from '../utils/guitarSound'
+import {
+  getEngineMode,
+  setEngineMode,
+  EngineMode,
+  initAudioEngine,
+  triggerGuitarChord,
+  playPatternBeat,
+  CHORD_NOTES,
+} from '../utils/guitarSound'
 
 // ── Strum pattern presets ─────────────────────────────────────────────
 const STRUM_PRESETS = [
@@ -19,11 +31,11 @@ const ALL_CHORDS = [
 ]
 
 const SECTION_COLORS: Record<string, string> = {
-  Intro:  'text-cyan-400 border-cyan-500/30 bg-cyan-500/10',
-  Verse:  'text-blue-400 border-blue-500/30 bg-blue-500/10',
-  Chorus: 'text-purple-400 border-purple-500/30 bg-purple-500/10',
-  Bridge: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
-  Outro:  'text-rose-400 border-rose-500/30 bg-rose-500/10',
+  Intro:  'rgba(143,183,232,0.85)',
+  Verse:  'rgba(255,255,255,0.55)',
+  Chorus: 'rgba(227,200,120,0.9)',
+  Bridge: 'rgba(217,168,110,0.85)',
+  Outro:  'rgba(217,138,138,0.85)',
 }
 
 const STROKE_ALIASES: Record<string, string> = {
@@ -39,12 +51,7 @@ function parseCustomPattern(input: string, fallback: string[]) {
   return parsed.length > 0 ? parsed : fallback
 }
 
-interface SongSetupScreenProps {
-  song: Song
-  onBack: () => void
-  onStartPlaying: (config: SessionConfig) => void
-  onPractice: (config: SessionConfig) => void
-}
+const GESTURE_LABELS = ['Fist', 'One', 'Two', 'Three', 'Four', 'Open']
 
 export interface SessionConfig {
   song: Song
@@ -65,46 +72,64 @@ export interface SessionConfig {
   fingerstylePattern: string
 }
 
-// ── Virtual Guitarist personality options ──────────────────────────────
+// ── Options ────────────────────────────────────────────────────────────
 const PERSONALITY_OPTIONS = [
-  { id: 'campfire', emoji: '🏕️', name: 'Campfire', desc: 'Warm, relaxed' },
-  { id: 'pop', emoji: '🎵', name: 'Pop', desc: 'Clean, rhythmic' },
-  { id: 'bollywood', emoji: '🎬', name: 'Bollywood', desc: 'Emotional, dynamic' },
-  { id: 'rock', emoji: '🎸', name: 'Rock', desc: 'Aggressive, tight' },
-  { id: 'worship', emoji: '🙏', name: 'Worship', desc: 'Ambient, swelling' },
-  { id: 'indie', emoji: '🌿', name: 'Indie', desc: 'Alternative, organic' },
+  { id: 'campfire', name: 'Campfire', desc: 'Warm · relaxed' },
+  { id: 'pop', name: 'Pop', desc: 'Clean · rhythmic' },
+  { id: 'bollywood', name: 'Bollywood', desc: 'Emotional' },
+  { id: 'rock', name: 'Rock', desc: 'Driving · tight' },
+  { id: 'worship', name: 'Worship', desc: 'Ambient swells' },
+  { id: 'indie', name: 'Indie', desc: 'Organic · alt' },
 ]
 
 const HUMANIZER_OPTIONS = [
-  { id: 'tight', emoji: '🎯', name: 'Tight', desc: 'Precise timing' },
-  { id: 'natural', emoji: '🌊', name: 'Natural', desc: 'Human feel' },
-  { id: 'loose', emoji: '🎲', name: 'Loose', desc: 'Raw, expressive' },
+  { id: 'tight', name: 'Tight', desc: 'Precise' },
+  { id: 'natural', name: 'Natural', desc: 'Human feel' },
+  { id: 'loose', name: 'Loose', desc: 'Expressive' },
 ]
 
 const EFFECTS_OPTIONS = [
-  { id: 'acoustic', emoji: '🎸', name: 'Acoustic', desc: 'Balanced' },
-  { id: 'intimate', emoji: '🛋️', name: 'Intimate', desc: 'Close, dry' },
-  { id: 'concert', emoji: '🏟️', name: 'Concert', desc: 'Large hall' },
-  { id: 'warm', emoji: '🕯️', name: 'Warm', desc: 'Mellow tone' },
-  { id: 'campfire', emoji: '🔥', name: 'Campfire', desc: 'Cozy room' },
+  { id: 'acoustic', name: 'Acoustic', desc: 'Balanced' },
+  { id: 'intimate', name: 'Intimate', desc: 'Close · dry' },
+  { id: 'concert', name: 'Concert', desc: 'Large hall' },
+  { id: 'warm', name: 'Warm', desc: 'Mellow' },
+  { id: 'campfire', name: 'Campfire', desc: 'Cozy room' },
 ]
 
 const FINGERSTYLE_PATTERNS = [
-  { id: 'travis', name: 'Travis Picking', desc: 'Alternating bass + melody' },
-  { id: 'arpeggio', name: 'Arpeggio', desc: 'P-I-M-A flowing' },
+  { id: 'travis', name: 'Travis', desc: 'Alternating bass' },
+  { id: 'arpeggio', name: 'Arpeggio', desc: 'Flowing P-I-M-A' },
   { id: 'waltz', name: 'Waltz', desc: 'Oom-pah-pah' },
-  { id: 'campfire', name: 'Boom-Chick', desc: 'Simple bass + strum' },
+  { id: 'campfire', name: 'Boom-Chick', desc: 'Bass + strum' },
 ]
+
+// ── Panel wrapper ─────────────────────────────────────────────────────
+function Panel({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="studio-panel p-5">
+      <div className="flex items-baseline justify-between mb-4">
+        <p className="studio-label">{title}</p>
+        {hint && <p className="text-[10px] font-mono text-white/25">{hint}</p>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+interface SongSetupScreenProps {
+  song: Song
+  onBack: () => void
+  onStartPlaying: (config: SessionConfig) => void
+  onPractice: (config: SessionConfig) => void
+}
 
 export default function SongSetupScreen({ song, onBack, onStartPlaying, onPractice }: SongSetupScreenProps) {
   const songPresetIndex = STRUM_PRESETS.findIndex(p => p.display === song.displayPattern)
   const [capo, setCapo]               = useState(song.capo)
   const [bpm, setBpm]                 = useState(song.bpm)
   const [selectedPreset, setPreset]   = useState(songPresetIndex >= 0 ? songPresetIndex : 0)
-  // Derive finger mapping from song if available, otherwise from song chords + defaults
   const defaultMapping = song.fingerMapping ?? [
     ...song.chords,
-    // Fill remaining slots with common chords not yet used
     ...['Am', 'Em', 'Dm', 'Bm', 'G', 'F'].filter(c => !song.chords.includes(c)),
   ].slice(0, 6)
   const [fingerMapping, setFingerMapping] = useState<string[]>([...defaultMapping])
@@ -138,495 +163,384 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
     }
   }
 
-  const handleStart = () => {
-    onStartPlaying(getConfig())
-  }
+  const handleStart = () => onStartPlaying(getConfig())
+  const handlePractice = () => onPractice(getConfig())
 
-  const handlePractice = () => {
-    onPractice(getConfig())
-  }
+  // ── Audible previews ─────────────────────────────────────────────────
+  const previewTimers = useRef<number[]>([])
+  const clearPreviews = useCallback(() => {
+    previewTimers.current.forEach(t => window.clearTimeout(t))
+    previewTimers.current = []
+  }, [])
+  useEffect(() => () => clearPreviews(), [clearPreviews])
+
+  /** Strum one chord softly — used to audition engine, room tone, mapping. */
+  const previewChord = useCallback((chord: string, volume = 0.24) => {
+    initAudioEngine()
+    triggerGuitarChord(chord, volume)
+  }, [])
+
+  /** Play a full pattern once at the session tempo. */
+  const previewPattern = useCallback((pattern: string[]) => {
+    clearPreviews()
+    initAudioEngine()
+    const chordName = song.chords[0] ?? 'Em'
+    const voicing = CHORD_NOTES[chordName] ?? CHORD_NOTES['Em']!
+    const beatMs = Math.round(60000 / (bpm || 90))
+    pattern.forEach((stroke, i) => {
+      previewTimers.current.push(
+        window.setTimeout(() => playPatternBeat(stroke, voicing, 0.26), i * beatMs)
+      )
+    })
+  }, [clearPreviews, song.chords, bpm])
 
   return (
-    <div
-      className="fixed inset-0 flex flex-col font-sans select-none overflow-y-auto lg:overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #070710 0%, #050508 60%, #080510 100%)' }}
-    >
+    <div className="studio-root fixed inset-0 flex flex-col select-none overflow-y-auto lg:overflow-hidden">
+      {/* Depth layers */}
+      <div className="ambient-orb" style={{ width: 480, height: 480, top: '-16%', left: '30%', background: 'rgba(201,168,76,0.05)' }} />
+      <div className="film-grain" />
       {/* ── Top bar ── */}
-      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-8 py-3 sm:py-4 border-b border-white/5 bg-black/30 backdrop-blur-xl">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-xs sm:text-sm text-white/40 hover:text-white/70 transition-colors font-mono"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Songs
+      <header className="shrink-0 flex items-center justify-between gap-4 px-5 sm:px-10 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <button onClick={onBack} className="flex items-center gap-2.5 text-white/40 hover:text-white transition-colors group">
+          <span className="studio-icon !w-8 !h-8 group-hover:border-white/40"><ArrowLeft className="w-3.5 h-3.5" /></span>
+          <span className="studio-label hidden sm:block">Library</span>
         </button>
 
-        <div className="text-center">
-          <p className="text-[10px] sm:text-xs font-mono text-white/30 uppercase tracking-widest">Step 2 of 3</p>
-          <p className="text-xs sm:text-sm font-black text-white">{song.title}</p>
+        <div className="text-center min-w-0">
+          <p className="studio-label-gold" style={{ fontSize: 9 }}>Step 02 — Session Setup</p>
+          <p className="text-sm text-white font-light truncate mt-0.5">{song.title} <span className="text-white/30">· {song.artist}</span></p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handlePractice}
-            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all"
-          >
-            Practice 🎯
+        <div className="flex items-center gap-2.5">
+          <button onClick={handlePractice} className="studio-btn studio-btn-ghost !py-2.5 !px-4 !text-[11px]">
+            Practice
           </button>
-          <button
-            onClick={handleStart}
-            className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm text-black transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-600/30"
-            style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' }}
-          >
-            <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
-            Start Playing
+          <button onClick={handleStart} className="studio-btn studio-btn-primary !py-2.5 !px-5 !text-[12px]">
+            <Play className="w-3.5 h-3.5 fill-current" /> Start Playing
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* ── Main layout: 2 columns on desktop, stacked on mobile ── */}
+      {/* ── Main layout ── */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-y-auto lg:overflow-hidden">
 
-        {/* ── LEFT: Lyrics + Chords ── */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 border-b lg:border-b-0 lg:border-r border-white/5">
-          {/* Song header */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-black text-white">{song.title}</h1>
-            <p className="text-base text-white/50 mt-0.5">{song.artist}</p>
-            <div className="flex items-center gap-2 mt-3">
-              <span className="text-[11px] font-mono px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white/40">
-                {song.key}
-              </span>
-              <span className="text-[11px] font-mono px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white/40">
-                {song.timeSignature}
-              </span>
-              <span className="text-[11px] font-mono px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white/40">
-                {song.duration}
-              </span>
-            </div>
-            <p className="text-xs text-purple-300/70 font-mono mt-3 bg-purple-500/10 border border-purple-500/20 px-3 py-2 rounded-xl">
-              💡 Each line shows the chord to play while singing that lyric. Use your fingers to match the chord on camera!
-            </p>
-          </div>
+        {/* ═══ LEFT — Song sheet ═══ */}
+        <div className="flex-1 overflow-y-auto studio-scroll px-5 sm:px-10 py-8 border-b lg:border-b-0 lg:border-r" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+          {/* Song hero */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+            <h1 className="text-white font-light" style={{ fontSize: 'clamp(32px, 4vw, 52px)', letterSpacing: '-0.03em', lineHeight: 1.05 }}>
+              {song.title}
+            </h1>
+            <p className="text-white/40 text-sm font-light mt-2">{song.artist}</p>
 
-          {/* Chord legend */}
-          <div className="mb-5 p-4 rounded-2xl bg-white/3 border border-white/8">
-            <p className="text-[10px] font-mono text-white/30 uppercase tracking-wider mb-3">Your Chord Map</p>
-            <div className="flex flex-wrap gap-2">
-              {fingerMapping.map((chord, i) => (
-                <div key={i} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/8">
-                  <span className="text-sm">{['✊','☝️','✌️','🤟','🖐️','✋'][i]}</span>
-                  <span className="text-[10px] font-mono text-white/40">{i}</span>
-                  <span className="text-xs font-black font-mono text-amber-300">{chord}</span>
+            <div className="flex items-center gap-2 mt-5 flex-wrap">
+              <span className="studio-meta">{song.key}</span>
+              <span className="studio-meta">{song.timeSignature}</span>
+              <span className="studio-meta">{song.bpm} BPM</span>
+              <span className="studio-meta">{song.duration}</span>
+              {song.capo > 0 && <span className="studio-meta" style={{ color: 'var(--gold)', borderColor: 'rgba(201,168,76,0.35)' }}>Capo {song.capo}</span>}
+            </div>
+          </motion.div>
+
+          {/* Chord map strip */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08, duration: 0.5 }}
+            className="mt-8 grid grid-cols-3 sm:grid-cols-6 border rounded-[3px] overflow-hidden"
+            style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+          >
+            {fingerMapping.map((chord, i) => (
+              <button
+                key={i}
+                onClick={() => previewChord(chord)}
+                title={`Hear ${chord}`}
+                className="px-3 py-3.5 text-center transition-colors hover:bg-white/[0.03] cursor-pointer"
+                style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}
+              >
+                <p className="studio-label" style={{ fontSize: 8 }}>{GESTURE_LABELS[i]} · {i}</p>
+                <p className="studio-num chord-hot text-lg font-bold mt-1" style={{ color: 'var(--gold)' }}>{chord}</p>
+              </button>
+            ))}
+          </motion.div>
+          <p className="text-[11px] text-white/25 font-light mt-3 leading-relaxed max-w-md">
+            Show the matching hand shape to the camera and the chord plays.
+            Remap any gesture under <span className="text-white/50">Gesture Map</span> on the right.
+          </p>
+
+          {/* Lyrics */}
+          <div className="mt-10">
+            {song.sections.map((section, si) => (
+              <div key={si} className="mb-9">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="studio-label" style={{ fontSize: 9, color: SECTION_COLORS[section.name] ?? 'rgba(255,255,255,0.5)' }}>{section.name}</span>
+                  <div className="flex-1 studio-hr" />
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Lyrics sectioned */}
-          {song.sections.map((section, si) => (
-            <div key={si} className="mb-6">
-              <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border mb-3 ${SECTION_COLORS[section.name] || SECTION_COLORS.Verse}`}>
-                {section.name}
-              </div>
-              <div className="space-y-1">
-                {section.lyrics.map((lyric, li) => {
-                  const fingerIdx = fingerMapping.indexOf(lyric.chord)
-                  const gestureEmoji = fingerIdx >= 0 ? ['✊','☝️','✌️','🤟','🖐️','✋'][fingerIdx] : '🎸'
-                  return (
-                    <div key={li} className="flex items-baseline gap-3 py-2 px-3 rounded-xl hover:bg-white/3 transition-colors group">
-                      {/* Chord badge */}
-                      <div className="shrink-0 flex items-center gap-1">
-                        <span className="text-base font-black font-mono text-amber-300 min-w-[36px]">{lyric.chord}</span>
-                        <span className="text-xs opacity-0 group-hover:opacity-60 transition-opacity">{gestureEmoji}</span>
-                      </div>
-                      {/* Lyric text */}
-                      <span className="text-sm text-white/80 leading-relaxed">{lyric.text}</span>
+                <div>
+                  {section.lyrics.map((lyric, li) => (
+                    <div key={li} className="flex items-baseline gap-5 py-[7px] group rounded-[2px] transition-colors hover:bg-white/[0.02] px-2 -mx-2">
+                      <button
+                        onClick={() => previewChord(lyric.chord, 0.2)}
+                        title={`Hear ${lyric.chord}`}
+                        className="studio-num chord-hot shrink-0 text-sm font-bold min-w-[42px] text-right bg-transparent border-none p-0"
+                        style={{ color: 'var(--gold)' }}
+                      >
+                        {lyric.chord}
+                      </button>
+                      <span className="text-[13.5px] text-white/75 font-light leading-relaxed">{lyric.text}</span>
                     </div>
-                  )
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {/* ── RIGHT: Settings panel ── */}
-        <div className="w-full lg:w-[340px] shrink-0 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5">
-          <p className="text-xs font-mono text-white/30 uppercase tracking-widest mb-4">Performance Settings</p>
-
-          {/* ── Audio Engine Selection ── */}
-          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-white">Audio Engine Driver</p>
-                <p className="text-[10px] text-white/30 font-mono mt-0.5">Pluggable Sound Engine</p>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Modular</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => { setEngineMode('sampled'); setEngineState('sampled') }}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
-                  engineState === 'sampled'
-                    ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
-                    : 'bg-white/3 border-white/8 hover:bg-white/6'
-                }`}
-              >
-                <p className={`text-[11px] font-bold ${engineState === 'sampled' ? 'text-purple-200' : 'text-white/60'}`}>
-                  🎸 Acoustic
-                </p>
-                <p className="text-[9px] font-mono text-amber-300/80 mt-0.5">Sampled</p>
-              </button>
-
-              <button
-                onClick={() => { setEngineMode('nylon'); setEngineState('nylon') }}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
-                  engineState === 'nylon'
-                    ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
-                    : 'bg-white/3 border-white/8 hover:bg-white/6'
-                }`}
-              >
-                <p className={`text-[11px] font-bold ${engineState === 'nylon' ? 'text-purple-200' : 'text-white/60'}`}>
-                  🎶 Nylon
-                </p>
-                <p className="text-[9px] font-mono text-cyan-300/80 mt-0.5">Classical</p>
-              </button>
-
-              <button
-                onClick={() => { setEngineMode('synth'); setEngineState('synth') }}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
-                  engineState === 'synth'
-                    ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
-                    : 'bg-white/3 border-white/8 hover:bg-white/6'
-                }`}
-              >
-                <p className={`text-[11px] font-bold ${engineState === 'synth' ? 'text-purple-200' : 'text-white/60'}`}>
-                  ⚡ Model
-                </p>
-                <p className="text-[9px] font-mono text-white/30 mt-0.5">Offline KS</p>
-              </button>
-            </div>
+        {/* ═══ RIGHT — Controls ═══ */}
+        <div className="w-full lg:w-[380px] shrink-0 overflow-y-auto studio-scroll px-5 sm:px-7 py-8 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <SlidersHorizontal className="w-3 h-3 text-white/30" strokeWidth={1.5} />
+            <p className="studio-label">Performance Settings</p>
           </div>
 
-          {/* ── Virtual Guitarist Personality ── */}
-          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-white">Guitarist Style</p>
-                <p className="text-[10px] text-white/30 font-mono mt-0.5">Virtual Guitarist Personality</p>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">AI</span>
+          {/* ── Sound ── */}
+          <Panel title="Sound Engine">
+            <div className="studio-seg" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              {([
+                { id: 'sampled', name: 'Acoustic', sub: 'Sampled' },
+                { id: 'nylon', name: 'Nylon', sub: 'Classical' },
+                { id: 'synth', name: 'Model', sub: 'Offline' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.id}
+                  className={engineState === opt.id ? 'seg-active' : ''}
+                  onClick={() => {
+                    setEngineMode(opt.id)
+                    setEngineState(opt.id)
+                    // Audition the engine immediately so the choice is heard,
+                    // not guessed. The mode switch is synchronous.
+                    window.setTimeout(() => previewChord(song.chords[0] ?? 'Em'), 30)
+                  }}
+                >
+                  <span className="block">{opt.name}</span>
+                  <span className="block text-[9px] mt-0.5 opacity-50 font-mono uppercase tracking-wider">{opt.sub}</span>
+                </button>
+              ))}
             </div>
+
+            <div className="flex flex-wrap gap-1.5 mt-4">
+              {EFFECTS_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => { setEffectsPreset(opt.id); previewChord(song.chords[0] ?? 'Em', 0.22) }}
+                  className={`studio-chip !py-1.5 ${effectsPreset === opt.id ? 'studio-chip-gold-active' : ''}`}
+                  title={opt.desc}
+                >
+                  {opt.name}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] font-mono text-white/25 mt-3">
+              Room tone — {EFFECTS_OPTIONS.find(o => o.id === effectsPreset)?.desc} · tap any option to hear it
+            </p>
+          </Panel>
+
+          {/* ── Guitarist ── */}
+          <Panel title="Virtual Guitarist">
             <div className="grid grid-cols-3 gap-1.5">
               {PERSONALITY_OPTIONS.map(opt => (
                 <button
                   key={opt.id}
                   onClick={() => setPersonality(opt.id)}
-                  className={`p-2 rounded-xl border text-left transition-all ${
-                    personality === opt.id
-                      ? 'bg-purple-600/25 border-purple-500/50 shadow-md shadow-purple-600/20'
-                      : 'bg-white/3 border-white/8 hover:bg-white/6'
-                  }`}
+                  className="px-2 py-2.5 rounded-[3px] border text-center transition-all"
+                  style={{
+                    borderColor: personality === opt.id ? 'rgba(201,168,76,0.55)' : 'rgba(255,255,255,0.08)',
+                    background: personality === opt.id ? 'rgba(201,168,76,0.08)' : 'transparent',
+                  }}
                 >
-                  <p className="text-xs">{opt.emoji}</p>
-                  <p className={`text-[10px] font-bold mt-0.5 ${personality === opt.id ? 'text-purple-200' : 'text-white/60'}`}>{opt.name}</p>
-                  <p className="text-[8px] font-mono text-white/30">{opt.desc}</p>
+                  <p className="text-[11px] font-semibold" style={{ color: personality === opt.id ? 'var(--gold-bright)' : 'rgba(255,255,255,0.6)' }}>{opt.name}</p>
+                  <p className="text-[9px] font-mono text-white/25 mt-0.5">{opt.desc}</p>
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* ── Humanizer ── */}
-          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
-            <div>
-              <p className="text-xs font-bold text-white">Human Feel</p>
-              <p className="text-[10px] text-white/30 font-mono mt-0.5">How "human" should the guitarist sound?</p>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="studio-seg mt-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
               {HUMANIZER_OPTIONS.map(opt => (
                 <button
                   key={opt.id}
+                  className={humanizerPreset === opt.id ? 'seg-active' : ''}
                   onClick={() => setHumanizerPreset(opt.id)}
-                  className={`p-2.5 rounded-xl border text-center transition-all ${
-                    humanizerPreset === opt.id
-                      ? 'bg-emerald-600/25 border-emerald-500/50 shadow-md shadow-emerald-600/20'
-                      : 'bg-white/3 border-white/8 hover:bg-white/6'
-                  }`}
                 >
-                  <p className="text-base">{opt.emoji}</p>
-                  <p className={`text-[10px] font-bold mt-0.5 ${humanizerPreset === opt.id ? 'text-emerald-200' : 'text-white/60'}`}>{opt.name}</p>
-                  <p className="text-[8px] font-mono text-white/30">{opt.desc}</p>
+                  <span className="block">{opt.name}</span>
+                  <span className="block text-[9px] mt-0.5 opacity-50 font-mono uppercase tracking-wider">{opt.desc}</span>
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* ── Effects ── */}
-          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
-            <div>
-              <p className="text-xs font-bold text-white">Room Tone</p>
-              <p className="text-[10px] text-white/30 font-mono mt-0.5">Reverb, EQ, and atmosphere</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {EFFECTS_OPTIONS.map(opt => (
-                <button
-                  key={opt.id}
-                  onClick={() => setEffectsPreset(opt.id)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-left transition-all ${
-                    effectsPreset === opt.id
-                      ? 'bg-cyan-600/25 border-cyan-500/50 shadow-md shadow-cyan-600/20'
-                      : 'bg-white/3 border-white/8 hover:bg-white/6'
-                  }`}
-                >
-                  <span className="text-sm">{opt.emoji}</span>
-                  <div>
-                    <p className={`text-[10px] font-bold ${effectsPreset === opt.id ? 'text-cyan-200' : 'text-white/60'}`}>{opt.name}</p>
-                    <p className="text-[8px] font-mono text-white/30">{opt.desc}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Fingerstyle Toggle ── */}
-          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
-            <div className="flex items-center justify-between">
+            {/* Fingerstyle toggle */}
+            <div className="flex items-center justify-between mt-4 pt-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
               <div>
-                <p className="text-xs font-bold text-white">Fingerstyle Mode</p>
-                <p className="text-[10px] text-white/30 font-mono mt-0.5">P-I-M-A pattern engine</p>
+                <p className="text-[11px] font-semibold text-white/70">Fingerstyle mode</p>
+                <p className="text-[9px] font-mono text-white/25 mt-0.5">P-I-M-A pattern engine</p>
               </div>
               <button
                 onClick={() => setIsFingerstyle(f => !f)}
-                className={`w-12 h-7 rounded-full transition-all relative ${
-                  isFingerstyle ? 'bg-purple-500' : 'bg-white/10 border border-white/20'
-                }`}
+                className="relative w-11 h-6 rounded-full transition-colors"
+                style={{ background: isFingerstyle ? 'var(--gold)' : 'rgba(255,255,255,0.1)' }}
               >
-                <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${
-                  isFingerstyle ? 'left-6' : 'left-1'
-                }`} />
+                <span
+                  className="absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow transition-all"
+                  style={{ left: isFingerstyle ? 23 : 3 }}
+                />
               </button>
             </div>
             {isFingerstyle && (
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5 mt-3">
                 {FINGERSTYLE_PATTERNS.map(p => (
                   <button
                     key={p.id}
                     onClick={() => setFingerstylePattern(p.id)}
-                    className={`p-2 rounded-xl border text-left transition-all ${
-                      fingerstylePattern === p.id
-                        ? 'bg-purple-600/25 border-purple-500/50'
-                        : 'bg-white/3 border-white/8 hover:bg-white/6'
-                    }`}
+                    className="px-2.5 py-2 rounded-[3px] border text-left transition-all"
+                    style={{
+                      borderColor: fingerstylePattern === p.id ? 'rgba(201,168,76,0.55)' : 'rgba(255,255,255,0.08)',
+                      background: fingerstylePattern === p.id ? 'rgba(201,168,76,0.08)' : 'transparent',
+                    }}
                   >
-                    <p className={`text-[10px] font-bold ${fingerstylePattern === p.id ? 'text-purple-200' : 'text-white/60'}`}>{p.name}</p>
-                    <p className="text-[8px] font-mono text-white/30">{p.desc}</p>
+                    <p className="text-[10px] font-semibold" style={{ color: fingerstylePattern === p.id ? 'var(--gold-bright)' : 'rgba(255,255,255,0.6)' }}>{p.name}</p>
+                    <p className="text-[9px] font-mono text-white/25">{p.desc}</p>
                   </button>
                 ))}
               </div>
             )}
-          </div>
+          </Panel>
 
-          {/* ── Capo ── */}
-          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
-            <div className="flex items-center justify-between">
+          {/* ── Tempo & rhythm ── */}
+          <Panel title="Tempo & Rhythm">
+            <div className="flex items-end justify-between mb-3">
               <div>
-                <p className="text-xs font-bold text-white">Capo Position</p>
-                <p className="text-[10px] text-white/30 font-mono mt-0.5">Suggested: Fret {song.capo}</p>
+                <p className="studio-num text-4xl font-light text-white">{bpm}</p>
+                <p className="studio-label mt-1" style={{ fontSize: 8 }}>
+                  BPM · song suggests {song.bpm}
+                </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCapo(c => Math.max(0, c - 1))}
-                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-white/70 flex items-center justify-center hover:bg-white/10 text-lg leading-none"
-                >−</button>
-                <span className="text-xl font-black text-amber-300 w-8 text-center tabular-nums">{capo}</span>
-                <button
-                  onClick={() => setCapo(c => Math.min(7, c + 1))}
-                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-white/70 flex items-center justify-center hover:bg-white/10 text-lg leading-none"
-                >+</button>
+              <div className="flex gap-1.5">
+                <button onClick={() => setBpm(b => Math.max(40, b - 5))} className="studio-icon !w-8 !h-8 !text-sm">−</button>
+                <button onClick={() => setBpm(song.bpm)} className="studio-icon !w-8 !h-8"><RotateCcw className="w-3 h-3" /></button>
+                <button onClick={() => setBpm(b => Math.min(180, b + 5))} className="studio-icon !w-8 !h-8 !text-sm">+</button>
               </div>
             </div>
-            {capo === 0 && <p className="text-[10px] text-white/25 font-mono">No capo — play open chords as written</p>}
-            {capo > 0 && <p className="text-[10px] text-amber-300/60 font-mono">Place capo on fret {capo} — chords auto-transposed</p>}
-          </div>
-
-          {/* ── BPM ── */}
-          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-white">Tempo / BPM</p>
-                <p className="text-[10px] text-white/30 font-mono mt-0.5">Suggested: {song.bpm} BPM</p>
-              </div>
-              <span className="text-xl font-black font-mono text-purple-300">{bpm}</span>
-            </div>
-
             <input
               type="range"
               min={40}
               max={180}
               value={bpm}
               onChange={e => setBpm(Number(e.target.value))}
-              className="w-full accent-purple-500 cursor-pointer"
+              className="studio-range"
             />
-            <div className="flex items-center justify-between gap-2">
-              <button onClick={() => setBpm(b => Math.max(40, b - 5))}
-                className="flex-1 py-1 rounded-lg bg-white/5 border border-white/8 text-xs font-mono text-white/50 hover:text-white hover:bg-white/10">
-                −5 BPM
-              </button>
-              <button onClick={() => setBpm(song.bpm)}
-                className="flex-1 py-1 rounded-lg bg-white/5 border border-white/8 text-xs font-mono text-white/30 hover:text-white hover:bg-white/10">
-                Reset
-              </button>
-              <button onClick={() => setBpm(b => Math.min(180, b + 5))}
-                className="flex-1 py-1 rounded-lg bg-white/5 border border-white/8 text-xs font-mono text-white/50 hover:text-white hover:bg-white/10">
-                +5 BPM
-              </button>
-            </div>
-
-            {/* Tempo label */}
-            <p className="text-[10px] text-center font-mono text-white/25">
-              {bpm < 60 ? '🐌 Very Slow (Largo)' : bpm < 80 ? '🐢 Slow (Andante)' : bpm < 100 ? '🚶 Moderate (Moderato)' : bpm < 120 ? '🏃 Allegro' : '⚡ Very Fast (Presto)'}
+            <p className="text-[10px] font-mono text-white/25 text-center mt-2.5">
+              {bpm < 60 ? 'Largo — very slow' : bpm < 80 ? 'Andante — slow' : bpm < 100 ? 'Moderato' : bpm < 120 ? 'Allegro' : 'Presto — very fast'}
             </p>
-          </div>
 
-          {/* ── Strumming Pattern ── */}
-          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
-            <p className="text-xs font-bold text-white">Strumming Pattern</p>
+            <div className="studio-hr my-4" />
 
-            <div className="grid grid-cols-1 gap-1.5">
+            {/* Strum presets */}
+            <div className="space-y-1.5">
               {STRUM_PRESETS.map((preset, i) => (
                 <button
                   key={i}
-                  onClick={() => { setPreset(i); setIsCustom(false) }}
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all text-left ${
-                    !isCustom && selectedPreset === i
-                      ? 'bg-purple-600/25 border-purple-500/50 shadow-sm shadow-purple-600/20'
-                      : 'bg-white/3 border-white/8 hover:bg-white/6'
-                  }`}
+                  onClick={() => { setPreset(i); setIsCustom(false); previewPattern(preset.pattern) }}
+                  title="Select & hear this pattern"
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-[3px] border transition-all text-left"
+                  style={{
+                    borderColor: !isCustom && selectedPreset === i ? 'rgba(201,168,76,0.55)' : 'rgba(255,255,255,0.07)',
+                    background: !isCustom && selectedPreset === i ? 'rgba(201,168,76,0.07)' : 'transparent',
+                  }}
                 >
                   <div>
-                    <p className={`text-xs font-bold ${!isCustom && selectedPreset === i ? 'text-purple-200' : 'text-white/60'}`}>
+                    <p className="text-[11px] font-semibold" style={{ color: !isCustom && selectedPreset === i ? 'var(--gold-bright)' : 'rgba(255,255,255,0.55)' }}>
                       {preset.name}
                     </p>
-                    <p className={`text-[13px] font-mono tracking-widest mt-0.5 ${!isCustom && selectedPreset === i ? 'text-amber-300' : 'text-white/30'}`}>
-                      {preset.display}
-                    </p>
                   </div>
-                  {!isCustom && selectedPreset === i && (
-                    <Check className="w-4 h-4 text-purple-300" />
-                  )}
+                  <div className="flex items-center gap-3">
+                    <span className="text-[12px] font-mono tracking-[0.25em]" style={{ color: !isCustom && selectedPreset === i ? 'rgba(227,200,120,0.9)' : 'rgba(255,255,255,0.3)' }}>
+                      {preset.display}
+                    </span>
+                    {!isCustom && selectedPreset === i && <Check className="w-3.5 h-3.5" style={{ color: 'var(--gold)' }} />}
+                  </div>
                 </button>
               ))}
             </div>
 
-            {/* Custom pattern input with interactive quick buttons */}
-            <div className="pt-2 border-t border-white/5 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-mono text-white/40">Custom Strum Builder:</p>
-                {isCustom && (
-                  <span className="text-[9px] font-mono text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-500/30">
-                    Active
-                  </span>
-                )}
+            {/* Custom builder */}
+            <div className="mt-3 pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="studio-label" style={{ fontSize: 8 }}>Custom pattern</p>
+                {isCustom && <span className="text-[9px] font-mono px-2 py-0.5 rounded-full" style={{ color: 'var(--gold)', background: 'rgba(201,168,76,0.1)' }}>Active</span>}
               </div>
-
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <input
                   type="text"
                   value={customPattern}
                   onChange={e => { setCustom(e.target.value); setIsCustom(true) }}
                   onFocus={() => setIsCustom(true)}
-                  placeholder="e.g. D D U U D U  or  ↓ ↓ ↑ ↑ ↓ ↑"
-                  className={`flex-1 px-3 py-2 rounded-xl bg-black/50 border text-xs font-mono outline-none transition-colors ${
-                    isCustom
-                      ? 'border-purple-400/60 text-amber-300 bg-purple-950/20'
-                      : 'border-white/10 text-white/80 placeholder-white/20 focus:border-purple-500/40'
-                  }`}
+                  placeholder="D D U U D U"
+                  className="studio-input !py-2 !text-xs font-mono"
                 />
                 {customPattern && (
                   <button
                     onClick={() => { setCustom(''); setIsCustom(false) }}
-                    className="px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-mono text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                    className="studio-icon !w-9 !h-9 shrink-0"
                     title="Clear pattern"
                   >
-                    Clear 🗑️
+                    ✕
                   </button>
                 )}
               </div>
-
-              {/* Quick-insert stroke buttons */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustom(prev => (prev ? `${prev} ↓` : '↓'))
-                    setIsCustom(true)
-                  }}
-                  className="px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[11px] font-mono hover:bg-amber-500/20 transition-all"
-                >
-                  + ↓ Down (D)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustom(prev => (prev ? `${prev} ↑` : '↑'))
-                    setIsCustom(true)
-                  }}
-                  className="px-2 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 text-[11px] font-mono hover:bg-cyan-500/20 transition-all"
-                >
-                  + ↑ Up (U)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustom(prev => (prev ? `${prev} ✕` : '✕'))
-                    setIsCustom(true)
-                  }}
-                  className="px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-500/25 text-rose-300 text-[11px] font-mono hover:bg-rose-500/20 transition-all"
-                >
-                  + ✕ Mute (X)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustom(prev => (prev ? `${prev} •` : '•'))
-                    setIsCustom(true)
-                  }}
-                  className="px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/25 text-purple-300 text-[11px] font-mono hover:bg-purple-500/20 transition-all"
-                >
-                  + • Rest (.)
-                </button>
+              <div className="flex items-center gap-1.5 mt-2">
+                {([['↓', 'D'], ['↑', 'U'], ['✕', 'X'], ['•', '.']] as const).map(([sym]) => (
+                  <button
+                    key={sym}
+                    onClick={() => { setCustom(prev => (prev ? `${prev} ${sym}` : sym)); setIsCustom(true) }}
+                    className="flex-1 py-1.5 rounded-[2px] border text-xs font-mono transition-all hover:bg-white/[0.05]"
+                    style={{ borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.55)' }}
+                  >
+                    + {sym}
+                  </button>
+                ))}
               </div>
-
-              <p className="text-[9px] font-mono text-white/30 leading-tight">
-                💡 <b className="text-white/50">How to type:</b> Use <span className="text-amber-300">D</span> or <span className="text-amber-300">↓</span> for Down, <span className="text-cyan-300">U</span> or <span className="text-cyan-300">↑</span> for Up, <span className="text-rose-300">X</span> or <span className="text-rose-300">✕</span> for Mute, <span className="text-purple-300">.</span> or <span className="text-purple-300">•</span> for Rest.
-              </p>
+              <p className="text-[9px] font-mono text-white/20 mt-2">D down · U up · X mute · • rest</p>
             </div>
-          </div>
+          </Panel>
 
-          {/* ── Finger Chord Mapping ── */}
-          <div className="p-4 rounded-2xl bg-white/3 border border-white/8 space-y-3">
+          {/* ── Tuning ── */}
+          <Panel title="Capo">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-white">Finger → Chord Map</p>
-              <button
-                onClick={() => setEditingMapping(e => !e)}
-                className="text-[10px] font-mono text-purple-400 hover:text-purple-300 transition-colors"
-              >
-                {editingMapping ? '✓ Done' : '✏️ Edit'}
-              </button>
+              <p className="text-[11px] text-white/40 font-light">
+                {capo === 0 ? 'Open position — no capo' : `Capo on fret ${capo} — auto-transposed`}
+              </p>
+              <div className="flex items-center gap-2.5">
+                <button onClick={() => setCapo(c => Math.max(0, c - 1))} className="studio-icon !w-8 !h-8 !text-sm">−</button>
+                <span className="studio-num text-2xl font-light w-8 text-center" style={{ color: capo > 0 ? 'var(--gold)' : '#fff' }}>{capo}</span>
+                <button onClick={() => setCapo(c => Math.min(7, c + 1))} className="studio-icon !w-8 !h-8 !text-sm">+</button>
+              </div>
             </div>
+          </Panel>
 
-            <div className="space-y-2">
+          {/* ── Gesture map ── */}
+          <Panel title="Gesture Map" hint={editingMapping ? 'editing' : undefined}>
+            <div className="space-y-1.5">
               {fingerMapping.map((chord, i) => (
                 <div key={i} className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5 shrink-0 w-28">
-                    <span className="text-sm">{['✊','☝️','✌️','🤟','🖐️','✋'][i]}</span>
-                    <span className="text-[11px] font-mono text-white/40">{i} finger{i !== 1 ? 's' : ''}</span>
+                  <div className="flex items-center gap-2.5 shrink-0 w-24">
+                    <span
+                      className="studio-num w-6 h-6 flex items-center justify-center text-[10px] font-bold border rounded-[2px]"
+                      style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)' }}
+                    >
+                      {i}
+                    </span>
+                    <span className="text-[10px] font-mono text-white/35 uppercase tracking-wider">{GESTURE_LABELS[i]}</span>
                   </div>
-                  <span className="text-white/30 font-mono text-xs">→</span>
+                  <span className="text-white/15 font-mono text-[10px]">→</span>
                   {editingMapping ? (
                     <select
                       value={chord}
@@ -635,52 +549,51 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
                         updated[i] = e.target.value
                         setFingerMapping(updated)
                       }}
-                      className="flex-1 px-2 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs font-mono text-amber-300 outline-none cursor-pointer"
+                      className="studio-select flex-1 !py-1.5 !text-xs font-mono"
+                      style={{ color: 'var(--gold)' }}
                     >
-                      {ALL_CHORDS.map(c => <option key={c} value={c}>{c}</option>)}
+                      {ALL_CHORDS.map(c => <option key={c} value={c} className="bg-[#0a0a0a] text-white">{c}</option>)}
                     </select>
                   ) : (
-                    <span className="flex-1 text-xs font-black font-mono text-amber-300 px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <span
+                      className="flex-1 studio-num text-xs font-bold px-3 py-1.5 rounded-[2px] border"
+                      style={{ color: 'var(--gold)', borderColor: 'rgba(201,168,76,0.2)', background: 'rgba(201,168,76,0.05)' }}
+                    >
                       {chord}
                     </span>
                   )}
                 </div>
               ))}
             </div>
-
-            <button
-              onClick={() => setFingerMapping([...defaultMapping])}
-              className="w-full py-1.5 rounded-lg bg-white/3 border border-white/8 text-[10px] font-mono text-white/30 hover:text-white/50 hover:bg-white/6 transition-all flex items-center justify-center gap-1"
-            >
-              <RotateCcw className="w-3 h-3" /> Reset to song defaults
-            </button>
-          </div>
-
-          {/* ── Summary before play ── */}
-          <div className="p-4 rounded-2xl bg-purple-600/10 border border-purple-500/25 space-y-2">
-            <p className="text-[10px] font-mono text-purple-300 uppercase tracking-wider">Session Summary</p>
-            <div className="space-y-1.5 text-[11px] font-mono">
-              <div className="flex justify-between text-white/50"><span>Song</span><span className="text-white font-bold truncate max-w-[140px]">{song.title}</span></div>
-              <div className="flex justify-between text-white/50"><span>Capo</span><span className="text-amber-300">{capo === 0 ? 'None' : `Fret ${capo}`}</span></div>
-              <div className="flex justify-between text-white/50"><span>BPM</span><span className="text-purple-300">{bpm}</span></div>
-              <div className="flex justify-between text-white/50"><span>Pattern</span><span className="text-white/70 tracking-widest">{isCustom ? customPattern.substring(0,14) : STRUM_PRESETS[selectedPreset].display}</span></div>
-              <div className="flex justify-between text-white/50"><span>Chords</span><span className="text-white/70">{song.chords.join(' · ')}</span></div>
+            <div className="flex gap-1.5 mt-3">
+              <button
+                onClick={() => setEditingMapping(e => !e)}
+                className="studio-chip flex-1 justify-center !text-[10px]"
+              >
+                {editingMapping ? 'Done editing' : 'Edit mapping'}
+              </button>
+              <button
+                onClick={() => setFingerMapping([...defaultMapping])}
+                className="studio-chip justify-center !text-[10px]"
+              >
+                <RotateCcw className="w-3 h-3" /> Reset
+              </button>
             </div>
-          </div>
+          </Panel>
 
-          {/* Big start button */}
+          {/* ── Start ── */}
           <motion.button
             onClick={handleStart}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            className="w-full py-4 rounded-2xl font-black text-base text-black flex items-center justify-center gap-3 shadow-xl shadow-purple-600/30"
-            style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #fbbf24 100%)' }}
+            whileHover={{ y: -1 }}
+            whileTap={{ y: 0 }}
+            className="btn-shimmer w-full py-4 rounded-[3px] font-bold text-[13px] text-[#050505] flex items-center justify-center gap-2.5 bg-white transition-all"
+            style={{ letterSpacing: '0.04em' }}
           >
-            <Play className="w-5 h-5 fill-current" />
+            <Play className="w-4 h-4 fill-current" />
             Start Playing
           </motion.button>
-          <p className="text-center text-[10px] text-white/25 font-mono">
-            Camera + auto-strum will activate on the next screen
+          <p className="text-center text-[10px] font-mono text-white/25 pb-4">
+            Camera + auto-strum activate on the next screen
           </p>
         </div>
       </div>
