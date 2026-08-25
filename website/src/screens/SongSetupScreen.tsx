@@ -15,15 +15,15 @@ import {
   playPatternBeat,
   CHORD_NOTES,
 } from '../utils/guitarSound'
+import {
+  ALL_STRUM_PATTERNS,
+  LEVEL_LABELS,
+  LEVEL_COLORS,
+  type StrumPattern,
+} from '../utils/strummingPatterns'
 
-// ── Strum pattern presets ─────────────────────────────────────────────
-const STRUM_PRESETS = [
-  { name: 'Island Pop',  pattern: ['D','D','U','U','D','U'], display: '↓ ↓ ↑ ↑ ↓ ↑' },
-  { name: 'Rock 4/4',   pattern: ['D','D','D','D'],         display: '↓ ↓ ↓ ↓' },
-  { name: 'Basic Folk', pattern: ['D','D','U','D','U'],     display: '↓ ↓ ↑ ↓ ↑' },
-  { name: 'Waltz 3/4',  pattern: ['D','U','U','D','U','U'],display: '↓ ↑ ↑ ↓ ↑ ↑' },
-  { name: 'Slow Ballad',pattern: ['D','.','D','U','.','U'],  display: '↓ • ↓ ↑ • ↑' },
-]
+// ── Strum pattern presets — sourced from Indian patterns library ───────
+const STRUM_PRESETS: StrumPattern[] = ALL_STRUM_PATTERNS
 
 const ALL_CHORDS = [
   'Em','Am','G','C','D','F','E','A','Dm','B7','G7','D7','E7','A7',
@@ -115,6 +115,102 @@ function Panel({ title, hint, children }: { title: string; hint?: string; childr
     </div>
   )
 }
+
+// ── Strum Pattern Picker sub-component ────────────────────────────────
+function StrumPatternPicker({
+  selectedPreset,
+  isCustom,
+  onSelect,
+}: {
+  selectedPreset: number
+  isCustom: boolean
+  onSelect: (globalIdx: number, pattern: string[]) => void
+}) {
+  const [activeLvl, setActiveLvl] = useState<1 | 2 | 3>(1)
+  const filtered = STRUM_PRESETS.filter(p => p.level === activeLvl)
+
+  return (
+    <div className="space-y-3">
+      {/* Level tabs */}
+      <div className="flex gap-1.5">
+        {([1, 2, 3] as const).map(lvl => {
+          const col = LEVEL_COLORS[lvl]
+          const isActive = activeLvl === lvl
+          return (
+            <button
+              key={lvl}
+              onClick={() => setActiveLvl(lvl)}
+              className="flex-1 py-1.5 rounded-[3px] border text-[10px] font-semibold uppercase tracking-[0.1em] transition-all"
+              style={{
+                background: isActive ? col.bg : 'transparent',
+                borderColor: isActive ? col.border : 'rgba(255,255,255,0.08)',
+                color: isActive ? col.text : 'rgba(255,255,255,0.35)',
+              }}
+            >
+              {LEVEL_LABELS[lvl]}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Pattern cards */}
+      <div className="space-y-1.5 max-h-72 overflow-y-auto studio-scroll pr-1">
+        {filtered.map(preset => {
+          const globalIdx = STRUM_PRESETS.findIndex(p => p.id === preset.id)
+          const isActive = !isCustom && selectedPreset === globalIdx
+          const col = LEVEL_COLORS[preset.level]
+          return (
+            <button
+              key={preset.id}
+              onClick={() => onSelect(globalIdx, preset.pattern as string[])}
+              title="Select & hear this pattern"
+              className="w-full text-left px-3.5 py-3 rounded-[3px] border transition-all"
+              style={{
+                borderColor: isActive ? 'rgba(201,168,76,0.55)' : 'rgba(255,255,255,0.07)',
+                background: isActive ? 'rgba(201,168,76,0.07)' : 'transparent',
+              }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <p className="text-[11px] font-semibold" style={{ color: isActive ? 'var(--gold-bright)' : 'rgba(255,255,255,0.75)' }}>
+                      {preset.name}
+                    </p>
+                    {preset.indianName && (
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full" style={{ background: col.bg, color: col.text, border: `1px solid ${col.border}` }}>
+                        {preset.indianName}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-mono tracking-[0.18em]" style={{ color: isActive ? 'rgba(227,200,120,0.9)' : 'rgba(255,255,255,0.28)' }}>
+                      {preset.display}
+                    </span>
+                    <span className="text-[9px] font-mono text-white/20">{preset.timeSignature}</span>
+                    <span className="text-[9px] font-mono text-white/20">{preset.bpmRange[0]}–{preset.bpmRange[1]} bpm</span>
+                  </div>
+                  {isActive && preset.songs.length > 0 && (
+                    <p className="text-[9px] font-mono mt-1.5 leading-relaxed" style={{ color: 'rgba(201,168,76,0.65)' }}>
+                      🎵 {preset.songs.slice(0, 2).join(' · ')}
+                    </p>
+                  )}
+                  {isActive && preset.tip && (
+                    <p className="text-[9px] font-mono mt-1 leading-relaxed text-white/30 italic">
+                      💡 {preset.tip}
+                    </p>
+                  )}
+                </div>
+                {isActive && <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+
 
 interface SongSetupScreenProps {
   song: Song
@@ -443,33 +539,18 @@ export default function SongSetupScreen({ song, onBack, onStartPlaying, onPracti
 
             <div className="studio-hr my-4" />
 
-            {/* Strum presets */}
-            <div className="space-y-1.5">
-              {STRUM_PRESETS.map((preset, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setPreset(i); setIsCustom(false); previewPattern(preset.pattern) }}
-                  title="Select & hear this pattern"
-                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-[3px] border transition-all text-left"
-                  style={{
-                    borderColor: !isCustom && selectedPreset === i ? 'rgba(201,168,76,0.55)' : 'rgba(255,255,255,0.07)',
-                    background: !isCustom && selectedPreset === i ? 'rgba(201,168,76,0.07)' : 'transparent',
-                  }}
-                >
-                  <div>
-                    <p className="text-[11px] font-semibold" style={{ color: !isCustom && selectedPreset === i ? 'var(--gold-bright)' : 'rgba(255,255,255,0.55)' }}>
-                      {preset.name}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[12px] font-mono tracking-[0.25em]" style={{ color: !isCustom && selectedPreset === i ? 'rgba(227,200,120,0.9)' : 'rgba(255,255,255,0.3)' }}>
-                      {preset.display}
-                    </span>
-                    {!isCustom && selectedPreset === i && <Check className="w-3.5 h-3.5" style={{ color: 'var(--gold)' }} />}
-                  </div>
-                </button>
-              ))}
-            </div>
+
+            {/* Strum presets — grouped by level */}
+            <StrumPatternPicker
+              selectedPreset={selectedPreset}
+              isCustom={isCustom}
+              onSelect={(globalIdx, pattern) => {
+                setPreset(globalIdx)
+                setIsCustom(false)
+                previewPattern(pattern)
+              }}
+            />
+
 
             {/* Custom builder */}
             <div className="mt-3 pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>

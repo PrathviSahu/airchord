@@ -23,15 +23,15 @@ import { useHandTracking } from '../utils/useHandTracking'
 import { GestureEngine } from '../utils/GestureEngine'
 import { getProfileById } from '../utils/GestureProfiles'
 import { drawHandSkeleton } from '../utils/handTracker'
+import {
+  ALL_STRUM_PATTERNS,
+  LEVEL_LABELS,
+  LEVEL_COLORS,
+} from '../utils/strummingPatterns'
 
 const GESTURE_LABELS = ['Fist', 'One', 'Two', 'Three', 'Four', 'Open']
 
-const STRUM_PRESETS: { name: string; pattern: string[]; display: string; style: PlayStyle }[] = [
-  { name: '8-Stroke Ballad', pattern: ['D', '.', 'D', 'U', '.', 'U', 'D', 'U'], display: '↓ • ↓ ↑ • ↑ ↓ ↑', style: 'ballad' },
-  { name: 'Pop Strum',       pattern: ['D', 'D', 'U', 'U', 'D', 'U'],            display: '↓ ↓ ↑ ↑ ↓ ↑',     style: 'pop' },
-  { name: 'Campfire Folk',   pattern: ['D', '.', 'D', 'U', 'D', 'U'],            display: '↓ • ↓ ↑ ↓ ↑',     style: 'campfire' },
-  { name: 'Driving Rock',   pattern: ['D', 'D', 'D', 'D', 'D', 'D', 'D', 'D'],   display: '↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓', style: 'pop' },
-]
+const STRUM_PRESETS = ALL_STRUM_PATTERNS
 
 interface PracticeRoomScreenProps {
   config?: SessionConfig
@@ -45,6 +45,93 @@ const AVAILABLE_CHORDS = [
 ]
 
 const STROKE_GLYPH = (s: string) => s === 'D' || s === '↓' ? '↓' : s === 'U' || s === '↑' ? '↑' : s === 'X' || s === '✕' ? '✕' : '•'
+
+// ── Strum Pattern Browser (Level-tabbed) ────────────────────────────────
+function StrumPatternBrowser({
+  selectedPresetIdx,
+  onSelect,
+}: {
+  selectedPresetIdx: number
+  onSelect: (idx: number) => void
+}) {
+  const [activeLvl, setActiveLvl] = useState<1 | 2 | 3>(1)
+  const filtered = STRUM_PRESETS.filter(p => p.level === activeLvl)
+
+  return (
+    <div className="space-y-3">
+      {/* Level tabs */}
+      <div className="flex gap-1.5">
+        {([1, 2, 3] as const).map(lvl => {
+          const col = LEVEL_COLORS[lvl]
+          const isTab = activeLvl === lvl
+          return (
+            <button
+              key={lvl}
+              onClick={() => setActiveLvl(lvl)}
+              className="flex-1 py-1.5 rounded-[3px] border text-[10px] font-semibold uppercase tracking-[0.1em] transition-all"
+              style={{
+                background: isTab ? col.bg : 'transparent',
+                borderColor: isTab ? col.border : 'rgba(255,255,255,0.08)',
+                color: isTab ? col.text : 'rgba(255,255,255,0.35)',
+              }}
+            >
+              {LEVEL_LABELS[lvl]}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Pattern cards */}
+      <div className="space-y-1.5 max-h-52 overflow-y-auto studio-scroll pr-1">
+        {filtered.map(preset => {
+          const globalIdx = STRUM_PRESETS.findIndex(p => p.id === preset.id)
+          const isActive = selectedPresetIdx === globalIdx
+          const col = LEVEL_COLORS[preset.level]
+          return (
+            <button
+              key={preset.id}
+              onClick={() => onSelect(globalIdx)}
+              className="w-full text-left px-3 py-2.5 rounded-[3px] border transition-all"
+              style={{
+                borderColor: isActive ? 'rgba(201,168,76,0.55)' : 'rgba(255,255,255,0.07)',
+                background: isActive ? 'rgba(201,168,76,0.07)' : 'transparent',
+              }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    <span className="text-[11px] font-semibold" style={{ color: isActive ? 'var(--gold-bright)' : 'rgba(255,255,255,0.75)' }}>
+                      {preset.name}
+                    </span>
+                    {preset.indianName && (
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full" style={{ background: col.bg, color: col.text, border: `1px solid ${col.border}` }}>
+                        {preset.indianName}
+                      </span>
+                    )}
+                    <span className="text-[9px] font-mono text-white/20">{preset.timeSignature}</span>
+                  </div>
+                  <span className="text-[10px] font-mono tracking-[0.2em]" style={{ color: isActive ? 'rgba(227,200,120,0.9)' : 'rgba(255,255,255,0.28)' }}>
+                    {preset.display}
+                  </span>
+                  {isActive && preset.songs.length > 0 && (
+                    <p className="text-[9px] font-mono mt-1 leading-relaxed" style={{ color: 'rgba(201,168,76,0.65)' }}>
+                      🎵 {preset.songs.slice(0, 2).join(' · ')}
+                    </p>
+                  )}
+                  {isActive && preset.tip && (
+                    <p className="text-[9px] font-mono mt-0.5 leading-relaxed text-white/28 italic">
+                      💡 {preset.tip}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScreenProps) {
   // Config defaults for Pro Jam Room & Editable Finger Mapping
@@ -450,13 +537,22 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
             onChange={e => { setSelectedPresetIdx(Number(e.target.value)); setCustomPattern(null) }}
             className="studio-select hidden sm:block"
           >
-            {STRUM_PRESETS.map((p, idx) => (
-              <option key={idx} value={idx} className="bg-[#0a0a0a]">{p.name}</option>
+            {([1, 2, 3] as const).map(lvl => (
+              <optgroup key={lvl} label={`── ${['Beginner', 'Intermediate', 'Advanced'][lvl - 1]} ──`}>
+                {STRUM_PRESETS.map((p, idx) =>
+                  p.level === lvl ? (
+                    <option key={idx} value={idx} className="bg-[#0a0a0a]">
+                      {p.name}{p.indianName ? ` · ${p.indianName}` : ''}
+                    </option>
+                  ) : null
+                )}
+              </optgroup>
             ))}
           </select>
           <button onClick={() => setShowPatternModal(true)} className="studio-btn studio-btn-ghost !py-2 !px-3.5 !text-[10px]">
-            Edit Pattern
+            Strum Library
           </button>
+
 
           {/* Record */}
           <button
@@ -733,26 +829,38 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
               <div className="flex items-start justify-between">
                 <div>
                   <p className="studio-label-gold mb-1.5">Rhythm</p>
-                  <h2 className="text-lg font-light text-white">Edit strum pattern</h2>
-                  <p className="text-[11px] font-mono text-white/30 mt-1">Click any beat to cycle ↓ / ↑ / ✕ / •</p>
+                  <h2 className="text-lg font-light text-white">Strum Pattern</h2>
+                  <p className="text-[11px] font-mono text-white/30 mt-1">Browse Indian patterns · or edit beats below</p>
                 </div>
                 <button onClick={() => setShowPatternModal(false)} className="studio-icon !w-8 !h-8">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              <div className="flex items-center justify-center gap-1.5 flex-wrap bg-white/[0.02] p-4 rounded-[3px] border" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                {strumPattern.map((stroke, i) => (
-                  <button
-                    key={i}
-                    onClick={() => toggleBeat(i)}
-                    className="w-12 h-14 rounded-[3px] border flex flex-col items-center justify-center gap-1 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                    style={{ borderColor: 'rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.06)' }}
-                  >
-                    <span className="text-lg font-bold" style={{ color: 'var(--gold-bright)' }}>{STROKE_GLYPH(stroke)}</span>
-                    <span className="studio-num text-[9px] font-mono text-white/30">B{i + 1}</span>
-                  </button>
-                ))}
+              {/* Indian pattern browser */}
+              <StrumPatternBrowser
+                selectedPresetIdx={selectedPresetIdx}
+                onSelect={(idx) => {
+                  setSelectedPresetIdx(idx)
+                  setCustomPattern(null)
+                }}
+              />
+
+              <div className="border-t pt-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                <p className="text-[9px] font-mono text-white/25 mb-2.5">Manual beat editor — click any beat to cycle ↓ / ↑ / ✕ / •</p>
+                <div className="flex items-center justify-center gap-1.5 flex-wrap bg-white/[0.02] p-4 rounded-[3px] border" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+                  {strumPattern.map((stroke, i) => (
+                    <button
+                      key={i}
+                      onClick={() => toggleBeat(i)}
+                      className="w-12 h-14 rounded-[3px] border flex flex-col items-center justify-center gap-1 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                      style={{ borderColor: 'rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.06)' }}
+                    >
+                      <span className="text-lg font-bold" style={{ color: 'var(--gold-bright)' }}>{STROKE_GLYPH(stroke)}</span>
+                      <span className="studio-num text-[9px] font-mono text-white/30">B{i + 1}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center justify-between gap-3">
@@ -777,6 +885,7 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
                   <RotateCcw className="w-3 h-3" /> Reset preset
                 </button>
               </div>
+
             </motion.div>
           </motion.div>
         )}
