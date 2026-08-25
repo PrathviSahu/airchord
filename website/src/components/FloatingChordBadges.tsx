@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
-import { playStrum, playPluckNote } from '../utils/guitarSound'
+import { triggerGuitarChord, initAudioEngine } from '../utils/guitarSound'
 
 interface ChordData {
   name: string
@@ -89,7 +89,8 @@ function SingleChordBadge({ chord, index, scrollProgress }: { chord: ChordData; 
         <div
           ref={badgeRef}
           onClick={() => {
-            playStrum(chord.notes, 0.14)
+            initAudioEngine()
+            triggerGuitarChord(chord.name, 0.35)
           }}
           style={{
             padding: '8px 16px',

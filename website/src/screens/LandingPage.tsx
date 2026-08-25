@@ -4,7 +4,7 @@ import { ArrowRight } from 'lucide-react'
 
 const StageScene = lazy(() => import('../components/StageScene'))
 import GuitarLoadingScreen from '../components/GuitarLoadingScreen'
-import { playPluckNote, playStrum, initAudioEngine } from '../utils/guitarSound'
+import { playPluckNote, playStrum, initAudioEngine, triggerGuitarChord } from '../utils/guitarSound'
 
 const FADE_UP = {
   hidden: { opacity: 0, y: 40 },
@@ -111,7 +111,11 @@ function GestureDemo() {
         {DEMO_STEPS.map((s, i) => (
           <button
             key={i}
-            onClick={() => setActive(i)}
+            onClick={() => {
+              setActive(i)
+              initAudioEngine()
+              triggerGuitarChord(s.chord, 0.38)
+            }}
             style={{
               width: 36, height: 36,
               borderRadius: 4,

@@ -556,9 +556,15 @@ export default function PracticeRoomScreen({ config, onBack }: PracticeRoomScree
           {fingerMapping.map((chord, idx) => (
             <button
               key={idx}
-              onClick={() => { initAudioEngine(); setEditingFingerIdx(idx); setCustomInput(chord); setCustomChordError('') }}
-              title="Edit chord for this gesture"
-              className="studio-glass flex items-center gap-2.5 px-3.5 py-2.5 transition-all hover:border-white/25"
+              onClick={() => {
+                initAudioEngine()
+                triggerGuitarChord(chord, 0.35)
+                setEditingFingerIdx(idx)
+                setCustomInput(chord)
+                setCustomChordError('')
+              }}
+              title="Click to audition & edit chord for this gesture"
+              className="studio-glass flex items-center gap-2.5 px-3.5 py-2.5 transition-all hover:border-white/25 cursor-pointer"
               style={detectedFingers === idx ? { borderColor: 'rgba(201,168,76,0.6)', background: 'rgba(201,168,76,0.1)' } : {}}
             >
               <span

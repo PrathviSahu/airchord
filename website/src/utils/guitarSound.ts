@@ -153,37 +153,31 @@ function buildMaster(ctx: AudioContext) {
   reverbConv.buffer = buildReverbImpulse(ctx)
   void loadRealImpulseResponse(ctx, reverbConv)
 
-  // Leave sensible headroom. The previous 1.85x output gain made ordinary
-  // six-string chords hit the limiter on every beat, which sounded crushed.
   dryBus = ctx.createGain()
-  dryBus.gain.value = 0.86
+  dryBus.gain.value = 0.88
   wetBus = ctx.createGain()
-  wetBus.gain.value = 0.14
+  wetBus.gain.value = 0.12
 
-  // Real rooms absorb highs: darkening the signal BEFORE the convolver keeps
-  // the tail from sounding like a bright digital wash over the dry guitar.
+  // Acoustic room tone: gentle high-frequency roll-off into convolver
   const wetLowpass = ctx.createBiquadFilter()
   wetLowpass.type = 'lowpass'
-  wetLowpass.frequency.value = 6200
+  wetLowpass.frequency.value = 8500
   wetLowpass.Q.value = 0.4
 
+  // Studio bus compressor: slow attack (25ms) preserves pick transient definition
   compressor = ctx.createDynamicsCompressor()
-  compressor.threshold.value = -18
-  compressor.knee.value = 12
-  compressor.ratio.value = 3
-  compressor.attack.value = 0.006
-  compressor.release.value = 0.18
+  compressor.threshold.value = -12
+  compressor.knee.value = 8
+  compressor.ratio.value = 1.6
+  compressor.attack.value = 0.025
+  compressor.release.value = 0.14
 
-  // Subtle harmonic glue between compression and limiting.
-  const saturator = ctx.createWaveShaper()
-  saturator.curve = buildSaturationCurve()
-  saturator.oversample = '2x'
-
+  // Transparent master limiter for clean ceiling protection without squashing
   limiter = ctx.createDynamicsCompressor()
-  limiter.threshold.value = -2.5
-  limiter.knee.value = 0
-  limiter.ratio.value = 20
-  limiter.attack.value = 0.001
+  limiter.threshold.value = -0.8
+  limiter.knee.value = 2
+  limiter.ratio.value = 12
+  limiter.attack.value = 0.002
   limiter.release.value = 0.06
 
   masterOut = ctx.createGain()
@@ -197,8 +191,7 @@ function buildMaster(ctx: AudioContext) {
   wetBus.connect(wetLowpass)
   wetLowpass.connect(reverbConv)
   reverbConv.connect(compressor)
-  compressor.connect(saturator)
-  saturator.connect(limiter)
+  compressor.connect(limiter)
   limiter.connect(masterOut)
   masterAnalyser = ctx.createAnalyser()
   masterAnalyser.fftSize = 256
@@ -361,6 +354,7 @@ export function getCapoFret() {
 
 export function setGuitarType(type: GuitarType) {
   currentGuitarType = type
+  setGuitarSampleBaseUrl(`/audio/guitar/${type}/`)
 }
 
 export function getGuitarType() {
@@ -635,6 +629,7 @@ interface BufferVoiceOptions {
   duration: number
   transientScale: number
   includePick: boolean
+  isSample?: boolean
   /**
    * Multiplier on the amplitude attack ramp. Real recordings already contain
    * their own pick attack, so sample playback uses a tiny value to avoid
@@ -666,82 +661,115 @@ function playBufferVoice(
   if (!dryBus || !wetBus || !masterOut) return
 
   const si = clamp(Math.round(stringIndex), 0, 5)
-  const tone = GUITAR_TONES[currentGuitarType]
   const now = ctx.currentTime + Math.max(0, delaySec)
-  const playbackRate = Math.max(0.05, options.playbackRate * centsRatio(randomBetween(-2.6, 2.6)))
+  const playbackRate = Math.max(0.05, options.playbackRate * centsRatio(randomBetween(-1.5, 1.5)))
   const dyn = dynamicsLevel(volume)
-  // Soft strokes die away quicker than hard ones on a real string.
-  const requestedDecay = clamp(options.duration * (0.82 + 0.28 * dyn), 0.16, 5.0)
   const sourceDuration = buffer.duration / playbackRate
-  // Capo/pitch playback shortens the buffer. Keep the envelope and source
-  // lifetime aligned so a high capo cannot leave an envelope ramping after the
-  // AudioBufferSourceNode has already stopped.
-  const decay = Math.min(requestedDecay, Math.max(0.16, sourceDuration - 0.04))
-  const peak = clamp(volume * randomBetween(0.93, 1.07), 0.0001, 0.95)
+  const peak = clamp(volume * randomBetween(0.96, 1.04), 0.0001, 0.95)
 
   const source = ctx.createBufferSource()
   source.buffer = buffer
   source.playbackRate.setValueAtTime(playbackRate, now)
 
-  const lowpass = ctx.createBiquadFilter()
-  lowpass.type = 'lowpass'
-  const brightnessScale = (0.55 + 0.6 * dyn) * randomBetween(0.96, 1.04)
-  lowpass.frequency.value = Math.min(ctx.sampleRate * 0.45, STRING_BRIGHTNESS[si] * brightnessScale)
-  lowpass.Q.value = 0.45
-
-  const highpass = ctx.createBiquadFilter()
-  highpass.type = 'highpass'
-  highpass.frequency.value = si >= 2 ? 72 : 34
-  highpass.Q.value = 0.55
-
-  const bodyLow = ctx.createBiquadFilter()
-  bodyLow.type = 'peaking'
-  bodyLow.frequency.value = tone.bodyLow
-  bodyLow.Q.value = 1.05
-  bodyLow.gain.value = si <= 1 ? tone.bodyGain : tone.bodyGain * 0.28
-
-  const bodyMid = ctx.createBiquadFilter()
-  bodyMid.type = 'peaking'
-  bodyMid.frequency.value = tone.bodyMid
-  bodyMid.Q.value = 1.15
-  bodyMid.gain.value = 1.4 + Math.random() * 0.8
-
-  const shelf = ctx.createBiquadFilter()
-  shelf.type = 'highshelf'
-  shelf.frequency.value = 3600
-  // Hard strokes ring brighter; soft strokes sit warm and dark.
-  shelf.gain.value = tone.shelfGain + randomBetween(-0.45, 0.45) + (dyn - 0.45) * 3.6
+  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
+  const panPos = clamp(STRING_PAN[si] + randomBetween(-0.02, 0.02), -0.6, 0.6)
+  pan?.pan.setValueAtTime(panPos, now)
 
   const envelope = ctx.createGain()
-  const attackScale = options.attackScale ?? 1
-  // Hard hits snap in faster — a slow attack on a loud note reads as synth.
-  const attack = Math.max(0.0004, STRING_ATTACK[si] * randomBetween(0.86, 1.16) * (1.15 - 0.4 * dyn) * attackScale)
-  envelope.gain.setValueAtTime(0.0001, now)
-  envelope.gain.linearRampToValueAtTime(peak, now + attack)
-  envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.42), now + Math.max(attack + 0.012, 0.075))
-  envelope.gain.exponentialRampToValueAtTime(0.0001, now + decay)
 
-  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
-  pan?.pan.setValueAtTime(clamp(STRING_PAN[si] + randomBetween(-0.025, 0.025), -0.8, 0.8), now)
+  if (options.isSample) {
+    // ── Pure Studio Acoustic Sample Path ─────────────────────────────
+    const subFilter = ctx.createBiquadFilter()
+    subFilter.type = 'highpass'
+    subFilter.frequency.value = 35
+    subFilter.Q.value = 0.5
 
-  source.connect(lowpass)
-  lowpass.connect(highpass)
-  highpass.connect(bodyLow)
-  bodyLow.connect(bodyMid)
-  bodyMid.connect(shelf)
-  shelf.connect(envelope)
-  const output: AudioNode = pan ? (envelope.connect(pan), pan) : envelope
-  output.connect(dryBus)
-  output.connect(wetBus)
+    const toneShelf = ctx.createBiquadFilter()
+    toneShelf.type = 'highshelf'
+    toneShelf.frequency.value = 4500
+    toneShelf.gain.value = (dyn - 0.5) * 2.5
 
-  if (options.includePick) {
-    // Pick noise grows faster than loudness: a hard stroke audibly scratches.
-    const transientGain = peak * options.transientScale * tone.transient * (0.55 + 0.75 * dyn)
-    playPickTransient(ctx, now, transientGain, si, tone)
+    const decay = Math.min(4.2, Math.max(0.5, sourceDuration - 0.05))
+    const t0 = now
+    const t1 = t0 + 0.0015
+    const t2 = t0 + decay
+
+    envelope.gain.setValueAtTime(0.0001, t0)
+    envelope.gain.linearRampToValueAtTime(peak, t1)
+    envelope.gain.exponentialRampToValueAtTime(0.0001, t2)
+
+    source.connect(subFilter)
+    subFilter.connect(toneShelf)
+    toneShelf.connect(envelope)
+
+    const output: AudioNode = pan ? (envelope.connect(pan), pan) : envelope
+    output.connect(dryBus)
+    output.connect(wetBus)
+
+    source.start(t0)
+    source.stop(t2 + 0.02)
+  } else {
+    // ── Physical Karplus-Strong Modeling Fallback Path ───────────────
+    const tone = GUITAR_TONES[currentGuitarType]
+    const requestedDecay = clamp(options.duration * (0.82 + 0.28 * dyn), 0.16, 5.0)
+    const decay = Math.min(requestedDecay, Math.max(0.16, sourceDuration - 0.04))
+
+    const lowpass = ctx.createBiquadFilter()
+    lowpass.type = 'lowpass'
+    const brightnessScale = (0.55 + 0.6 * dyn) * randomBetween(0.96, 1.04)
+    lowpass.frequency.value = Math.min(ctx.sampleRate * 0.45, STRING_BRIGHTNESS[si] * brightnessScale)
+    lowpass.Q.value = 0.45
+
+    const highpass = ctx.createBiquadFilter()
+    highpass.type = 'highpass'
+    highpass.frequency.value = si >= 2 ? 72 : 34
+    highpass.Q.value = 0.55
+
+    const bodyLow = ctx.createBiquadFilter()
+    bodyLow.type = 'peaking'
+    bodyLow.frequency.value = tone.bodyLow
+    bodyLow.Q.value = 1.05
+    bodyLow.gain.value = si <= 1 ? tone.bodyGain : tone.bodyGain * 0.28
+
+    const bodyMid = ctx.createBiquadFilter()
+    bodyMid.type = 'peaking'
+    bodyMid.frequency.value = tone.bodyMid
+    bodyMid.Q.value = 1.15
+    bodyMid.gain.value = 1.4 + Math.random() * 0.8
+
+    const shelf = ctx.createBiquadFilter()
+    shelf.type = 'highshelf'
+    shelf.frequency.value = 3600
+    shelf.gain.value = tone.shelfGain + randomBetween(-0.45, 0.45) + (dyn - 0.45) * 3.6
+
+    const attack = Math.max(0.0004, STRING_ATTACK[si] * randomBetween(0.86, 1.16) * (1.15 - 0.4 * dyn) * (options.attackScale ?? 1))
+    const t0 = now
+    const t1 = t0 + Math.max(0.001, attack)
+    const t2 = t1 + Math.max(0.015, Math.min(0.06, decay * 0.2))
+    const t3 = Math.max(t2 + 0.05, t0 + decay)
+    envelope.gain.setValueAtTime(0.0001, t0)
+    envelope.gain.linearRampToValueAtTime(peak, t1)
+    envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.42), t2)
+    envelope.gain.exponentialRampToValueAtTime(0.0001, t3)
+
+    source.connect(lowpass)
+    lowpass.connect(highpass)
+    highpass.connect(bodyLow)
+    bodyLow.connect(bodyMid)
+    bodyMid.connect(shelf)
+    shelf.connect(envelope)
+    const output: AudioNode = pan ? (envelope.connect(pan), pan) : envelope
+    output.connect(dryBus)
+    output.connect(wetBus)
+
+    if (options.includePick) {
+      const transientGain = peak * options.transientScale * tone.transient * (0.55 + 0.75 * dyn)
+      playPickTransient(ctx, now, transientGain, si, tone)
+    }
+
+    source.start(t0)
+    source.stop(t3 + 0.04)
   }
-
-  source.start(now)
-  source.stop(now + Math.min(decay + 0.08, Math.max(0.12, sourceDuration + 0.04)))
 }
 
 // ── Strum scheduling ─────────────────────────────────────────────────────────
@@ -910,69 +938,25 @@ function sampleUrl(note: string) {
  * OfflineAudioContext means the cost is paid once, not on every strum.
  */
 async function enhanceSampleBuffer(raw: AudioBuffer): Promise<AudioBuffer> {
-  if (typeof OfflineAudioContext === 'undefined') return raw
-
-  try {
-    const offline = new OfflineAudioContext(raw.numberOfChannels, raw.length, raw.sampleRate)
-    const source = offline.createBufferSource()
-    source.buffer = raw
-
-    const rumble = offline.createBiquadFilter()
-    rumble.type = 'highpass'
-    rumble.frequency.value = 55
-    rumble.Q.value = 0.6
-
-    const boxiness = offline.createBiquadFilter()
-    boxiness.type = 'peaking'
-    boxiness.frequency.value = 320
-    boxiness.Q.value = 1.0
-    boxiness.gain.value = -2.6
-
-    const honk = offline.createBiquadFilter()
-    honk.type = 'peaking'
-    honk.frequency.value = 900
-    honk.Q.value = 1.1
-    honk.gain.value = -1.6
-
-    const presence = offline.createBiquadFilter()
-    presence.type = 'peaking'
-    presence.frequency.value = 3400
-    presence.Q.value = 0.9
-    presence.gain.value = 1.8
-
-    source.connect(rumble)
-    rumble.connect(boxiness)
-    boxiness.connect(honk)
-    honk.connect(presence)
-    presence.connect(offline.destination)
-    source.start()
-
-    const rendered = await offline.startRendering()
-
-    // Normalize to a consistent peak so every note responds the same way to
-    // the dynamics mapping, regardless of how loud the source file was.
-    let peak = 0
-    for (let channel = 0; channel < rendered.numberOfChannels; channel += 1) {
-      const data = rendered.getChannelData(channel)
-      for (let i = 0; i < data.length; i += 1) {
-        const absolute = Math.abs(data[i])
-        if (absolute > peak) peak = absolute
-      }
+  // Transparent peak normalization so every velocity layer responds with perfect dynamics
+  let peak = 0
+  for (let channel = 0; channel < raw.numberOfChannels; channel += 1) {
+    const data = raw.getChannelData(channel)
+    for (let i = 0; i < data.length; i += 1) {
+      const absolute = Math.abs(data[i])
+      if (absolute > peak) peak = absolute
     }
-    if (peak > 0.001) {
-      const scale = Math.min(2.5, 0.86 / peak)
-      if (Math.abs(scale - 1) > 0.02) {
-        for (let channel = 0; channel < rendered.numberOfChannels; channel += 1) {
-          const data = rendered.getChannelData(channel)
-          for (let i = 0; i < data.length; i += 1) data[i] *= scale
-        }
-      }
-    }
-
-    return rendered
-  } catch {
-    return raw
   }
+  if (peak > 0.001) {
+    const scale = Math.min(2.0, 0.94 / peak)
+    if (Math.abs(scale - 1) > 0.02) {
+      for (let channel = 0; channel < raw.numberOfChannels; channel += 1) {
+        const data = raw.getChannelData(channel)
+        for (let i = 0; i < data.length; i += 1) data[i] *= scale
+      }
+    }
+  }
+  return raw
 }
 
 /**
@@ -1094,10 +1078,9 @@ class SampledGuitarEngine implements IGuitarEngine {
     playBufferVoice(ctx, sample, volume, si, delaySec, {
       playbackRate: rate,
       duration,
-      transientScale: 0.25,
-      includePick: true,
-      // The sample already contains the pick attack; a long amplitude ramp
-      // would blur it into a synth-like swell.
+      transientScale: 0.0,
+      includePick: false,
+      isSample: true,
       attackScale: 0.15,
     })
   }
@@ -1346,8 +1329,9 @@ export function playHumanizedStrum(strum: HumanizedStrumInput) {
     playBufferVoiceExact(ctx, buffer, note.volume, si, note.delaySec, {
       playbackRate: rate * note.playbackRate,
       duration,
-      transientScale: isSample ? 0.3 : 0.8,
-      includePick: true,
+      transientScale: isSample ? 0.0 : 0.8,
+      includePick: !isSample,
+      isSample,
       attackScale: isSample ? 0.15 : 1,
     })
   }
@@ -1368,78 +1352,114 @@ function playBufferVoiceExact(
   if (!dryBus || !wetBus || !masterOut) return
 
   const si = clamp(Math.round(stringIndex), 0, 5)
-  const tone = GUITAR_TONES[currentGuitarType]
   const now = ctx.currentTime + Math.max(0, delaySec)
-  // Use EXACT playback rate — no random cents drift (humanizer provides it)
   const playbackRate = Math.max(0.05, options.playbackRate)
-  // Dynamics still shape TONE even when timing/velocity are exact — this is
-  // not randomization, it is the physical response of the string to force.
   const dyn = dynamicsLevel(volume)
-  const requestedDecay = clamp(options.duration * (0.82 + 0.28 * dyn), 0.16, 5.0)
   const sourceDuration = buffer.duration / playbackRate
-  const decay = Math.min(requestedDecay, Math.max(0.16, sourceDuration - 0.04))
-  // Use EXACT volume — no random variation (humanizer provides it)
   const peak = clamp(volume, 0.0001, 0.95)
 
   const source = ctx.createBufferSource()
   source.buffer = buffer
   source.playbackRate.setValueAtTime(playbackRate, now)
 
-  const lowpass = ctx.createBiquadFilter()
-  lowpass.type = 'lowpass'
-  lowpass.frequency.value = Math.min(ctx.sampleRate * 0.45, STRING_BRIGHTNESS[si] * (0.55 + 0.6 * dyn))
-  lowpass.Q.value = 0.45
-
-  const highpass = ctx.createBiquadFilter()
-  highpass.type = 'highpass'
-  highpass.frequency.value = si >= 2 ? 72 : 34
-  highpass.Q.value = 0.55
-
-  const bodyLow = ctx.createBiquadFilter()
-  bodyLow.type = 'peaking'
-  bodyLow.frequency.value = tone.bodyLow
-  bodyLow.Q.value = 1.05
-  bodyLow.gain.value = si <= 1 ? tone.bodyGain : tone.bodyGain * 0.28
-
-  const bodyMid = ctx.createBiquadFilter()
-  bodyMid.type = 'peaking'
-  bodyMid.frequency.value = tone.bodyMid
-  bodyMid.Q.value = 1.15
-  bodyMid.gain.value = 1.4
-
-  const shelf = ctx.createBiquadFilter()
-  shelf.type = 'highshelf'
-  shelf.frequency.value = 3600
-  shelf.gain.value = tone.shelfGain + (dyn - 0.45) * 3.6
+  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
+  const panPos = clamp(STRING_PAN[si], -0.6, 0.6)
+  pan?.pan.setValueAtTime(panPos, now)
 
   const envelope = ctx.createGain()
-  const attackScale = options.attackScale ?? 1
-  const attack = Math.max(0.0004, STRING_ATTACK[si] * (1.15 - 0.4 * dyn) * attackScale)
-  envelope.gain.setValueAtTime(0.0001, now)
-  envelope.gain.linearRampToValueAtTime(peak, now + attack)
-  envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.42), now + Math.max(attack + 0.012, 0.075))
-  envelope.gain.exponentialRampToValueAtTime(0.0001, now + decay)
 
-  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null
-  pan?.pan.setValueAtTime(clamp(STRING_PAN[si], -0.8, 0.8), now)
+  if (options.isSample) {
+    // ── Pure Studio Acoustic Sample Path ─────────────────────────────
+    const subFilter = ctx.createBiquadFilter()
+    subFilter.type = 'highpass'
+    subFilter.frequency.value = 35
+    subFilter.Q.value = 0.5
 
-  source.connect(lowpass)
-  lowpass.connect(highpass)
-  highpass.connect(bodyLow)
-  bodyLow.connect(bodyMid)
-  bodyMid.connect(shelf)
-  shelf.connect(envelope)
-  const output: AudioNode = pan ? (envelope.connect(pan), pan) : envelope
-  output.connect(dryBus)
-  output.connect(wetBus)
+    const toneShelf = ctx.createBiquadFilter()
+    toneShelf.type = 'highshelf'
+    toneShelf.frequency.value = 4500
+    toneShelf.gain.value = (dyn - 0.5) * 2.5
 
-  if (options.includePick) {
-    const transientGain = peak * options.transientScale * tone.transient * (0.55 + 0.75 * dyn)
-    playPickTransient(ctx, now, transientGain, si, tone)
+    const decay = Math.min(4.2, Math.max(0.5, sourceDuration - 0.05))
+    const t0 = now
+    const t1 = t0 + 0.0015
+    const t2 = t0 + decay
+
+    envelope.gain.setValueAtTime(0.0001, t0)
+    envelope.gain.linearRampToValueAtTime(peak, t1)
+    envelope.gain.exponentialRampToValueAtTime(0.0001, t2)
+
+    source.connect(subFilter)
+    subFilter.connect(toneShelf)
+    toneShelf.connect(envelope)
+
+    const output: AudioNode = pan ? (envelope.connect(pan), pan) : envelope
+    output.connect(dryBus)
+    output.connect(wetBus)
+
+    source.start(t0)
+    source.stop(t2 + 0.02)
+  } else {
+    // ── Physical Karplus-Strong Modeling Fallback Path ───────────────
+    const tone = GUITAR_TONES[currentGuitarType]
+    const requestedDecay = clamp(options.duration * (0.82 + 0.28 * dyn), 0.16, 5.0)
+    const decay = Math.min(requestedDecay, Math.max(0.16, sourceDuration - 0.04))
+
+    const lowpass = ctx.createBiquadFilter()
+    lowpass.type = 'lowpass'
+    lowpass.frequency.value = Math.min(ctx.sampleRate * 0.45, STRING_BRIGHTNESS[si] * (0.55 + 0.6 * dyn))
+    lowpass.Q.value = 0.45
+
+    const highpass = ctx.createBiquadFilter()
+    highpass.type = 'highpass'
+    highpass.frequency.value = si >= 2 ? 72 : 34
+    highpass.Q.value = 0.55
+
+    const bodyLow = ctx.createBiquadFilter()
+    bodyLow.type = 'peaking'
+    bodyLow.frequency.value = tone.bodyLow
+    bodyLow.Q.value = 1.05
+    bodyLow.gain.value = si <= 1 ? tone.bodyGain : tone.bodyGain * 0.28
+
+    const bodyMid = ctx.createBiquadFilter()
+    bodyMid.type = 'peaking'
+    bodyMid.frequency.value = tone.bodyMid
+    bodyMid.Q.value = 1.15
+    bodyMid.gain.value = 1.4
+
+    const shelf = ctx.createBiquadFilter()
+    shelf.type = 'highshelf'
+    shelf.frequency.value = 3600
+    shelf.gain.value = tone.shelfGain + (dyn - 0.45) * 3.6
+
+    const attack = Math.max(0.0004, STRING_ATTACK[si] * (1.15 - 0.4 * dyn) * (options.attackScale ?? 1))
+    const t0 = now
+    const t1 = t0 + Math.max(0.001, attack)
+    const t2 = t1 + Math.max(0.015, Math.min(0.06, decay * 0.2))
+    const t3 = Math.max(t2 + 0.05, t0 + decay)
+    envelope.gain.setValueAtTime(0.0001, t0)
+    envelope.gain.linearRampToValueAtTime(peak, t1)
+    envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.42), t2)
+    envelope.gain.exponentialRampToValueAtTime(0.0001, t3)
+
+    source.connect(lowpass)
+    lowpass.connect(highpass)
+    highpass.connect(bodyLow)
+    bodyLow.connect(bodyMid)
+    bodyMid.connect(shelf)
+    shelf.connect(envelope)
+    const output: AudioNode = pan ? (envelope.connect(pan), pan) : envelope
+    output.connect(dryBus)
+    output.connect(wetBus)
+
+    if (options.includePick) {
+      const transientGain = peak * options.transientScale * tone.transient * (0.55 + 0.75 * dyn)
+      playPickTransient(ctx, now, transientGain, si, tone)
+    }
+
+    source.start(t0)
+    source.stop(t3 + 0.04)
   }
-
-  source.start(now)
-  source.stop(now + Math.min(decay + 0.08, Math.max(0.12, sourceDuration + 0.04)))
 }
 
 // ── Runtime Effects Configuration ────────────────────────────────────────────
@@ -1452,7 +1472,7 @@ function playBufferVoiceExact(
  * effects preset on mount. Requests made before the graph is built are
  * buffered and applied the moment buildMaster() runs.
  */
-type EffectsConfig = {
+export interface EffectsConfig {
   reverbMix?: number
   compressionThresholdDb?: number
   compressionRatio?: number
@@ -1506,12 +1526,13 @@ export function setEffectsConfig(config: EffectsConfig) {
 // gesture is allowed by browsers, but resuming it is not.
 if (typeof window !== 'undefined') {
   const unlock = () => {
-    initAudioEngine()
-    window.removeEventListener('click', unlock)
-    window.removeEventListener('keydown', unlock)
-    window.removeEventListener('touchstart', unlock)
+    const ctx = initAudioEngine()
+    if (ctx && ctx.state === 'suspended') {
+      void ctx.resume()
+    }
   }
   window.addEventListener('click', unlock, { passive: true })
+  window.addEventListener('pointerdown', unlock, { passive: true })
   window.addEventListener('keydown', unlock, { passive: true })
   window.addEventListener('touchstart', unlock, { passive: true })
 }
