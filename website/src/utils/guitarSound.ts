@@ -43,9 +43,14 @@ let limiter: DynamicsCompressorNode | null = null
 let reverbConv: ConvolverNode | null = null
 let dryBus: GainNode | null = null
 let wetBus: GainNode | null = null
+let masterAnalyser: AnalyserNode | null = null
 let recordingDestination: MediaStreamAudioDestinationNode | null = null
 let microphoneSource: MediaStreamAudioSourceNode | null = null
 let microphoneGain: GainNode | null = null
+
+export function getAudioAnalyser(): AnalyserNode | null {
+  return masterAnalyser
+}
 
 const MASTER_LEVEL = 0.82
 
@@ -67,13 +72,18 @@ function randomBetween(min: number, max: number) {
  * so the tail decorrelates naturally instead of sounding mono.
  */
 function buildReverbImpulse(ctx: AudioContext) {
-  // Load a real free impulse response (local bundle) when available.
-  // Fallback to synthetic small-room impulse when offline/unavailable.
+  return buildSyntheticReverbImpulse(ctx)
+}
+
+async function loadRealImpulseResponse(ctx: AudioContext, convolver: ConvolverNode) {
   try {
-    const irPath = '/audio/ir/small_wood_48k.wav';
-    return null as any; // Placeholder — actual loading handled below
+    const response = await fetch('/audio/ir/small_wood_48k.wav')
+    if (!response.ok) return
+    const arrayBuffer = await response.arrayBuffer()
+    const decoded = await ctx.decodeAudioData(arrayBuffer)
+    convolver.buffer = decoded
   } catch {
-    return buildSyntheticReverbImpulse(ctx);
+    // Keep synthetic room impulse on failure/offline
   }
 }
 
@@ -141,6 +151,7 @@ function buildMaster(ctx: AudioContext) {
 
   reverbConv = ctx.createConvolver()
   reverbConv.buffer = buildReverbImpulse(ctx)
+  void loadRealImpulseResponse(ctx, reverbConv)
 
   // Leave sensible headroom. The previous 1.85x output gain made ordinary
   // six-string chords hit the limiter on every beat, which sounded crushed.
@@ -189,8 +200,11 @@ function buildMaster(ctx: AudioContext) {
   compressor.connect(saturator)
   saturator.connect(limiter)
   limiter.connect(masterOut)
+  masterAnalyser = ctx.createAnalyser()
+  masterAnalyser.fftSize = 256
   masterOut.connect(ctx.destination)
   masterOut.connect(recordingDestination)
+  masterOut.connect(masterAnalyser)
   masterBuilt = true
 
   // Screens configure effects on mount, before any user gesture can create
@@ -845,11 +859,34 @@ let sampleBaseUrl = DEFAULT_SAMPLE_BASE_URL
 // Every pitch used by CHORD_NOTES, so common open chords never wait on the
 // network mid-song. ~28 small MP3s loaded in the background at startup.
 const COMMON_SAMPLE_NOTES = [
-  // Local multi-velocity samples: note_v1, note_v2, note_v3
-  'E2_v1', 'E2_v2', 'E2_v3', 'A2_v1', 'A2_v2', 'A2_v3',
-  'D3_v1', 'D3_v2', 'D3_v3', 'G3_v1', 'G3_v2', 'G3_v3',
-  'B3_v1', 'B3_v2', 'B3_v3', 'E4_v1', 'E4_v2', 'E4_v3',
-  'C3_v1', 'F3_v1', 'F#3_v1', 'C4_v1', 'F4_v1',
+  'E2_v1', 'E2_v2', 'E2_v3',
+  'F2_v1', 'F2_v2', 'F2_v3',
+  'F#2_v1', 'F#2_v2', 'F#2_v3',
+  'G2_v1', 'G2_v2', 'G2_v3',
+  'G#2_v1', 'G#2_v2', 'G#2_v3',
+  'A2_v1', 'A2_v2', 'A2_v3',
+  'A#2_v1', 'A#2_v2', 'A#2_v3',
+  'B2_v1', 'B2_v2', 'B2_v3',
+  'C3_v1', 'C3_v2', 'C3_v3',
+  'C#3_v1', 'C#3_v2', 'C#3_v3',
+  'D3_v1', 'D3_v2', 'D3_v3',
+  'D#3_v1', 'D#3_v2', 'D#3_v3',
+  'E3_v1', 'E3_v2', 'E3_v3',
+  'F3_v1', 'F3_v2', 'F3_v3',
+  'F#3_v1', 'F#3_v2', 'F#3_v3',
+  'G3_v1', 'G3_v2', 'G3_v3',
+  'G#3_v1', 'G#3_v2', 'G#3_v3',
+  'A3_v1', 'A3_v2', 'A3_v3',
+  'A#3_v1', 'A#3_v2', 'A#3_v3',
+  'B3_v1', 'B3_v2', 'B3_v3',
+  'C4_v1', 'C4_v2', 'C4_v3',
+  'C#4_v1', 'C#4_v2', 'C#4_v3',
+  'D4_v1', 'D4_v2', 'D4_v3',
+  'D#4_v1', 'D#4_v2', 'D#4_v3',
+  'E4_v1', 'E4_v2', 'E4_v3',
+  'F4_v1', 'F4_v2', 'F4_v3',
+  'F#4_v1', 'F#4_v2', 'F#4_v3',
+  'G4_v1', 'G4_v2', 'G4_v3',
 ]
 const sampleCache = new Map<string, AudioBuffer>()
 const sampleRequests = new Map<string, Promise<AudioBuffer | null>>()
@@ -860,7 +897,7 @@ let samplePreloadPromise: Promise<void> | null = null
 
 function sampleUrl(note: string) {
   // Load local .wav multi-velocity samples (e.g. E2_v2.wav)
-  return `${sampleBaseUrl}${note}.wav`
+  return `${sampleBaseUrl}${encodeURIComponent(note)}.wav`
 }
 
 /**
@@ -983,7 +1020,12 @@ async function loadSample(ctx: AudioContext, note: string): Promise<AudioBuffer 
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), 12000)
     try {
-      const response = await fetch(sampleUrl(canonical), { mode: 'cors', signal: controller.signal })
+      let response = await fetch(sampleUrl(canonical), { mode: 'cors', signal: controller.signal })
+      if (!response.ok && canonical.includes('#')) {
+        // Fallback to safe alias filename with 's' instead of '#'
+        const safeAlias = canonical.replace('#', 's')
+        response = await fetch(sampleUrl(safeAlias), { mode: 'cors', signal: controller.signal })
+      }
       if (!response.ok) {
         if (requestGeneration === sampleGeneration) unavailableSamples.add(canonical)
         return null
@@ -1279,11 +1321,14 @@ export function playHumanizedStrum(strum: HumanizedStrumInput) {
     let buffer: AudioBuffer | null = null
     let isSample = false
     if (currentEngineMode === 'sampled') {
-      const sample = sampleCache.get(canonical)
+      const velocityLayer = Math.round(clamp(dynamicsLevel(note.volume) * 3, 1, 3))
+      const layerNote = `${canonical}_v${velocityLayer}`
+      const sample = sampleCache.get(layerNote) ?? sampleCache.get(canonical)
       if (sample) {
         buffer = sample
         isSample = true
       } else {
+        void loadSample(ctx, layerNote)
         void loadSample(ctx, canonical)
         // Fall through to physical model
         buffer = getModelBuffer(ctx, canonical, currentGuitarType)

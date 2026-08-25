@@ -4,8 +4,8 @@
 import React, { useRef, useEffect } from 'react'
 
 interface CameraPanelProps {
-  videoRef: React.RefObject<HTMLVideoElement>
-  canvasRef: React.RefObject<HTMLCanvasElement>
+  videoRef: React.RefObject<HTMLVideoElement | null>
+  canvasRef: React.RefObject<HTMLCanvasElement | null>
   cameraReady: boolean
   cameraError: string | null
   onEnd: () => void
