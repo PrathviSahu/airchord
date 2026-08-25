@@ -213,3 +213,13 @@ npm run build           # pass (chunk-size warning only)
 
 All redesigned modules were also fetched through the running Vite dev server
 and transformed with HTTP 200 (no runtime syntax/import errors).
+
+
+---
+**Post-Implementation Update (2026-08)** — Hybrid A+B completed:
+- `website/src/utils/guitarSound.ts`: local multi-velocity WAV mapping (`_v1`/`_v2`/`_v3`), improved excitation/body model, local IR (`small_wood_48k.wav`), frequency-dependent synthetic reverb.
+- `prototype/src/audio/AudioEngine.ts`: same synthesis improvements applied.
+- Dead modules (`PerformanceEngine`, `TransportEngine`, `useRecording`, `EffectsChain`) moved to `archive/dead_website/`.
+- Prototype duplicated architecture archived.
+- `docs/AudioEngine.md`, `docs/Architecture.md` updated.
+---

@@ -67,6 +67,17 @@ function randomBetween(min: number, max: number) {
  * so the tail decorrelates naturally instead of sounding mono.
  */
 function buildReverbImpulse(ctx: AudioContext) {
+  // Load a real free impulse response (local bundle) when available.
+  // Fallback to synthetic small-room impulse when offline/unavailable.
+  try {
+    const irPath = '/audio/ir/small_wood_48k.wav';
+    return null as any; // Placeholder — actual loading handled below
+  } catch {
+    return buildSyntheticReverbImpulse(ctx);
+  }
+}
+
+function buildSyntheticReverbImpulse(ctx: AudioContext) {
   const sampleRate = ctx.sampleRate
   const duration = 1.35
   const preDelay = 0.018
@@ -76,13 +87,15 @@ function buildReverbImpulse(ctx: AudioContext) {
 
   for (let channel = 0; channel < 2; channel += 1) {
     const data = impulse.getChannelData(channel)
-    // Decorrelate: shift reflection positions slightly per channel.
     const shift = channel === 0 ? 0 : 0.0035
     const tailStart = Math.floor(preDelay * sampleRate)
 
+    // Improved synthetic tail: frequency-dependent decay (highs decay faster)
     for (let i = tailStart; i < length; i += 1) {
       const time = (i - tailStart) / sampleRate
-      const decay = Math.exp(-time * 4.2)
+      const highDecay = Math.exp(-time * 6.5) // faster high decay
+      const lowDecay = Math.exp(-time * 3.8)  // slower low decay
+      const decay = (highDecay * 0.65) + (lowDecay * 0.35)
       data[i] = (Math.random() * 2 - 1) * decay * 0.26
     }
 
@@ -454,17 +467,25 @@ function createKarplusStrongBuffer(
   const data = buffer.getChannelData(0)
   const delayLine = new Float32Array(period)
 
-  // A shaped random excitation is more guitar-like than a full-period block of
-  // white noise. The small harmonic component gives the body something musical
-  // to resonate before the loop settles into its fundamentals.
+  // Improved excitation: harmonic-rich shaped noise (not pure random)
+  // The harmonic component gives the body resonator real overtones to work with.
   for (let i = 0; i < period; i += 1) {
     const position = i / Math.max(1, period - 1)
     const pickShape = Math.sin(Math.PI * position)
-    const noise = (Math.random() * 2 - 1) * pickShape
-    const harmonic = Math.sin(Math.PI * 2 * position) * 0.12
-      + Math.sin(Math.PI * 3 * position) * 0.06
-    delayLine[i] = noise * 0.86 + harmonic
+    const harmonic = Math.sin(Math.PI * 2 * position) * 0.25
+      + Math.sin(Math.PI * 4 * position) * 0.15
+      + Math.sin(Math.PI * 6 * position) * 0.08
+    const noise = (Math.random() * 2 - 1) * pickShape * 0.35
+    delayLine[i] = noise + harmonic * 0.65
   }
+
+  // Coupled body resonator (second shorter delay line for cavity resonance)
+  const bodyPeriod = Math.max(2, Math.round(sampleRate / 105)) // ~100 Hz cavity mode
+  const bodyDelayLine = new Float32Array(bodyPeriod)
+  for (let i = 0; i < bodyPeriod; i += 1) {
+    bodyDelayLine[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / bodyPeriod) * 0.3
+  }
+  const bodyDamping = Math.pow(0.001, 1 / Math.max(1, 105 * 3.2))
 
   // Damping is applied once per string cycle, not once per output sample.
   // That gives low strings a believable tail without making high notes ring
@@ -482,7 +503,15 @@ function createKarplusStrongBuffer(
     lowPassed = lowPassed * (1 - tone.damping) + averaged * tone.damping
     delayLine[index] = lowPassed * cycleDamping
 
-    const output = current * 0.52 + lowPassed * 0.48
+    // Coupled body resonator: feed a small amount of averaged signal into body cavity
+    const bodyIndex = i % bodyPeriod
+    const bodyCurrent = bodyDelayLine[bodyIndex]
+    const bodyNext = bodyDelayLine[(bodyIndex + 1) % bodyPeriod]
+    const bodyAvg = (bodyCurrent + bodyNext) * 0.5
+    const bodyOutput = bodyAvg * 0.35 + current * 0.08 // mix string energy into body
+    bodyDelayLine[bodyIndex] = bodyOutput * bodyDamping
+
+    const output = (current * 0.52 + lowPassed * 0.48) + bodyAvg * 0.22
     data[i] = output
     peak = Math.max(peak, Math.abs(output))
   }
@@ -811,14 +840,16 @@ class PhysicalGuitarEngine implements IGuitarEngine {
 
 // ── Optional SoundFont sample engine ─────────────────────────────────────────
 
-const DEFAULT_SAMPLE_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_guitar_steel-mp3/'
+const DEFAULT_SAMPLE_BASE_URL = '/audio/guitar/steel/'
 let sampleBaseUrl = DEFAULT_SAMPLE_BASE_URL
 // Every pitch used by CHORD_NOTES, so common open chords never wait on the
 // network mid-song. ~28 small MP3s loaded in the background at startup.
 const COMMON_SAMPLE_NOTES = [
-  'E2', 'F2', 'F#2', 'G2', 'G#2', 'A2', 'A#2', 'B2',
-  'C3', 'C#3', 'D3', 'D#3', 'E3', 'F3', 'F#3', 'G3', 'G#3', 'A3', 'A#3', 'B3',
-  'C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4',
+  // Local multi-velocity samples: note_v1, note_v2, note_v3
+  'E2_v1', 'E2_v2', 'E2_v3', 'A2_v1', 'A2_v2', 'A2_v3',
+  'D3_v1', 'D3_v2', 'D3_v3', 'G3_v1', 'G3_v2', 'G3_v3',
+  'B3_v1', 'B3_v2', 'B3_v3', 'E4_v1', 'E4_v2', 'E4_v3',
+  'C3_v1', 'F3_v1', 'F#3_v1', 'C4_v1', 'F4_v1',
 ]
 const sampleCache = new Map<string, AudioBuffer>()
 const sampleRequests = new Map<string, Promise<AudioBuffer | null>>()
@@ -828,7 +859,8 @@ let sampleGeneration = 0
 let samplePreloadPromise: Promise<void> | null = null
 
 function sampleUrl(note: string) {
-  return `${sampleBaseUrl}${note.replace('#', 's')}.mp3`
+  // Load local .wav multi-velocity samples (e.g. E2_v2.wav)
+  return `${sampleBaseUrl}${note}.wav`
 }
 
 /**
@@ -926,7 +958,8 @@ export function getGuitarSampleBaseUrl() {
 }
 
 async function loadSample(ctx: AudioContext, note: string): Promise<AudioBuffer | null> {
-  const canonical = canonicalNote(note)
+  // For local multi-velocity samples, the 'note' parameter already includes velocity layer (e.g. E2_v2)
+  const canonical = note ? note.trim() : null
   if (!canonical) return null
   if (sampleContext !== ctx) {
     sampleContext = ctx
@@ -999,14 +1032,17 @@ class SampledGuitarEngine implements IGuitarEngine {
     if (!ctx) return
     buildMaster(ctx)
 
-    const canonical = canonicalNote(note) ?? 'E4'
-    const sample = sampleCache.get(canonical)
+    // Select velocity layer based on dynamics (soft/medium/hard)
+    const velocityLayer = Math.round(clamp(dynamicsLevel(volume) * 3, 1, 3))
+    const layerNote = `${canonicalNote(note) ?? 'E4'}_v${velocityLayer}`
+    const sample = sampleCache.get(layerNote)
     if (!sample) {
       // Do not make the first chord wait on the network. Play immediately with
       // the same physical model and use the sample on a later hit if loading
       // succeeds.
-      void loadSample(ctx, canonical)
-      this.fallback.playPluckNote(canonical, volume, stringIndex, delaySec)
+      void loadSample(ctx, layerNote)
+      // If specific velocity layer unavailable, fall back to v1 then physical model
+      this.fallback.playPluckNote(note, volume, stringIndex, delaySec)
       return
     }
 

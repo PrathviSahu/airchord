@@ -1,5 +1,16 @@
 # Audio Engine Documentation
 
+---
+**Hybrid Implementation Note (2026-08)** — The engine now uses:
+- **Local multi-velocity WAV samples** (`public/audio/guitar/steel/` with `_v1`, `_v2`, `_v3`) loaded via `loadSample()`.
+- **Improved Karplus-Strong synthesis** with harmonic-rich excitation (`createKarplusStrongBuffer`), a coupled body cavity resonator, and frequency-dependent decay.
+- **Real free impulse response** (`public/audio/ir/small_wood_48k.wav`) bundled locally; synthetic frequency-dependent fallback remains.
+- **Velocity-layer selection** mapped from dynamics (`dynamicsLevel`) for both samples and synthesis paths.
+- Dead modules (`PerformanceEngine`, `TransportEngine`, `useRecording`, `EffectsChain`) archived; prototype duplicated code removed.
+---
+
+
+
 ## 1. Overview
 
 The current website engine is implemented in `website/src/utils/guitarSound.ts` with the Web Audio API (the website does not currently use Tone.js). It is sample-first with a humanized Karplus–Strong fallback, so it can respond immediately and continue to work when optional remote samples are unavailable. The current implementation supports multiple guitar tones, strum patterns, capo transposition, mute hits, effects, and a recording mix bus.

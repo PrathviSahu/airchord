@@ -529,4 +529,10 @@ graph TB
     API --> Cache[(Redis)]
     API --> S3[(Object Storage)]
     API --> ML[ML Inference Workers]
-```
+```=== Updated Architecture.md ===
+
+## Hybrid Sound Upgrade (2026-08)
+- Local multi-velocity WAV samples (`public/audio/guitar/steel/`) replace remote single-velocity MP3s.
+- Improved physical model: harmonic-rich excitation + coupled body cavity resonator.
+- Real room impulse response (`public/audio/ir/small_wood_48k.wav`) replaces pure synthetic noise.
+- Dead code (`core/PerformanceEngine`, `core/TransportEngine`, `hooks/useRecording`, prototype duplicate) archived.

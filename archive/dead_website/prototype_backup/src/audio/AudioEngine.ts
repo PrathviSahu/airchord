@@ -58,11 +58,23 @@ function createKarplusStrongBuffer(ctx: AudioContext, frequency: number) {
   const data = buffer.getChannelData(0)
   const delayLine = new Float32Array(period)
 
+  // Improved excitation with stronger harmonic content for body resonance
   for (let i = 0; i < period; i += 1) {
     const position = i / Math.max(1, period - 1)
-    delayLine[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * position)
-      + Math.sin(Math.PI * 2 * position) * 0.10
+    const harmonic = Math.sin(Math.PI * 2 * position) * 0.25
+      + Math.sin(Math.PI * 4 * position) * 0.15
+      + Math.sin(Math.PI * 6 * position) * 0.08
+    const noise = (Math.random() * 2 - 1) * Math.sin(Math.PI * position) * 0.35
+    delayLine[i] = noise + harmonic * 0.65
   }
+
+  // Coupled body resonator (short cavity mode)
+  const bodyPeriod = Math.max(2, Math.round(sampleRate / 105))
+  const bodyDelayLine = new Float32Array(bodyPeriod)
+  for (let i = 0; i < bodyPeriod; i += 1) {
+    bodyDelayLine[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / bodyPeriod) * 0.3
+  }
+  const bodyDamping = Math.pow(0.001, 1 / Math.max(1, 105 * 3.2))
 
   const damping = Math.pow(0.001, 1 / Math.max(1, frequency * 2.7))
   let lowPassed = 0
